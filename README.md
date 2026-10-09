@@ -4,6 +4,8 @@
 
 ![The Guild Hall map](docs/guild-hall.png)
 
+**See it first:** open [`demo/guild-hall.html`](demo/guild-hall.html) in a browser for a pixel-art dry run. Five sample sessions (Rust, Python, JS/TS, Java, C++) replay through the mod's real classifier, and you can cast your own commands to see which room they land in. Rebuild it with `node demo/build.mjs`.
+
 It is a **mod** for Claude Code: it runs inside Claude's own engine, draws a native pane, and watches the real work through hooks. Nothing about how Claude works changes, and if Guild Code ever errors, the work carries on without it.
 
 ## Install

@@ -125,6 +125,7 @@ test('tools without a shell map to their rooms with a language', () => {
   expect(classifyTool('Write', { file_path: '/repo/x.py' })).toMatchObject({ location: 'armory', lang: 'python' })
   expect(classifyTool('Agent', { description: 'Find flaky tests' })).toMatchObject({ location: 'tavern', detail: 'Find flaky tests' })
   expect(classifyTool('TaskCreate', { subject: 'Fix login' }).location).toBe('tavern')
+  expect(classifyTool('TaskUpdate', { taskId: '2', status: 'completed' })).toMatchObject({ location: 'tavern', detail: 'quest #2 completed' })
 })
 
 test('languages from paths', () => {

@@ -191,6 +191,10 @@ export function classifyTool(tool: string, input: Record<string, unknown>): Plac
     const what = shortPath(path) ?? str('pattern') ?? str('query') ?? str('url') ?? str('skill') ?? tool
     return { location: 'study', lang, detail: shorten(what), framework: tool }
   }
+  if (tool === 'TaskUpdate') {
+    const status = str('status')?.replace('_', ' ')
+    return { location: 'tavern', detail: `quest #${str('taskId') ?? '?'} ${status ?? 'updated'}`, framework: tool }
+  }
   if (TAVERN_TOOLS.has(tool)) {
     const what = str('description') ?? str('subject') ?? str('question') ?? tool
     return { location: 'tavern', detail: shorten(what), framework: tool }

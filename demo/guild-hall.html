@@ -1,0 +1,1041 @@
+<title>Guild Hall Dry Run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<style>
+/* Layout: an arcade cabinet. The pixel map is the screen; the sidebar is the party ledger. */
+:root {
+  --void: #0f0b14;
+  --panel: #1a1422;
+  --panel-2: #231b2e;
+  --edge: #3d2f4c;
+  --text: #efe6d2;
+  --muted: #a898b6;
+  --parch: #e9d6a8;
+  --gold: #f2b84b;
+  --blood: #e8606f;
+  --moss: #84d488;
+  --arcane: #a593ff;
+  --steel: #a9b6c6;
+  --display: "Press Start 2P", ui-monospace, "Courier New", monospace;
+  --body: "VT323", ui-monospace, "Courier New", monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--void); color: var(--text); }
+body { font-family: var(--body); font-size: 20px; line-height: 1.15; padding-inline: 16px; padding-block: 18px 28px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
+h1 { font-family: var(--display); font-size: clamp(16px, 3.2vw, 24px); color: var(--gold); margin: 0; letter-spacing: 1px; text-shadow: 3px 3px 0 #5a2a0e; }
+.badge { font-family: var(--display); font-size: 9px; color: var(--void); background: var(--moss); padding: 5px 7px 4px; letter-spacing: 1px; }
+header p { margin: 0; color: var(--muted); flex-basis: 100%; max-width: 70ch; }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+.px { background: var(--panel); border: 2px solid var(--edge); box-shadow: 0 0 0 2px var(--void), 4px 4px 0 2px #000; }
+.screen { padding: 8px; display: grid; gap: 10px; min-width: 0; }
+.crt { position: relative; background: #000; line-height: 0; }
+canvas#map { width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+.crt::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.12) 2px 3px); }
+
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar .grow { flex: 1 1 auto; }
+button, .chip { font-family: var(--display); font-size: 9px; letter-spacing: .5px; color: var(--text); background: var(--panel-2);
+  border: 2px solid var(--edge); padding: 8px 9px 7px; cursor: pointer; box-shadow: 2px 2px 0 #000; }
+button:hover { border-color: var(--gold); color: var(--gold); }
+button:active { transform: translate(2px, 2px); box-shadow: none; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--gold); color: var(--void); border-color: var(--gold); }
+.quests { display: flex; flex-wrap: wrap; gap: 8px; }
+.quests button { display: inline-flex; gap: 7px; align-items: center; }
+.crest { font-family: var(--display); font-size: 8px; padding: 3px 4px 2px; background: #3b2a1a; color: #ffd27a; }
+
+.caster { display: grid; gap: 8px; padding: 10px; background: var(--panel-2); border: 2px dashed var(--edge); }
+.caster label { font-family: var(--display); font-size: 9px; color: var(--arcane); letter-spacing: 1px; }
+.caster form { display: flex; gap: 8px; flex-wrap: wrap; }
+.caster input { flex: 1 1 220px; min-width: 0; font-family: var(--body); font-size: 22px; color: var(--text); background: var(--void);
+  border: 2px solid var(--edge); padding: 4px 8px; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.examples button { font-family: var(--body); font-size: 18px; padding: 2px 8px; box-shadow: none; color: var(--muted); }
+.verdict { min-height: 1.2em; color: var(--muted); }
+.verdict b { color: var(--text); font-weight: normal; }
+
+aside { display: grid; gap: 14px; min-width: 0; }
+.card { padding: 10px 12px 12px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font-family: var(--display); font-size: 10px; margin: 0; color: var(--gold); letter-spacing: 1px; }
+.now { font-size: 22px; min-height: 2.3em; }
+.room-tag { font-family: var(--display); font-size: 8px; padding: 3px 5px 2px; color: var(--void); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-variant-numeric: tabular-nums; }
+.stat { background: var(--panel-2); padding: 6px 8px; display: grid; }
+.stat span { font-family: var(--display); font-size: 8px; color: var(--muted); }
+.stat b { font-weight: normal; font-size: 28px; }
+.hp { height: 12px; background: #2a1016; border: 2px solid #000; display: flex; }
+.hp i { display: block; height: 100%; background: var(--blood); transition: width .5s steps(8); }
+ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; }
+.qb li { display: grid; grid-template-columns: 3ch minmax(0, 1fr); gap: 8px; }
+.qb li.done { color: var(--muted); text-decoration: line-through; }
+.xp li { display: grid; grid-template-columns: 11ch minmax(0, 1fr) 5ch; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
+.xp .meter { height: 10px; background: var(--void); border: 2px solid #000; }
+.xp .meter i { display: block; height: 100%; }
+.xp small { font-size: 18px; color: var(--muted); text-align: right; }
+.log { max-height: 280px; overflow: auto; }
+.log li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 6px; }
+.log li .t { overflow-wrap: anywhere; }
+.log .ok { color: var(--moss); } .log .fail { color: var(--blood); } .log .running { color: var(--gold); }
+.log .who { color: var(--parch); }
+.empty { color: var(--muted); }
+footer { color: var(--muted); font-size: 18px; }
+@media (prefers-reduced-motion: reduce) { .hp i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>GUILD CODE</h1>
+    <span class="badge">DRY RUN</span>
+    <p>A sample session replayed through the mod's own classifier: every command below lands in the room Guild Code would send it to. Cast your own command to see where it goes.</p>
+  </header>
+
+  <div class="stage">
+    <section class="screen px" aria-label="Guild Hall map">
+      <div class="quests" id="quests" role="group" aria-label="Choose a quest"></div>
+      <div class="crt"><canvas id="map" width="384" height="224" aria-label="Pixel-art map of the guild hall with the party at work"></canvas></div>
+      <div class="bar">
+        <button id="play" type="button">PAUSE</button>
+        <button id="restart" type="button">RESTART</button>
+        <span class="grow"></span>
+        <button class="spd" data-speed="1" type="button" aria-pressed="true">1X</button>
+        <button class="spd" data-speed="2" type="button">2X</button>
+        <button class="spd" data-speed="4" type="button">4X</button>
+      </div>
+      <div class="caster">
+        <label for="cmd">CAST A COMMAND</label>
+        <form id="castForm">
+          <input id="cmd" autocomplete="off" spellcheck="false" placeholder="cargo nextest run">
+          <button type="submit">CAST</button>
+        </form>
+        <div class="examples" id="examples"></div>
+        <div class="verdict" id="verdict" aria-live="polite">Type any shell command from your projects and the hero carries it to its room.</div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="card px">
+        <h2>NOW</h2>
+        <div class="now" id="now"></div>
+      </div>
+      <div class="card px">
+        <h2>DUNGEON</h2>
+        <div class="stats">
+          <div class="stat"><span>MONSTERS</span><b id="mon">?</b></div>
+          <div class="stat"><span>SLAIN</span><b id="slain">0</b></div>
+          <div class="stat"><span>QUESTS</span><b id="qcount">0</b></div>
+        </div>
+        <div class="hp" aria-hidden="true"><i id="hpbar" style="width:0%"></i></div>
+      </div>
+      <div class="card px">
+        <h2>QUEST BOARD</h2>
+        <ul class="qb" id="board"></ul>
+      </div>
+      <div class="card px">
+        <h2>PARTY XP</h2>
+        <ul class="xp" id="xp"></ul>
+      </div>
+      <div class="card px">
+        <h2>CHRONICLE</h2>
+        <ul class="log" id="log"></ul>
+      </div>
+    </aside>
+  </div>
+  <footer>Rooms, languages and test counts come from the same code the mod runs. The tool output in these quests is sample data.</footer>
+</div>
+
+<script>
+"use strict";
+var GuildClassify = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // hooks/classify.ts
+  var classify_exports = {};
+  __export(classify_exports, {
+    classifyCommand: () => classifyCommand,
+    classifyTool: () => classifyTool,
+    langOfPath: () => langOfPath,
+    readBattle: () => readBattle,
+    simpleCommands: () => simpleCommands
+  });
+  var RANK = { dungeon: 5, armory: 4, cauldron: 3, study: 2, tavern: 1 };
+  var RULES = [
+    // ── Rust ────────────────────────────────────────────────────────────
+    { re: /^cargo (\+\S+ )?(test|nextest|bench|miri test|tarpaulin|llvm-cov|mutants)\b/, location: "dungeon", lang: "rust", framework: "cargo test" },
+    { re: /^cargo (\+\S+ )?(fmt|clippy|check|fix|deny|audit|udeps|machete|sort)\b/, location: "armory", lang: "rust", framework: "cargo lint" },
+    { re: /^(rustfmt|clippy-driver)\b/, location: "armory", lang: "rust", framework: "rustfmt" },
+    { re: /^cargo\b/, location: "cauldron", lang: "rust", framework: "cargo" },
+    { re: /^(rustc|rustup|wasm-pack|cross|trunk|cargo-\S+|dx)\b/, location: "cauldron", lang: "rust", framework: "rust build" },
+    // ── Java (Maven, Gradle, javac) ─────────────────────────────────────
+    { re: /^(mvnw?|\.\/mvnw)\b.*(\b(test|verify|surefire:test|failsafe:\S+|integration-test)\b|-Dtest=)/, location: "dungeon", lang: "java", framework: "maven test" },
+    { re: /^(mvnw?|\.\/mvnw)\b.*\b(checkstyle|spotless|pmd|spotbugs|fmt|formatter|sortpom):/, location: "armory", lang: "java", framework: "maven lint" },
+    { re: /^(mvnw?|\.\/mvnw)\b/, location: "cauldron", lang: "java", framework: "maven" },
+    { re: /^(gradlew?|\.\/gradlew)\b.*\b(\S*:)?(test|check|integrationTest|connectedCheck|jacocoTestReport)\b/i, location: "dungeon", lang: "java", framework: "gradle test" },
+    { re: /^(gradlew?|\.\/gradlew)\b.*\b(\S*:)?(spotless\w*|checkstyle\w*|pmd\w*|spotbugs\w*|lint\w*|ktlint\w*|detekt)\b/, location: "armory", lang: "java", framework: "gradle lint" },
+    { re: /^(gradlew?|\.\/gradlew)\b/, location: "cauldron", lang: "java", framework: "gradle" },
+    { re: /^java\b.*(junit-platform-console|org\.junit|org\.testng)/, location: "dungeon", lang: "java", framework: "junit" },
+    { re: /^(google-java-format|checkstyle|pmd)\b/, location: "armory", lang: "java", framework: "java lint" },
+    { re: /^(javac|java|jar|ant|jbang|jlink|jpackage)\b/, location: "cauldron", lang: "java", framework: "javac" },
+    // ── C++ (CMake, Make, Ninja, Bazel, Meson, compilers) ───────────────
+    { re: /^ctest\b/, location: "dungeon", lang: "cpp", framework: "ctest" },
+    { re: /^cmake\b.*--target\s+(test|check|run_tests|unit_tests?)\b/, location: "dungeon", lang: "cpp", framework: "ctest" },
+    { re: /^meson test\b/, location: "dungeon", lang: "cpp", framework: "meson test" },
+    { re: /^(bazel|bazelisk) (test|coverage)\b/, location: "dungeon", lang: "cpp", framework: "bazel test" },
+    { re: /^(\.\/|\S+\/)\S*(_tests?|_unittests?|Tests?|_spec)$|^(\.\/|\S+\/)tests?_\S+$/, location: "dungeon", lang: "cpp", framework: "test binary" },
+    { re: /^(\.\/|\S+\/)\S*(_tests?|Tests?)\s+--gtest_\S+/, location: "dungeon", lang: "cpp", framework: "googletest" },
+    { re: /^(clang-format|clang-tidy|run-clang-tidy\S*|cppcheck|cpplint|include-what-you-use|iwyu\S*|cmake-format|cmake-lint)\b/, location: "armory", lang: "cpp", framework: "clang tools" },
+    { re: /^(cmake|ninja|meson|conan|vcpkg|scons|ccache|premake\d*|xmake)\b/, location: "cauldron", lang: "cpp", framework: "cmake" },
+    { re: /^(bazel|bazelisk)\b/, location: "cauldron", lang: "cpp", framework: "bazel" },
+    { re: /^(g\+\+|gcc|clang\+\+|clang|c\+\+|cc|cl|icpx|nvcc)(-\d+)?(?=\s|$)/, location: "cauldron", lang: "cpp", framework: "compiler" },
+    // ── Python ──────────────────────────────────────────────────────────
+    { re: /^(pytest|py\.test|nose2|ward|behave|hypothesis)\b/, location: "dungeon", lang: "python", framework: "pytest" },
+    { re: /^python[\d.]* -m (pytest|unittest|nose2|doctest)\b/, location: "dungeon", lang: "python", framework: "pytest" },
+    { re: /^python[\d.]* (\S+\/)?manage\.py test\b/, location: "dungeon", lang: "python", framework: "django test" },
+    { re: /^coverage run\b/, location: "dungeon", lang: "python", framework: "coverage" },
+    { re: /^tox\b(?!.*-e\s*(lint|format|flake8|mypy|style|typecheck))/, location: "dungeon", lang: "python", framework: "tox" },
+    { re: /^nox\b(?!.*-s\s*(lint|format|mypy|typecheck))/, location: "dungeon", lang: "python", framework: "nox" },
+    { re: /^(tox|nox)\b/, location: "armory", lang: "python", framework: "tox lint" },
+    { re: /^(ruff|black|isort|flake8|pylint|mypy|pyright|basedpyright|autopep8|yapf|bandit|pyflakes|pycodestyle|pydocstyle|pyupgrade|autoflake|blacken-docs)\b/, location: "armory", lang: "python", framework: "python lint" },
+    { re: /^python[\d.]* -m (ruff|black|isort|flake8|pylint|mypy|pyright|autopep8|yapf)\b/, location: "armory", lang: "python", framework: "python lint" },
+    { re: /^(pip\d?|pipx|poetry|uv|pdm|hatch|flit|conda|mamba|micromamba|pipenv|maturin|pyinstaller|twine|virtualenv)\b/, location: "cauldron", lang: "python", framework: "python packaging" },
+    { re: /^python[\d.]* -m (pip|build|venv|virtualenv|twine|setuptools)\b/, location: "cauldron", lang: "python", framework: "python packaging" },
+    { re: /^python[\d.]* (\S+\/)?setup\.py\b/, location: "cauldron", lang: "python", framework: "setuptools" },
+    { re: /^python[\d.]* (\S+\/)?manage\.py\b/, location: "cauldron", lang: "python", framework: "django" },
+    { re: /^(python[\d.]*|ipython|jupyter|streamlit|uvicorn|gunicorn|flask|fastapi)\b/, location: "cauldron", lang: "python", framework: "python" },
+    // ── JavaScript / TypeScript ─────────────────────────────────────────
+    { re: /^(jest|vitest|mocha|ava|tap|tape|jasmine|karma|uvu|cypress run|playwright test|wdio|nyc|c8)\b/, location: "dungeon", lang: "javascript", framework: "js test" },
+    { re: /^(npm|pnpm|yarn|bun) (run |exec )?(jest|vitest|mocha|ava|tap|jasmine|karma|cypress|playwright|wdio|uvu)\b/, location: "dungeon", lang: "javascript", framework: "js test" },
+    { re: /^(node|deno|bun) (--test\b|test\b)/, location: "dungeon", lang: "javascript", framework: "js test" },
+    { re: /^(npm|pnpm|yarn|bun) (run )?(test|t|tst|e2e|coverage|spec)([:\s]|$)/, location: "dungeon", lang: "javascript", framework: "npm test" },
+    { re: /^(npm|pnpm|yarn|bun) (run )?\S*(test|spec|e2e)\S*/, location: "dungeon", lang: "javascript", framework: "npm test" },
+    { re: /^(eslint|prettier|biome|oxlint|stylelint|standard|xo|dprint|tslint|rome|knip)\b/, location: "armory", lang: "javascript", framework: "js lint" },
+    { re: /^tsc\b.*--noEmit/, location: "armory", lang: "javascript", framework: "tsc" },
+    { re: /^deno (lint|fmt|check)\b/, location: "armory", lang: "javascript", framework: "deno lint" },
+    { re: /^(npm|pnpm|yarn|bun) (run )?\S*(lint|format|fmt|prettier|eslint|typecheck|type-check|check-types|tsc)\S*/, location: "armory", lang: "javascript", framework: "npm lint" },
+    { re: /^(npm|pnpm|yarn|bun|npx|node|deno|tsc|vite|webpack|rollup|esbuild|parcel|next|nuxt|turbo|nx|swc|babel|tsup|tsx|ts-node|expo|react-native|electron-builder|lerna|corepack|nodemon|astro|svelte-kit|remix|ng)\b/, location: "cauldron", lang: "javascript", framework: "node" },
+    // ── Generic task runners (no language of their own) ─────────────────
+    { re: /^(make|gmake|just|task|ninja) (test|tests|check|unittest|unit|integration|e2e)\b/, location: "dungeon", framework: "make test" },
+    { re: /^(make|gmake|just|task) (lint|format|fmt|tidy|style|clang-format|clang-tidy)\b/, location: "armory", framework: "make lint" },
+    { re: /^(make|gmake|just|task)\b/, location: "cauldron", lang: "cpp", framework: "make" },
+    { re: /^pre-commit\b/, location: "armory", framework: "pre-commit" },
+    // ── Containers ──────────────────────────────────────────────────────
+    { re: /^(docker|podman|nerdctl)( |-)(compose|buildx|build|run|exec|pull|push|up|start|image)\b/, location: "cauldron", framework: "docker" },
+    { re: /^(docker|podman|nerdctl|buildah|kaniko|skaffold|tilt|helm|kubectl|minikube|kind)\b/, location: "cauldron", framework: "containers" },
+    // ── Git: diffs are the Armory's, history the Study's ───────────────
+    { re: /^git (diff|apply|add|commit|stash|restore|checkout|switch|merge|rebase|cherry-pick|reset|am|format-patch)\b/, location: "armory", framework: "git" },
+    { re: /^(diff|patch|delta|difft)\b/, location: "armory", framework: "diff" },
+    { re: /^(git|gh|hg|svn)\b/, location: "study", framework: "git" },
+    // ── Reading the scrolls ─────────────────────────────────────────────
+    { re: /^(cat|less|more|head|tail|ls|tree|find|fd|grep|rg|ag|ack|wc|stat|file|which|whereis|pwd|echo|printf|jq|yq|sed -n|awk|cut|sort|uniq|du|df|env|printenv|man|tldr|curl|wget|bat|exa|eza|xxd|od|readlink|realpath|basename|dirname|ps|top|lsof)\b/, location: "study", framework: "shell" }
+  ];
+  var WRAPPERS = [
+    /^sudo( -\S+)* /,
+    /^env( -\S+)*( \w+=\S*)* /,
+    /^(\w+=("[^"]*"|'[^']*'|\S*) )+/,
+    /^time( -p)? /,
+    /^timeout( -\S+)* \S+ /,
+    /^(nice|nohup|exec|command|stdbuf( -\S+)*|caffeinate|xvfb-run( -\S+)*) /,
+    /^(npx|pnpx|bunx)( --?\S+)* /,
+    /^(npm|pnpm|yarn) (exec|dlx)( --?\S+)* /,
+    /^(uv|poetry|pipenv|pdm|hatch|rye) run( --?\S+)* /,
+    /^uvx( --?\S+)* /,
+    /^conda run( -n \S+| --name \S+| -p \S+)* /,
+    /^bundle exec /,
+    /^(dotenv|dotenvx)( --?\S+)* -- /,
+    /^(cross-env)( \w+=\S*)* /
+  ];
+  function simpleCommands(command) {
+    return command.replace(/\\\n/g, " ").split(/&&|\|\||;|\||\n/).map((part) => {
+      let s = part.trim().replace(/^[({]\s*|\s*[)}]$/g, "").trim();
+      for (let i = 0; i < 6; i += 1) {
+        const before = s;
+        for (const w of WRAPPERS) s = s.replace(w, "");
+        if (s === before) break;
+      }
+      return s.trim();
+    }).filter((s) => s.length > 0 && !/^(cd|pushd|popd|source|\.|export|set|unset|true|false|sleep)\b/.test(s));
+  }
+  function classifyCommand(command) {
+    var _a, _b;
+    let best;
+    let bestRank = 0;
+    let lang;
+    for (const cmd of simpleCommands(command)) {
+      const rule = RULES.find((r) => r.re.test(cmd));
+      if (rule === void 0) continue;
+      lang != null ? lang : lang = rule.lang;
+      if (RANK[rule.location] > bestRank) {
+        bestRank = RANK[rule.location];
+        best = { location: rule.location, lang: rule.lang, framework: rule.framework, detail: cmd };
+      }
+    }
+    const detail = shorten((_a = command.split("\n")[0]) != null ? _a : command);
+    if (best === void 0) return { location: "cauldron", detail, framework: void 0 };
+    return { ...best, lang: (_b = best.lang) != null ? _b : lang, detail };
+  }
+  var EXT = [
+    [/\.(m?[jt]sx?|cjs|cts|mts|vue|svelte|astro)$|(^|\/)(package(-lock)?\.json|tsconfig[\w.-]*\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|\.eslintrc[\w.]*|\.prettierrc[\w.]*|vite\.config\.\w+|webpack\.config\.\w+|jest\.config\.\w+)$/, "javascript"],
+    [/\.(py|pyi|pyx|ipynb)$|(^|\/)(pyproject\.toml|requirements[\w.-]*\.txt|setup\.(py|cfg)|Pipfile(\.lock)?|poetry\.lock|uv\.lock|tox\.ini|conftest\.py|pytest\.ini|\.flake8|mypy\.ini)$/, "python"],
+    [/\.(java|gradle|gradle\.kts)$|(^|\/)(pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|gradle\.properties|mvnw)$/, "java"],
+    [/\.(c|cc|cpp|cxx|c\+\+|h|hh|hpp|hxx|ipp|inl|tpp|cu|cuh|cmake)$|(^|\/)(CMakeLists\.txt|Makefile|makefile|meson\.build|conanfile\.(txt|py)|vcpkg\.json|BUILD(\.bazel)?|WORKSPACE|\.clang-format|\.clang-tidy)$/, "cpp"],
+    [/\.rs$|(^|\/)(Cargo\.(toml|lock)|rust-toolchain(\.toml)?|rustfmt\.toml|clippy\.toml)$/, "rust"]
+  ];
+  function langOfPath(path) {
+    var _a;
+    if (path === void 0) return void 0;
+    return (_a = EXT.find(([re]) => re.test(path))) == null ? void 0 : _a[1];
+  }
+  var STUDY_TOOLS = /* @__PURE__ */ new Set([
+    "Read",
+    "Grep",
+    "Glob",
+    "WebFetch",
+    "WebSearch",
+    "NotebookRead",
+    "LSP",
+    "ToolSearch",
+    "Skill",
+    "ListMcpResourcesTool",
+    "ReadMcpResourceTool",
+    "ReadMcpResourceDirTool",
+    "Monitor"
+  ]);
+  var ARMORY_TOOLS = /* @__PURE__ */ new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
+  var TAVERN_TOOLS = /* @__PURE__ */ new Set([
+    "Agent",
+    "Task",
+    "TaskCreate",
+    "TaskUpdate",
+    "TaskList",
+    "TaskGet",
+    "TaskStop",
+    "TodoWrite",
+    "AskUserQuestion",
+    "SendMessage",
+    "SendUserMessage",
+    "SendUserFile",
+    "EnterPlanMode",
+    "ExitPlanMode"
+  ]);
+  function classifyTool(tool, input) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+    const str = (k) => typeof input[k] === "string" ? input[k] : void 0;
+    if (tool === "Bash" || tool === "PowerShell") {
+      const command = (_a = str("command")) != null ? _a : "";
+      return classifyCommand(command);
+    }
+    const path = (_c = (_b = str("file_path")) != null ? _b : str("notebook_path")) != null ? _c : str("path");
+    const lang = langOfPath(path);
+    if (ARMORY_TOOLS.has(tool)) {
+      return { location: "armory", lang, detail: (_d = shortPath(path)) != null ? _d : tool, framework: tool };
+    }
+    if (STUDY_TOOLS.has(tool) || tool.startsWith("mcp__")) {
+      const what = (_i = (_h = (_g = (_f = (_e = shortPath(path)) != null ? _e : str("pattern")) != null ? _f : str("query")) != null ? _g : str("url")) != null ? _h : str("skill")) != null ? _i : tool;
+      return { location: "study", lang, detail: shorten(what), framework: tool };
+    }
+    if (tool === "TaskUpdate") {
+      const status = (_j = str("status")) == null ? void 0 : _j.replace("_", " ");
+      return { location: "tavern", detail: `quest #${(_k = str("taskId")) != null ? _k : "?"} ${status != null ? status : "updated"}`, framework: tool };
+    }
+    if (TAVERN_TOOLS.has(tool)) {
+      const what = (_n = (_m = (_l = str("description")) != null ? _l : str("subject")) != null ? _m : str("question")) != null ? _n : tool;
+      return { location: "tavern", detail: shorten(what), framework: tool };
+    }
+    return { location: "tavern", lang, detail: tool, framework: tool };
+  }
+  var sum = (text, re, group) => [...text.matchAll(re)].reduce((n, m) => {
+    var _a;
+    return n + Number((_a = m[group]) != null ? _a : 0);
+  }, 0);
+  function readBattle(text) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C;
+    const t = text.replace(/\x1b\[[0-9;]*m/g, "");
+    let m;
+    if (/test result: (ok|FAILED)\./.test(t)) {
+      return {
+        passed: sum(t, /test result: \w+\. (\d+) passed/g, 1),
+        failed: sum(t, /test result: \w+\. \d+ passed; (\d+) failed/g, 1),
+        framework: "cargo test"
+      };
+    }
+    if (m = t.match(/(\d+) tests? run: (\d+) passed(?:[^,\n]*)?(?:, (\d+) failed)?/)) {
+      return { passed: Number(m[2]), failed: Number((_a = m[3]) != null ? _a : 0), framework: "nextest" };
+    }
+    const surefire = [...t.matchAll(/Tests run: (\d+), Failures: (\d+), Errors: (\d+), Skipped: (\d+)/g)].pop();
+    if (surefire) {
+      const [run, fail, err, skip] = surefire.slice(1, 5).map(Number);
+      return { failed: fail + err, passed: Math.max(0, run - fail - err - skip), framework: "maven" };
+    }
+    if (m = t.match(/(\d+) tests? completed, (\d+) failed/)) {
+      return { failed: Number(m[2]), passed: Number(m[1]) - Number(m[2]), framework: "gradle" };
+    }
+    if (m = t.match(/\d+% tests passed, (\d+) tests? failed out of (\d+)/)) {
+      return { failed: Number(m[1]), passed: Number(m[2]) - Number(m[1]), framework: "ctest" };
+    }
+    if (/\[\s+(PASSED|FAILED)\s+\] \d+ tests?/.test(t)) {
+      const p = t.match(/\[\s+PASSED\s+\] (\d+) tests?/);
+      const f = t.match(/\[\s+FAILED\s+\] (\d+) tests?,/);
+      return { passed: Number((_b = p == null ? void 0 : p[1]) != null ? _b : 0), failed: Number((_c = f == null ? void 0 : f[1]) != null ? _c : 0), framework: "googletest" };
+    }
+    if (m = t.match(/test cases:\s+(\d+) \|\s+(\d+) passed(?: \|\s+(\d+) failed)?/)) {
+      return { passed: Number(m[2]), failed: Number((_d = m[3]) != null ? _d : 0), framework: "catch2" };
+    }
+    if (/All tests passed \(\d+ assertions? in (\d+) test cases?\)/.test(t)) {
+      const c = t.match(/in (\d+) test cases?/);
+      return { passed: Number((_e = c == null ? void 0 : c[1]) != null ? _e : 0), failed: 0, framework: "catch2" };
+    }
+    if (m = t.match(/Ran (\d+) tests? in/)) {
+      const ran = Number(m[1]);
+      const failures = Number((_g = (_f = t.match(/failures=(\d+)/)) == null ? void 0 : _f[1]) != null ? _g : 0) + Number((_i = (_h = t.match(/errors=(\d+)/)) == null ? void 0 : _h[1]) != null ? _i : 0);
+      return { failed: failures, passed: ran - failures, framework: "unittest" };
+    }
+    if (/\d+ passing \(/.test(t)) {
+      return {
+        passed: Number((_k = (_j = t.match(/(\d+) passing/)) == null ? void 0 : _j[1]) != null ? _k : 0),
+        failed: Number((_m = (_l = t.match(/(\d+) failing/)) == null ? void 0 : _l[1]) != null ? _m : 0),
+        framework: "mocha"
+      };
+    }
+    if (m = t.match(/Tests:?\s+((?:\d+ \w+(?:,|\s\|)?\s*)+)(?:\(\d+\)|\d+ total)/)) {
+      const part = (_n = m[1]) != null ? _n : "";
+      return {
+        failed: Number((_p = (_o = part.match(/(\d+) failed/)) == null ? void 0 : _o[1]) != null ? _p : 0),
+        passed: Number((_r = (_q = part.match(/(\d+) passed/)) == null ? void 0 : _q[1]) != null ? _r : 0),
+        framework: /\|/.test(part) ? "vitest" : "jest"
+      };
+    }
+    if (m = t.match(/=+ (.*\b(?:passed|failed|errors?)\b.*) in [\d.]+s/)) {
+      const line = (_s = m[1]) != null ? _s : "";
+      return {
+        failed: Number((_u = (_t = line.match(/(\d+) failed/)) == null ? void 0 : _t[1]) != null ? _u : 0) + Number((_w = (_v = line.match(/(\d+) errors?/)) == null ? void 0 : _v[1]) != null ? _w : 0),
+        passed: Number((_y = (_x = line.match(/(\d+) passed/)) == null ? void 0 : _x[1]) != null ? _y : 0),
+        framework: "pytest"
+      };
+    }
+    if (/^# (pass|fail) \d+/m.test(t)) {
+      return {
+        passed: Number((_A = (_z = t.match(/^# pass (\d+)/m)) == null ? void 0 : _z[1]) != null ? _A : 0),
+        failed: Number((_C = (_B = t.match(/^# fail (\d+)/m)) == null ? void 0 : _B[1]) != null ? _C : 0),
+        framework: "node:test"
+      };
+    }
+    return void 0;
+  }
+  function shorten(s, max = 60) {
+    const one = s.replace(/\s+/g, " ").trim();
+    return one.length > max ? `${one.slice(0, max - 1)}\u2026` : one;
+  }
+  function shortPath(path) {
+    if (path === void 0) return void 0;
+    const parts = path.split("/").filter(Boolean);
+    return shorten(parts.slice(-2).join("/"));
+  }
+  return __toCommonJS(classify_exports);
+})();
+
+</script>
+<script>
+(() => {
+'use strict';
+const { classifyTool, readBattle } = GuildClassify;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ───────────────────────── world ─────────────────────────
+const W = 384, H = 224, HUB = 192;
+const ROOMS = {
+  study:    { x: 16,  y: 16,  w: 112, h: 80,  a: '#3b2a4a', b: '#352640', wall: '#4b3a5e', label: "WIZARD'S STUDY", color: '#a593ff', resident: 'wizard',
+              spots: [{ x: 62, y: 80 }, { x: 90, y: 84 }, { x: 38, y: 74 }] },
+  armory:   { x: 256, y: 16,  w: 112, h: 80,  a: '#383d48', b: '#323641', wall: '#4a505c', label: 'ARMORY', color: '#a9b6c6', resident: 'dwarf',
+              spots: [{ x: 318, y: 80 }, { x: 290, y: 82 }, { x: 346, y: 84 }] },
+  tavern:   { x: 144, y: 56,  w: 96,  h: 112, a: '#5a3b24', b: '#53361f', wall: '#6b4a2e', label: 'TAVERN', color: '#f2b84b', resident: 'guildmaster',
+              spots: [{ x: 192, y: 98 }, { x: 170, y: 146 }, { x: 214, y: 146 }, { x: 192, y: 130 }] },
+  dungeon:  { x: 16,  y: 128, w: 112, h: 80,  a: '#2b2427', b: '#252022', wall: '#3d3236', label: 'DUNGEON', color: '#e8606f', resident: 'rogue',
+              spots: [{ x: 44, y: 174 }, { x: 58, y: 192 }, { x: 30, y: 192 }] },
+  cauldron: { x: 256, y: 128, w: 112, h: 80,  a: '#24362c', b: '#203027', wall: '#2f4a3a', label: 'CAULDRON', color: '#84d488', resident: 'alchemist',
+              spots: [{ x: 290, y: 176 }, { x: 288, y: 198 }, { x: 350, y: 198 }] },
+};
+const DOOR = {
+  study:    { din: { x: 118, y: 86 },  tin: { x: 154, y: 86 } },
+  armory:   { din: { x: 266, y: 86 },  tin: { x: 230, y: 86 } },
+  dungeon:  { din: { x: 118, y: 158 }, tin: { x: 154, y: 158 } },
+  cauldron: { din: { x: 266, y: 158 }, tin: { x: 230, y: 158 } },
+};
+const MONSTER_SLOTS = [{ x: 92, y: 168 }, { x: 112, y: 176 }, { x: 98, y: 190 }, { x: 78, y: 200 }, { x: 116, y: 198 }, { x: 80, y: 160 }];
+const ANVIL = { x: 322, y: 60 }, CAULDRON = { x: 322, y: 176 }, DESK = { x: 72, y: 56 }, BOARD = { x: 176, y: 58 };
+
+const CLASSES = {
+  guildmaster: { name: 'Guildmaster', color: '#f2b84b' },
+  wizard: { name: 'Wizard', color: '#a593ff' },
+  rogue: { name: 'Rogue', color: '#84d488' },
+  dwarf: { name: 'Dwarf', color: '#e39a4d' },
+  alchemist: { name: 'Alchemist', color: '#4fc7b5' },
+};
+const LANGS = { javascript: 'JS', python: 'PY', java: 'JV', cpp: 'C++', rust: 'RS' };
+
+// ───────────────────────── sprites ─────────────────────────
+const BASE = { k: '#1b1424', s: '#f1c49b', e: '#2b1b14', w: '#eeeae0', y: '#f2b84b', n: '#6b4426', b: '#7a4a2a', m: '#9c4a3a' };
+const BODIES = {
+  wizard: { pal: { p: '#6a4fc9', q: '#45318c', y: '#f7dd5b', L: '#45318c' }, rows: [
+    '....kkk.....', '...kpppk....', '...kppypk...', '..kppppppk..', '.kkkkkkkkkk.', '..kssssssk..', '..ksessesk..',
+    '..kwwwwwwk..', '.kpkwwwwkpk.', 'kppkwwwwkppk', 'kspppwwpppsk', '.kppppppppk.', '.kqqqqqqqqk.'] },
+  rogue: { pal: { g: '#3f8f4f', G: '#2c6b3a', c: '#3a3346', m: '#1e1c26', d: '#d6dde6', L: '#2a2533' }, rows: [
+    '....kkkk....', '...kggggk...', '..kggggggk..', '..kgGkkGgk..', '..kGsssskk..', '..kGesseGk..', '..kGmmmmGk..',
+    '.kcGGmmGGck.', 'kcccGGGGccck', 'kcckccccdcck', 'ksccccccccsk', '.kccbbbbcck.', '.kcccccccck.'] },
+  dwarf: { pal: { h: '#b8c0c8', w: '#efe8d8', r: '#d9772b', a: '#4f6d8f', b: '#f2b84b', L: '#6b4426' }, rows: [
+    '............', '...kkkkkk...', '..khhhhhhk..', '.kwhhhhhhwk.', '..khkkkkhk..', '..ksessesk..', '.krrssssrrk.',
+    '.krrrrrrrrk.', 'karrrrrrrrak', 'kaarrrrrraak', 'ksaaabbaaask', '.kaaaaaaaak.', '.kaaaaaaaak.'] },
+  alchemist: { pal: { t: '#2f9c8c', T: '#1f6e63', o: '#f29b38', A: '#d9c08f', L: '#1f6e63' }, rows: [
+    '....kkkk....', '...kttttk...', '..kttttttk..', '..kssssssk..', '..kookkook..', '..kssssssk..', '..kkssssk...',
+    '.kttAAAAttk.', 'kttkAAAAkttk', 'ksskAAAAkssk', '.kttAAAAttk.', '.kttttttttk.', '.kTTTTTTTTk.'] },
+  guildmaster: { pal: { R: '#b8323f', u: '#3b5fa8', L: '#3a2a1e' }, rows: [
+    '..k.k.k.k...', '..kykykykk..', '..kyyyyyyk..', '..knnnnnnk..', '..knssssnk..', '..ksessesk..', '..kssmmssk..',
+    '.kRkuuuukRk.', 'kRRuuyyuuRRk', 'kRsuuuuuusRk', 'kRRuuuuuuRRk', '.kRuuuuuuRk.', '.kRRuuuuRRk.'] },
+  sellsword: { pal: { g: '#7d7f8c', G: '#5a5c68', c: '#4a4250', m: '#1e1c26', d: '#d6dde6', L: '#2a2533' }, rows: null },
+};
+BODIES.sellsword.rows = BODIES.rogue.rows;
+const LEGS = [
+  ['...kLk.kLk..', '...kLk.kLk..', '..kkk..kkk..'],
+  ['...kLk.kLk..', '..kLk...kLk.', '..kk.....kk.'],
+  ['...kLkkLk...', '....kLLk....', '....kkkk....'],
+];
+function makeSprite(rows, pal, flip) {
+  const c = document.createElement('canvas'); c.width = 12; c.height = 16;
+  const x = c.getContext('2d');
+  rows.forEach((r, j) => [...r].forEach((ch, i) => {
+    if (ch === '.') return;
+    const col = pal[ch] ?? BASE[ch]; if (!col) return;
+    x.fillStyle = col; x.fillRect(flip ? 11 - i : i, j, 1, 1);
+  }));
+  return c;
+}
+const SPR = {};
+for (const [name, def] of Object.entries(BODIES)) {
+  const pal = { ...BASE, ...def.pal };
+  SPR[name] = LEGS.map(legs => [makeSprite([...def.rows, ...legs], pal, false), makeSprite([...def.rows, ...legs], pal, true)]);
+}
+const SLIME = ['...kkkk...', '.kkggggkk.', 'kgggggggGk', 'kgwkggwkGk', 'kggggggggk', 'kgggmmgggk', '.kggggggk.', '..kkkkkk..'];
+const MON = [['#d1495b', '#9e2f3f'], ['#9b59d0', '#6d3a99'], ['#e07a2f', '#a8541c']].map(([g, G]) =>
+  [0, 1].map(f => { const c = document.createElement('canvas'); c.width = 10; c.height = 8; const x = c.getContext('2d');
+    SLIME.forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '.') return; x.fillStyle = { k: '#1b1424', g, G, w: '#fff', m: '#2b1b14' }[ch]; x.fillRect(i, j + (f && j < 2 ? 1 : 0), 1, 1); })); return c; }));
+
+// ───────────────────────── static background ─────────────────────────
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
+function shade(hex, amt) { const n = parseInt(hex.slice(1), 16); const f = c => Math.max(0, Math.min(255, Math.round(c + amt))); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; }
+function paintBackground() {
+  const b = bg.getContext('2d');
+  b.fillStyle = '#0d0912'; b.fillRect(0, 0, W, H);
+  for (let y = 0; y < H; y += 4) for (let x = 0; x < W; x += 4) { const r = hash(x, y); if (r > .93) { b.fillStyle = r > .985 ? '#2a2236' : '#17111f'; b.fillRect(x, y, 2, 2); } }
+  // corridors
+  const corr = (x, y, w, h) => { b.fillStyle = '#120d18'; b.fillRect(x, y - 3, w, h + 6); for (let yy = y; yy < y + h; yy += 8) for (let xx = x; xx < x + w; xx += 8) { b.fillStyle = (xx / 8 + yy / 8) % 2 ? '#3a3036' : '#342b31'; b.fillRect(xx, yy, 8, 8); b.fillStyle = '#2a2228'; b.fillRect(xx, yy, 8, 1); b.fillRect(xx, yy, 1, 8); } };
+  corr(124, 72, 26, 16); corr(236, 72, 26, 16); corr(124, 144, 26, 16); corr(236, 144, 26, 16);
+  for (const [key, r] of Object.entries(ROOMS)) {
+    b.fillStyle = '#120d18'; b.fillRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8);
+    b.fillStyle = '#05030a'; b.fillRect(r.x - 4, r.y + r.h + 4, r.w + 8, 3);
+    const plank = key === 'tavern' || key === 'study';
+    for (let y = r.y; y < r.y + r.h; y += 8) for (let x = r.x; x < r.x + r.w; x += plank ? 16 : 8) {
+      const n = hash(x, y);
+      b.fillStyle = ((x / 8 + y / 8) % 2 ? r.a : r.b); b.fillRect(x, y, plank ? 16 : 8, 8);
+      b.fillStyle = shade(r.a, -14); if (plank) { b.fillRect(x, y + 7, 16, 1); if (n > .5) b.fillRect(x + ((y / 8) % 2 ? 8 : 15), y, 1, 7); } else { b.fillRect(x, y, 8, 1); b.fillRect(x, y, 1, 8); }
+      if (n > .9) { b.fillStyle = shade(r.a, 12); b.fillRect(x + 3, y + 3, 1, 1); }
+    }
+    // back wall with bricks
+    b.fillStyle = r.wall; b.fillRect(r.x, r.y, r.w, 14);
+    for (let y = r.y; y < r.y + 14; y += 4) for (let x = r.x + ((y - r.y) / 4 % 2 ? 4 : 0); x < r.x + r.w; x += 8) { b.fillStyle = shade(r.wall, -18); b.fillRect(x, y, 1, 4); b.fillRect(r.x, y, r.w, 1); }
+    b.fillStyle = shade(r.wall, 26); b.fillRect(r.x, r.y + 14, r.w, 1);
+    b.fillStyle = 'rgba(0,0,0,.35)'; b.fillRect(r.x, r.y + 15, r.w, 3);
+  }
+  // door openings into the corridors
+  const door = (x, y) => { b.fillStyle = '#3a3036'; b.fillRect(x, y, 8, 16); b.fillStyle = '#2a2228'; b.fillRect(x, y, 8, 1); };
+  door(124, 72); door(140, 72); door(236, 72); door(252, 72); door(124, 144); door(140, 144); door(236, 144); door(252, 144);
+
+  // study: bookshelves, desk, rug
+  { const r = ROOMS.study; b.fillStyle = '#3a2316'; b.fillRect(r.x + 4, r.y + 15, 48, 18); b.fillRect(r.x + 60, r.y + 15, 48, 18);
+    const books = ['#b8323f', '#3b5fa8', '#4f9c5a', '#d9a13a', '#7a4fc9', '#c96a3a'];
+    for (const sx of [r.x + 6, r.x + 62]) for (let row = 0; row < 2; row++) for (let i = 0; i < 22; i++) { const hgt = 6 + Math.floor(hash(sx + i, row) * 2); b.fillStyle = books[Math.floor(hash(i, sx + row) * books.length)]; b.fillRect(sx + i * 2, r.y + 16 + row * 8 + (7 - hgt), 2, hgt); }
+    b.fillStyle = '#2a1810'; b.fillRect(r.x + 4, r.y + 24, 48, 1); b.fillRect(r.x + 60, r.y + 24, 48, 1);
+    b.fillStyle = '#4a2f6e'; b.fillRect(r.x + 22, r.y + 50, 70, 26); b.fillStyle = '#6a4fa0'; b.fillRect(r.x + 24, r.y + 52, 66, 22); b.fillStyle = '#4a2f6e';
+    for (let i = 0; i < 6; i++) b.fillRect(r.x + 30 + i * 10, r.y + 62, 4, 2);
+    b.fillStyle = '#5a3720'; b.fillRect(DESK.x - 14, DESK.y - 6, 28, 10); b.fillStyle = '#7a4d2c'; b.fillRect(DESK.x - 14, DESK.y - 6, 28, 2);
+    b.fillStyle = '#efe0b8'; b.fillRect(DESK.x - 10, DESK.y - 4, 9, 6); b.fillStyle = '#c9b48a'; b.fillRect(DESK.x - 6, DESK.y - 4, 1, 6);
+  }
+  // armory: weapon racks, shields, anvil
+  { const r = ROOMS.armory; b.fillStyle = '#4a2f1d'; b.fillRect(r.x + 6, r.y + 30, 50, 3);
+    for (let i = 0; i < 7; i++) { const x = r.x + 10 + i * 7; b.fillStyle = '#c9d2dc'; b.fillRect(x, r.y + 16, 2, 14); b.fillStyle = '#6b4426'; b.fillRect(x - 1, r.y + 27, 4, 2); b.fillStyle = '#f2f6fa'; b.fillRect(x, r.y + 16, 1, 10); }
+    for (const [sx, c] of [[r.x + 70, '#b8323f'], [r.x + 88, '#3b5fa8']]) { b.fillStyle = '#1b1424'; b.fillRect(sx - 1, r.y + 15, 12, 15); b.fillStyle = c; b.fillRect(sx, r.y + 16, 10, 12); b.fillStyle = '#f2b84b'; b.fillRect(sx + 4, r.y + 18, 2, 8); b.fillRect(sx + 2, r.y + 21, 6, 2); }
+    b.fillStyle = '#1b1424'; b.fillRect(ANVIL.x - 9, ANVIL.y - 4, 18, 10); b.fillStyle = '#5b6470'; b.fillRect(ANVIL.x - 8, ANVIL.y - 3, 16, 4); b.fillStyle = '#7b8694'; b.fillRect(ANVIL.x - 8, ANVIL.y - 3, 16, 1);
+    b.fillStyle = '#3d444e'; b.fillRect(ANVIL.x - 4, ANVIL.y + 1, 8, 5); b.fillStyle = '#5a3720'; b.fillRect(ANVIL.x - 6, ANVIL.y + 6, 12, 3);
+  }
+  // tavern: quest board, fireplace, tables, barrels
+  { const r = ROOMS.tavern;
+    b.fillStyle = '#3a2316'; b.fillRect(BOARD.x - 1, BOARD.y + 1, 34, 22); b.fillStyle = '#8a5a34'; b.fillRect(BOARD.x, BOARD.y + 2, 32, 20);
+    b.fillStyle = '#2a1a10'; b.fillRect(r.x + 4, r.y + 2, 18, 18); b.fillStyle = '#6b6b6b'; b.fillRect(r.x + 3, r.y + 1, 20, 3); b.fillRect(r.x + 3, r.y + 1, 3, 19); b.fillRect(r.x + 20, r.y + 1, 3, 19);
+    for (const [tx, ty] of [[166, 118], [210, 118]]) { b.fillStyle = 'rgba(0,0,0,.35)'; b.fillRect(tx - 11, ty + 5, 24, 4); b.fillStyle = '#5a3720'; b.fillRect(tx - 11, ty - 4, 22, 9); b.fillStyle = '#8a5a34'; b.fillRect(tx - 11, ty - 4, 22, 2);
+      b.fillStyle = '#d9c08f'; b.fillRect(tx - 6, ty - 6, 3, 4); b.fillRect(tx + 3, ty - 6, 3, 4); b.fillStyle = '#fff3d0'; b.fillRect(tx - 6, ty - 6, 3, 1); b.fillRect(tx + 3, ty - 6, 3, 1);
+      b.fillStyle = '#3a2316'; b.fillRect(tx - 16, ty - 1, 4, 4); b.fillRect(tx + 12, ty - 1, 4, 4); }
+    for (const [bx, by] of [[r.x + r.w - 12, r.y + 20], [r.x + r.w - 12, r.y + 34]]) { b.fillStyle = '#1b1424'; b.fillRect(bx - 1, by - 1, 12, 13); b.fillStyle = '#7a4a2a'; b.fillRect(bx, by, 10, 11); b.fillStyle = '#4a2f1d'; b.fillRect(bx, by + 2, 10, 1); b.fillRect(bx, by + 8, 10, 1); }
+  }
+  // dungeon: chains, bones, cracks
+  { const r = ROOMS.dungeon;
+    for (const cx of [r.x + 20, r.x + 64]) { b.fillStyle = '#5b6470'; for (let i = 0; i < 4; i++) b.fillRect(cx, r.y + 15 + i * 3, 2, 2); }
+    b.fillStyle = '#d6cfc0'; b.fillRect(r.x + 24, r.y + 64, 6, 2); b.fillRect(r.x + 23, r.y + 63, 2, 4); b.fillRect(r.x + 29, r.y + 63, 2, 4);
+    b.fillRect(r.x + 90, r.y + 22, 5, 4); b.fillStyle = '#1b1424'; b.fillRect(r.x + 91, r.y + 23, 1, 1); b.fillRect(r.x + 93, r.y + 23, 1, 1);
+    b.fillStyle = '#1a1416'; for (let i = 0; i < 9; i++) b.fillRect(r.x + 50 + i * 2, r.y + 40 + (i % 3), 2, 1);
+  }
+  // cauldron room: potion shelves
+  { const r = ROOMS.cauldron; b.fillStyle = '#3a2316'; b.fillRect(r.x + 6, r.y + 15, 44, 3); b.fillRect(r.x + 62, r.y + 15, 44, 3);
+    const pots = ['#e8606f', '#84d488', '#a593ff', '#f2b84b', '#4fc7b5'];
+    for (const sx of [r.x + 8, r.x + 64]) for (let i = 0; i < 6; i++) { const c = pots[Math.floor(hash(sx, i) * pots.length)]; b.fillStyle = '#1b1424'; b.fillRect(sx + i * 7, r.y + 7, 5, 8); b.fillStyle = c; b.fillRect(sx + i * 7 + 1, r.y + 10, 3, 5); b.fillStyle = '#e8e2d6'; b.fillRect(sx + i * 7 + 1, r.y + 8, 3, 2); }
+  }
+}
+
+// ───────────────────────── game state ─────────────────────────
+const state = { chronicle: [], dungeon: { monsters: 0, slain: 0, hasRun: false }, quests: [], xp: { guildmaster: 0, wizard: 0, rogue: 0, dwarf: 0, alchemist: 0 } };
+let actors = new Map(), monsters = [], particles = [], floats = [], banner = null;
+let fogAlpha = 1, speed = 1, playing = true, scenarioIdx = 0, steps = [], stepIdx = 0, current = null, gap = 0, ending = 0;
+const manual = [];
+let seq = 0;
+
+function newHero() {
+  return { id: 'main', label: 'Guildmaster', fixed: null, x: 192, y: 130, room: 'tavern', path: [], busy: false, activity: 'awaits a quest', facing: 1, dist: 0, alpha: 1, bubble: '', lang: undefined };
+}
+function classOf(a) { return a.fixed ?? ROOMS[a.room].resident; }
+function spriteOf(a) {
+  if (a.fixed) return a.fixed === 'sellsword' ? 'sellsword' : a.fixed;
+  if (a.path.length > 0 || a.room === 'tavern') return 'guildmaster';
+  return ROOMS[a.room].resident; // the hero takes up the class of the room
+}
+function pickSpot(room, who) {
+  const taken = new Set([...actors.values()].filter(a => a !== who && a.room === room).map(a => a.spot));
+  const spots = ROOMS[room].spots; const i = spots.findIndex((_, k) => !taken.has(k));
+  return i < 0 ? 0 : i;
+}
+function route(a, to, spot) {
+  const pts = []; const from = a.room;
+  if (from === to) { pts.push({ x: spot.x, y: a.y }, { x: spot.x, y: spot.y }); return pts; }
+  if (from !== 'tavern') { const d = DOOR[from]; pts.push({ x: a.x, y: d.din.y }, { ...d.din }, { ...d.tin }, { x: HUB, y: d.tin.y }); }
+  else pts.push({ x: HUB, y: a.y });
+  if (to !== 'tavern') { const d = DOOR[to]; pts.push({ x: HUB, y: d.tin.y }, { ...d.tin }, { ...d.din }, { x: spot.x, y: d.din.y }, { ...spot }); }
+  else pts.push({ x: HUB, y: spot.y }, { ...spot });
+  return pts;
+}
+function sendTo(a, room) {
+  const k = pickSpot(room, a); const spot = ROOMS[room].spots[k];
+  a.path = route(a, room, spot); a.room = room; a.spot = k;
+}
+
+// ───────────────────────── chronicle & ledger ─────────────────────────
+function log(entry) { const e = { id: ++seq, ...entry }; state.chronicle.push(e); if (state.chronicle.length > 40) state.chronicle.shift(); renderSide(); return e; }
+function gainXp(cls, n, at) { state.xp[cls] = (state.xp[cls] ?? 0) + n; if (at) floats.push({ x: at.x, y: at.y - 22, text: `+${n} XP`, color: '#f2b84b', life: 1.4 }); }
+function narrate(p, tool) {
+  switch (p.location) {
+    case 'study': return tool === 'Bash' ? `consults ${p.detail}` : `reads ${p.detail}`;
+    case 'armory': return ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(tool) ? `forges ${p.detail}` : `hammers ${p.detail}`;
+    case 'dungeon': return `delves: ${p.detail}`;
+    case 'cauldron': return `brews ${p.detail}`;
+    default: return tool === 'Agent' ? `dispatches: ${p.detail}` : p.detail;
+  }
+}
+
+// ───────────────────────── quests (sample sessions) ─────────────────────────
+const T = (subject) => ({ tool: 'TaskCreate', in: { subject } });
+const U = (taskId) => ({ tool: 'TaskUpdate', in: { taskId: String(taskId), status: 'completed' } });
+const B = (command, out = '') => ({ tool: 'Bash', in: { command }, out });
+const R = (file_path) => ({ tool: 'Read', in: { file_path } });
+const E = (file_path) => ({ tool: 'Edit', in: { file_path } });
+const G = (pattern) => ({ tool: 'Grep', in: { pattern } });
+const on = (who, ...xs) => xs.map(x => ({ ...x, who }));
+
+const SCENARIOS = [
+  { name: 'Rust', lang: 'RS', title: 'Slay the parser bugs', steps: [
+    { prompt: 'Fix the failing tests in the parser crate' },
+    ...on('main', R('Cargo.toml'), G('fn parse_expr'), T('Find why the parser tests fail'), T('Fix the parser'), T('Lint and ship a release build')),
+    { spawn: 'w1', cls: 'wizard', desc: 'Map the parser module' },
+    ...on('w1', R('crates/parser/src/lib.rs'), { tool: 'Glob', in: { pattern: 'crates/parser/**/*.rs' } }, R('crates/parser/tests/expr.rs')),
+    { back: 'w1' },
+    ...on('main', B('cargo test -p parser', 'running 21 tests\ntest result: FAILED. 18 passed; 3 failed; 0 ignored'), U(1)),
+    { spawn: 'r1', cls: 'rogue', desc: 'Slay the failing parser tests' },
+    ...on('r1', R('crates/parser/src/expr.rs'), E('crates/parser/src/expr.rs'), B('cargo test -p parser', 'test result: FAILED. 20 passed; 1 failed; 0 ignored'),
+      E('crates/parser/src/lexer.rs'), B('cargo test -p parser', 'test result: ok. 21 passed; 0 failed; 0 ignored')),
+    { back: 'r1' },
+    ...on('main', U(2)),
+    { spawn: 'd1', cls: 'dwarf', desc: 'Format and lint the crate' },
+    ...on('d1', B('cargo fmt --all'), B('cargo clippy --all-targets -- -D warnings'), B('git diff --stat')),
+    { back: 'd1' },
+    { spawn: 'a1', cls: 'alchemist', desc: 'Brew the release build' },
+    ...on('a1', B('cargo build --release'), B('docker build -t parser-svc .')),
+    { back: 'a1' },
+    ...on('main', U(3)),
+  ] },
+  { name: 'Python', lang: 'PY', title: 'The broken login', steps: [
+    { prompt: "Users can't log in since the last deploy. Fix it." },
+    ...on('main', R('pyproject.toml'), G('def login'), T('Reproduce the login failure'), T('Fix token handling'), T('Lint, type-check and redeploy')),
+    ...on('main', B('uv sync'), B('uv run pytest -q', '======== 4 failed, 52 passed in 3.21s ========'), U(1)),
+    { spawn: 'r1', cls: 'rogue', desc: 'Hunt the auth test failures' },
+    ...on('r1', R('app/auth/tokens.py'), E('app/auth/tokens.py'), B('uv run pytest -q', '======== 1 failed, 55 passed in 3.08s ========'),
+      E('app/auth/session.py'), B('uv run pytest -q', '======== 56 passed in 3.02s ========')),
+    { back: 'r1' },
+    ...on('main', U(2)),
+    { spawn: 'd1', cls: 'dwarf', desc: 'Lint and type-check' },
+    ...on('d1', B('ruff check --fix .'), B('ruff format .'), B('uv run mypy app')),
+    { back: 'd1' },
+    { spawn: 'a1', cls: 'alchemist', desc: 'Rebuild the containers' },
+    ...on('a1', B('docker compose up --build -d')),
+    { back: 'a1' },
+    ...on('main', U(3)),
+  ] },
+  { name: 'JS / TS', lang: 'JS', title: 'Checkout cart chaos', steps: [
+    { prompt: 'The checkout cart total is wrong for discounts' },
+    { spawn: 'w1', cls: 'wizard', desc: 'Trace the cart total' },
+    ...on('w1', R('package.json'), G('calculateTotal'), R('src/cart/total.ts')),
+    { back: 'w1' },
+    ...on('main', T('Fix discount math'), T('Ship a production build'), B('npm ci'), B('npx vitest run', ' Tests  2 failed | 38 passed (40)')),
+    { spawn: 'r1', cls: 'rogue', desc: 'Fix the cart tests' },
+    ...on('r1', E('src/cart/total.ts'), E('src/components/Cart.tsx'), B('npx vitest run', ' Tests  40 passed (40)')),
+    { back: 'r1' },
+    ...on('main', U(1), B('npx eslint . --fix'), B('npx prettier --write src'), B('npx tsc --noEmit'), B('npm run build'), U(2)),
+  ] },
+  { name: 'Java', lang: 'JV', title: 'Orders that never ship', steps: [
+    { prompt: 'Orders get stuck in PENDING. Find out why.' },
+    ...on('main', R('pom.xml'), G('class OrderService'), R('src/main/java/com/shop/orders/OrderService.java'), T('Fix the order state machine'), T('Package the service')),
+    ...on('main', B('./mvnw -q test', '[ERROR] Tests run: 64, Failures: 2, Errors: 0, Skipped: 0')),
+    { spawn: 'r1', cls: 'rogue', desc: 'Fix OrderService transitions' },
+    ...on('r1', R('src/test/java/com/shop/orders/OrderServiceTest.java'), E('src/main/java/com/shop/orders/OrderService.java'), B('./mvnw -q test', '[INFO] Tests run: 64, Failures: 0, Errors: 0, Skipped: 0')),
+    { back: 'r1' },
+    ...on('main', U(1), B('./mvnw spotless:apply'), B('./mvnw -q -DskipTests package'), B('docker build -t orders .'), U(2)),
+  ] },
+  { name: 'C++', lang: 'C++', title: 'Physics engine panic', steps: [
+    { prompt: 'Objects fall through the floor at high speed' },
+    ...on('main', R('CMakeLists.txt'), R('src/physics/collision.cpp'), T('Reproduce the tunnelling bug'), T('Fix continuous collision')),
+    ...on('main', B('cmake -S . -B build -G Ninja'), B('cmake --build build -j'), B('ctest --test-dir build --output-on-failure', '83% tests passed, 2 tests failed out of 12'), U(1)),
+    { spawn: 'r1', cls: 'rogue', desc: 'Fix the collision tests' },
+    ...on('r1', E('src/physics/collision.cpp'), B('cmake --build build -j'), B('ctest --test-dir build', '100% tests passed, 0 tests failed out of 12')),
+    { back: 'r1' },
+    { spawn: 'd1', cls: 'dwarf', desc: 'Format and tidy' },
+    ...on('d1', B('clang-format -i src/physics/collision.cpp'), B('clang-tidy -p build src/physics/collision.cpp')),
+    { back: 'd1' },
+    ...on('main', U(2)),
+  ] },
+];
+
+// ───────────────────────── the step runner ─────────────────────────
+function loadScenario(i) {
+  scenarioIdx = (i + SCENARIOS.length) % SCENARIOS.length;
+  steps = SCENARIOS[scenarioIdx].steps; stepIdx = 0; current = null; gap = 0.6; ending = 0;
+  const hero = actors.get('main') ?? newHero();
+  actors = new Map([['main', hero]]);
+  Object.assign(hero, { busy: false, activity: 'awaits a quest', bubble: '' });
+  if (hero.room !== 'tavern') sendTo(hero, 'tavern');
+  state.dungeon = { monsters: 0, slain: 0, hasRun: false }; state.quests = []; state.chronicle = [];
+  monsters = []; fogAlpha = 1; banner = { text: SCENARIOS[scenarioIdx].title.toUpperCase(), life: 2.4 };
+  renderQuests(); renderSide();
+}
+
+function startStep(st) {
+  if (st.prompt) {
+    const hero = actors.get('main'); sendTo(hero, 'tavern'); hero.path = route(hero, 'tavern', ROOMS.tavern.spots[0]); hero.spot = 0;
+    hero.busy = true; hero.activity = `takes a quest: ${st.prompt}`; hero.bubble = 'A new quest!';
+    current = { st, actor: hero, dwell: 1.5, entry: log({ who: 'Guildmaster', cls: 'guildmaster', text: `New quest: ${st.prompt}`, outcome: 'ok' }) };
+    renderSide(); return;
+  }
+  if (st.spawn) {
+    const a = { id: st.spawn, label: CLASSES[st.cls].name, fixed: st.cls, x: 192, y: 128, room: 'tavern', path: [], busy: true, activity: `joins the party: ${st.desc}`, facing: 1, dist: 0, alpha: 0, bubble: 'At your service!', spot: 3 };
+    actors.set(a.id, a); burst(192, 120, CLASSES[st.cls].color, 26);
+    sendTo(a, 'tavern');
+    current = { st, actor: a, dwell: 1.0, entry: log({ who: a.label, cls: st.cls, text: `answers the call: ${st.desc}`, outcome: 'ok' }) };
+    return;
+  }
+  if (st.back) {
+    const a = actors.get(st.back); if (!a) return;
+    a.busy = false; a.bubble = 'Quest done!'; a.leaving = true; sendTo(a, 'tavern');
+    current = { st, actor: a, dwell: 0.8, entry: log({ who: a.label, cls: a.fixed, text: 'returns with the spoils', outcome: 'ok' }) };
+    return;
+  }
+  const a = actors.get(st.who); if (!a) return;
+  const place = classifyTool(st.tool, st.in);
+  sendTo(a, place.location);
+  a.busy = true; a.lang = place.lang ?? a.lang; a.activity = narrate(place, st.tool);
+  a.bubble = place.detail.length > 19 ? place.detail.slice(0, 18) + '…' : place.detail;
+  const shown = a.fixed ? a.label : CLASSES[ROOMS[place.location].resident].name;
+  const entry = log({ who: shown, cls: classOf(a), text: a.activity + (st.simulated ? ' (simulated)' : ''), lang: place.lang, outcome: 'running' });
+  current = { st, actor: a, place, entry, dwell: place.location === 'dungeon' ? 2.2 : 1.3 };
+  renderSide();
+}
+
+function finishStep() {
+  const { st, actor: a, place, entry } = current;
+  if (st.back) { a.fading = true; burst(a.x, a.y - 8, '#f2b84b', 16); }
+  if (st.prompt || st.spawn || st.back) { a.busy = st.spawn ? true : a.busy; current = null; gap = 0.35; renderSide(); return; }
+  const cls = classOf(a);
+  let outcome = 'ok';
+  if (place.location === 'dungeon' && st.tool === 'Bash') {
+    const battle = st.simulated ? st.battle : readBattle(st.out ?? '');
+    const before = state.dungeon.monsters;
+    if (!state.dungeon.hasRun) state.dungeon.hasRun = true;
+    if (battle) {
+      outcome = battle.failed > 0 ? 'fail' : 'ok';
+      entry.text = battle.failed > 0 ? `${place.detail}: ${battle.failed} monster${battle.failed === 1 ? '' : 's'} stand, ${battle.passed} slain` : `${place.detail}: all ${battle.passed} slain`;
+      state.dungeon.monsters = battle.failed; state.dungeon.slain = battle.passed;
+      setMonsters(battle.failed);
+      gainXp(cls, 2 + Math.max(0, before - battle.failed) * 5, a);
+      if (battle.failed === 0 && before > 0) banner = { text: 'DUNGEON CLEARED!', life: 2.6, gold: true };
+    }
+  } else {
+    gainXp(cls, 1, a);
+    if (place.location === 'cauldron') burst(CAULDRON.x, CAULDRON.y - 12, '#84d488', 14);
+    if (place.location === 'armory') burst(ANVIL.x, ANVIL.y - 4, '#ffd27a', 12);
+  }
+  if (st.tool === 'TaskCreate') state.quests.push({ id: String(state.quests.length + 1), title: st.in.subject, isDone: false });
+  if (st.tool === 'TaskUpdate') { const q = state.quests.find(q => q.id === st.in.taskId); if (q) { q.isDone = true; gainXp('guildmaster', 10, a); } }
+  entry.outcome = outcome;
+  a.busy = a.id !== 'main' ? true : false; a.bubble = '';
+  current = null; gap = 0.3; renderSide();
+}
+
+function setMonsters(n) {
+  const alive = monsters.filter(m => !m.dying);
+  if (n < alive.length) {
+    alive.slice(n).forEach((m, k) => { m.dying = 0.5 + k * 0.18; });
+  } else {
+    for (let i = alive.length; i < Math.min(n, MONSTER_SLOTS.length); i++) {
+      const slot = MONSTER_SLOTS.findIndex((_, k) => !monsters.some(m => m.slot === k && !m.dead));
+      const s = MONSTER_SLOTS[slot < 0 ? i : slot];
+      monsters.push({ slot, x: s.x, y: s.y, kind: i % 3, t: Math.random() * 6, born: 0 });
+      burst(s.x, s.y - 4, '#e8606f', 8);
+    }
+  }
+}
+
+// ───────────────────────── particles ─────────────────────────
+function burst(x, y, color, n) {
+  if (reduced) n = Math.ceil(n / 3);
+  for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = 20 + Math.random() * 40; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 20, life: .6 + Math.random() * .5, color, g: 60 }); }
+}
+function emit(x, y, color, vy = -18, spread = 6, g = 0) { particles.push({ x: x + (Math.random() - .5) * spread, y, vx: (Math.random() - .5) * 8, vy: vy * (0.6 + Math.random() * .6), life: .8 + Math.random() * .6, color, g }); }
+
+// ───────────────────────── update ─────────────────────────
+let last = performance.now(), clock = 0, emitAcc = 0;
+function update(dt) {
+  clock += dt;
+  for (const a of actors.values()) {
+    if (a.alpha < 1 && !a.fading) a.alpha = Math.min(1, a.alpha + dt * 3);
+    if (a.fading) { a.alpha -= dt * 2; }
+    if (a.path.length) {
+      const p = a.path[0]; const dx = p.x - a.x, dy = p.y - a.y; const d = Math.hypot(dx, dy); const step = 54 * dt;
+      if (dx) a.facing = dx < 0 ? -1 : 1;
+      if (d <= step) { a.x = p.x; a.y = p.y; a.path.shift(); a.dist += d; } else { a.x += dx / d * step; a.y += dy / d * step; a.dist += step; }
+    }
+  }
+  for (const [id, a] of actors) if (a.fading && a.alpha <= 0) actors.delete(id);
+
+  // runner
+  if (manual.length && !current && gap <= 0) startStep(manual.shift());
+  if (current) {
+    if (current.actor.path.length === 0) { current.dwell -= dt; if (current.dwell <= 0) finishStep(); }
+  } else if (gap > 0) gap -= dt;
+  else if (stepIdx < steps.length) startStep(steps[stepIdx++]);
+  else if (!ending) { const hero = actors.get('main'); sendTo(hero, 'tavern'); hero.busy = false; hero.activity = 'rests at the tavern'; hero.bubble = 'Quest complete!'; ending = 4.5; renderSide(); }
+  else { ending -= dt; if (ending <= 0) { actors.get('main').bubble = ''; loadScenario(scenarioIdx + 1); } }
+
+  // room effects
+  emitAcc += dt;
+  const working = current && current.place && current.actor.path.length === 0 ? current : null;
+  if (emitAcc > 0.05) {
+    emitAcc = 0;
+    if (Math.random() < .35) emit(CAULDRON.x + (Math.random() - .5) * 14, CAULDRON.y - 8, '#9be89f', -10, 4);
+    if (working) {
+      const a = working.actor;
+      switch (working.place.location) {
+        case 'study': emit(a.x, a.y - 14, Math.random() < .5 ? '#a593ff' : '#e0d7ff', -22, 14); break;
+        case 'armory': if (Math.random() < .7) { const ang = -Math.PI / 2 + (Math.random() - .5) * 2.2, v = 30 + Math.random() * 40; particles.push({ x: ANVIL.x, y: ANVIL.y - 4, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, life: .4, color: Math.random() < .5 ? '#ffd27a' : '#ff8a3a', g: 120 }); } break;
+        case 'cauldron': emit(CAULDRON.x + (Math.random() - .5) * 18, CAULDRON.y - 10, Math.random() < .5 ? '#84d488' : '#d6ffd8', -26, 6); if (Math.random() < .2) emit(CAULDRON.x, CAULDRON.y - 18, 'rgba(200,200,210,.5)', -14, 10); break;
+        case 'tavern': if (Math.random() < .3) emit(a.x, a.y - 18, '#f2b84b', -12, 8); break;
+        case 'dungeon': break;
+      }
+    }
+  }
+  if (state.dungeon.hasRun && fogAlpha > 0) fogAlpha = Math.max(0, fogAlpha - dt * 1.2);
+  for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g ?? 0) * dt; p.life -= dt; }
+  particles = particles.filter(p => p.life > 0);
+  for (const f of floats) { f.y -= 14 * dt; f.life -= dt; }
+  floats = floats.filter(f => f.life > 0);
+  for (const m of monsters) { m.t += dt; m.born = Math.min(1, m.born + dt * 3); if (m.dying !== undefined) { m.dying -= dt; if (m.dying <= 0 && !m.dead) { m.dead = true; burst(m.x, m.y - 4, '#ffffff', 10); burst(m.x, m.y - 4, '#e8606f', 8); floats.push({ x: m.x, y: m.y - 12, text: '+5', color: '#84d488', life: 1.1 }); } } }
+  monsters = monsters.filter(m => !m.dead);
+  if (banner) { banner.life -= dt; if (banner.life <= 0) banner = null; }
+}
+
+// ───────────────────────── draw ─────────────────────────
+const cv = document.getElementById('map'); const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+const FONT = '8px "Press Start 2P", ui-monospace, monospace';
+function text(s, x, y, color, align = 'left') { g.font = FONT; g.textAlign = align; g.textBaseline = 'top'; g.fillStyle = '#000'; g.fillText(s, x + 1, y + 1); g.fillStyle = color; g.fillText(s, x, y); }
+function torch(x, y) {
+  const f = reduced ? .5 : (Math.sin(clock * 13 + x) + Math.sin(clock * 7.3 + y)) * .25 + .5;
+  const r = 16 + f * 5; const grd = g.createRadialGradient(x, y, 1, x, y, r); grd.addColorStop(0, 'rgba(255,170,70,.35)'); grd.addColorStop(1, 'rgba(255,170,70,0)');
+  g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2);
+  g.fillStyle = '#4a2f1d'; g.fillRect(x - 1, y, 2, 5); g.fillStyle = f > .5 ? '#ffd27a' : '#ff9a3a'; g.fillRect(x - 1, y - 3, 3, 3); g.fillStyle = '#fff3c0'; g.fillRect(x, y - 2, 1, 1);
+}
+function drawRoomGlow() {
+  for (const [key, r] of Object.entries(ROOMS)) {
+    const busy = [...actors.values()].some(a => a.room === key && a.busy && a.path.length === 0) || (current?.place?.location === key && current.actor.path.length === 0);
+    if (!busy) continue;
+    const pulse = reduced ? .1 : .08 + Math.sin(clock * 4) * .04;
+    g.fillStyle = r.color; g.globalAlpha = pulse; g.fillRect(r.x, r.y + 15, r.w, r.h - 15); g.globalAlpha = 1;
+    g.strokeStyle = r.color; g.lineWidth = 2; g.globalAlpha = .6 + Math.sin(clock * 5) * .3; g.strokeRect(r.x - 3, r.y - 3, r.w + 6, r.h + 6); g.globalAlpha = 1;
+  }
+}
+function drawDynamicProps() {
+  // board notes
+  const qs = state.quests;
+  for (let i = 0; i < Math.min(qs.length, 6); i++) { const x = BOARD.x + 3 + (i % 3) * 10, y = BOARD.y + 4 + Math.floor(i / 3) * 9; g.fillStyle = qs[i].isDone ? '#b9a77e' : '#f3e6c0'; g.fillRect(x, y, 8, 7); g.fillStyle = '#b8323f'; g.fillRect(x + 3, y, 2, 1); g.fillStyle = qs[i].isDone ? '#4f9c5a' : '#6b5a3a'; if (qs[i].isDone) { g.fillRect(x + 2, y + 4, 1, 1); g.fillRect(x + 3, y + 5, 1, 1); g.fillRect(x + 4, y + 3, 1, 2); g.fillRect(x + 5, y + 2, 1, 1); } else { g.fillRect(x + 1, y + 3, 6, 1); g.fillRect(x + 1, y + 5, 4, 1); } }
+  // fireplace
+  const fx = ROOMS.tavern.x + 13, fy = ROOMS.tavern.y + 16; const f = reduced ? 1 : Math.sin(clock * 11) > 0 ? 1 : 0;
+  g.fillStyle = '#ff7a2a'; g.fillRect(fx - 5, fy - 6 - f, 10, 6 + f); g.fillStyle = '#ffd27a'; g.fillRect(fx - 3, fy - 4, 6, 4); g.fillStyle = '#fff3c0'; g.fillRect(fx - 1, fy - 3 + f, 2, 2);
+  // candle on the desk
+  g.fillStyle = '#efe6d2'; g.fillRect(DESK.x + 8, DESK.y - 10, 2, 5); g.fillStyle = Math.sin(clock * 15) > 0 ? '#ffd27a' : '#ff9a3a'; g.fillRect(DESK.x + 8, DESK.y - 12, 2, 2);
+  // torches
+  torch(ROOMS.dungeon.x + 36, ROOMS.dungeon.y + 6); torch(ROOMS.dungeon.x + 84, ROOMS.dungeon.y + 6); torch(ROOMS.armory.x + 62, ROOMS.armory.y + 6); torch(ROOMS.study.x + 56, ROOMS.study.y + 6);
+  // cauldron with fire
+  const c = CAULDRON; const fl = reduced ? 0 : Math.sin(clock * 12) > 0 ? 1 : 0;
+  g.fillStyle = '#ff7a2a'; g.fillRect(c.x - 8, c.y + 4 - fl, 16, 4 + fl); g.fillStyle = '#ffd27a'; g.fillRect(c.x - 5, c.y + 5, 10, 3);
+  g.fillStyle = '#1b1424'; g.fillRect(c.x - 13, c.y - 10, 26, 14); g.fillRect(c.x - 11, c.y + 4, 22, 2);
+  g.fillStyle = '#2e2a36'; g.fillRect(c.x - 12, c.y - 9, 24, 12); g.fillStyle = '#4a4556'; g.fillRect(c.x - 12, c.y - 9, 24, 2);
+  g.fillStyle = '#4fbf5a'; g.fillRect(c.x - 10, c.y - 10, 20, 3); g.fillStyle = '#9be89f'; g.fillRect(c.x - 6 + Math.round(Math.sin(clock * 3) * 3), c.y - 10, 3, 1);
+}
+function drawMonster(m) {
+  const pop = m.born < 1 ? m.born : 1; const bob = reduced ? 0 : Math.round(Math.sin(m.t * 5) * 1);
+  const spr = MON[m.kind][Math.floor(m.t * 3) % 2];
+  g.fillStyle = 'rgba(0,0,0,.4)'; g.fillRect(m.x - 5, m.y - 1, 10, 2);
+  if (m.dying !== undefined && Math.floor(m.dying * 20) % 2) return;
+  const w = 10 * pop, h = 8 * pop; g.drawImage(spr, Math.round(m.x - w / 2), Math.round(m.y - h + bob), w, h);
+}
+function drawActor(a) {
+  const frame = a.path.length ? 1 + (Math.floor(a.dist / 5) % 2) : 0;
+  const working = a.busy && !a.path.length;
+  const bob = working && !reduced ? Math.round(Math.abs(Math.sin(clock * 6 + a.x))) : 0;
+  const spr = SPR[spriteOf(a)][frame][a.facing < 0 ? 1 : 0];
+  g.globalAlpha = Math.max(0, Math.min(1, a.alpha));
+  g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(Math.round(a.x) - 5, Math.round(a.y) - 1, 10, 3);
+  g.drawImage(spr, Math.round(a.x) - 6, Math.round(a.y) - 16 - bob);
+  if (a.id === 'main' && spriteOf(a) !== 'guildmaster') { const x = Math.round(a.x) - 3, y = Math.round(a.y) - 20 - bob; g.fillStyle = '#1b1424'; g.fillRect(x - 1, y - 1, 8, 4); g.fillStyle = '#f2b84b'; g.fillRect(x, y + 1, 6, 1); g.fillRect(x, y, 1, 1); g.fillRect(x + 2, y - 1 + 1, 2, 1); g.fillRect(x + 5, y, 1, 1); }
+  if (a.lang && a.alpha > .5) { const crest = LANGS[a.lang]; g.font = '6px "Press Start 2P", monospace'; const w = Math.ceil(g.measureText(crest).width) + 3; const x = Math.round(a.x) + 4, y = Math.round(a.y) - 22 - bob; g.fillStyle = '#3b2a1a'; g.fillRect(x, y, w, 7); g.fillStyle = '#ffd27a'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(crest, x + 2, y + 1); }
+  // dungeon strikes
+  if (working && a.room === 'dungeon' && monsters.length && Math.floor(clock * 3) % 2 === 0) {
+    const tgt = monsters[0]; g.strokeStyle = '#fff3c0'; g.lineWidth = 1; g.beginPath(); g.arc(tgt.x, tgt.y - 4, 7, -2.4 + (clock * 6) % 1, -0.6 + (clock * 6) % 1); g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+function drawBubble(a) {
+  if (!a.bubble || a.alpha < .5) return;
+  g.font = FONT; const tw = Math.ceil(g.measureText(a.bubble).width); const w = tw + 8, h = 13;
+  let x = Math.round(a.x - w / 2), y = Math.round(a.y) - 42;
+  x = Math.max(2, Math.min(W - w - 2, x)); y = Math.max(2, y);
+  g.fillStyle = '#1b1424'; g.fillRect(x - 1, y - 1, w + 2, h + 2); g.fillStyle = '#f3e6c0'; g.fillRect(x, y, w, h);
+  const tx = Math.max(x + 3, Math.min(x + w - 5, Math.round(a.x) - 2)); g.fillStyle = '#1b1424'; g.fillRect(tx, y + h + 1, 4, 2); g.fillStyle = '#f3e6c0'; g.fillRect(tx + 1, y + h, 2, 2);
+  g.textAlign = 'left'; g.textBaseline = 'top'; g.fillStyle = '#2b1b14'; g.fillText(a.bubble, x + 4, y + 3);
+}
+function draw() {
+  g.drawImage(bg, 0, 0);
+  drawRoomGlow();
+  drawDynamicProps();
+  for (const [key, r] of Object.entries(ROOMS)) text(r.label, r.x + r.w / 2, r.y - 13, r.color, 'center');
+  if (fogAlpha > 0) { const r = ROOMS.dungeon; g.fillStyle = `rgba(8,5,12,${.82 * fogAlpha})`; g.fillRect(r.x, r.y + 15, r.w, r.h - 15); g.globalAlpha = fogAlpha; text('UNEXPLORED', r.x + r.w / 2, r.y + 44, '#7a6a8a', 'center'); g.globalAlpha = 1; }
+  const things = [...actors.values()].map(a => ({ y: a.y, d: () => drawActor(a) })).concat(monsters.map(m => ({ y: m.y, d: () => drawMonster(m) })));
+  things.sort((p, q) => p.y - q.y).forEach(t => t.d());
+  for (const p of particles) { g.globalAlpha = Math.max(0, Math.min(1, p.life * 2)); g.fillStyle = p.color; g.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
+  g.globalAlpha = 1;
+  for (const f of floats) { g.globalAlpha = Math.min(1, f.life * 1.5); text(f.text, Math.round(f.x), Math.round(f.y), f.color, 'center'); }
+  g.globalAlpha = 1;
+  // the active speaker's bubble on top
+  const speaker = current?.actor ?? actors.get('main');
+  for (const a of actors.values()) if (a !== speaker) { if (a.busy && a.path.length === 0 && !reduced && Math.floor(clock * 2 + a.x) % 2) { g.fillStyle = '#f3e6c0'; g.fillRect(Math.round(a.x) - 1, Math.round(a.y) - 26, 3, 3); } }
+  if (speaker) drawBubble(speaker);
+  if (banner) {
+    const alpha = Math.min(1, banner.life * 2, (2.6 - banner.life) * 4 + .2);
+    g.globalAlpha = Math.max(0, alpha); g.font = FONT; const w = g.measureText(banner.text).width + 24;
+    g.fillStyle = '#1b1424'; g.fillRect(W / 2 - w / 2 - 2, 96, w + 4, 22); g.fillStyle = banner.gold ? '#f2b84b' : '#3d2f4c'; g.fillRect(W / 2 - w / 2, 98, w, 18);
+    text(banner.text, W / 2, 103, banner.gold ? '#1b1424' : '#f3e6c0', 'center'); g.globalAlpha = 1;
+  }
+}
+
+// ───────────────────────── sidebar ─────────────────────────
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function renderQuests() {
+  $('quests').innerHTML = SCENARIOS.map((s, i) => `<button type="button" data-i="${i}" aria-pressed="${i === scenarioIdx}"><span class="crest">${s.lang}</span>${esc(s.name)}</button>`).join('');
+}
+function renderSide() {
+  const a = current?.actor ?? actors.get('main');
+  if (a) { const r = ROOMS[a.room]; const cls = CLASSES[classOf(a)];
+    $('now').innerHTML = `<span class="room-tag" style="background:${r.color}">${esc(r.label)}</span> <span style="color:${cls.color}">${esc(a.fixed ? a.label : cls.name)}</span> ${esc(a.activity)}`; }
+  const d = state.dungeon;
+  $('mon').textContent = d.hasRun ? d.monsters : '?'; $('slain').textContent = d.slain;
+  $('qcount').textContent = `${state.quests.filter(q => q.isDone).length}/${state.quests.length}`;
+  const total = d.monsters + d.slain; $('hpbar').style.width = total ? `${(d.monsters / total) * 100}%` : '0%';
+  $('board').innerHTML = state.quests.length ? state.quests.map(q => `<li class="${q.isDone ? 'done' : ''}"><span>${q.isDone ? '[x]' : '[ ]'}</span><span>${esc(q.title)}</span></li>`).join('') : '<li class="empty">No quests posted yet.</li>';
+  $('xp').innerHTML = Object.entries(CLASSES).map(([k, c]) => { const xp = state.xp[k] ?? 0; const lvl = 1 + Math.floor(xp / 50); const pct = (xp % 50) * 2;
+    return `<li><span style="color:${c.color}">${c.name}</span><span class="meter"><i style="width:${pct}%;background:${c.color}"></i></span><small>LV ${lvl}</small></li>`; }).join('');
+  const glyph = { ok: '✓', fail: '✗', running: '…' };
+  $('log').innerHTML = state.chronicle.length ? state.chronicle.slice().reverse().slice(0, 14).map(e =>
+    `<li><span class="${e.outcome}">${glyph[e.outcome]}</span><span class="t"><span class="who">${esc(e.who)}</span>${e.lang ? ` <span class="crest">${LANGS[e.lang]}</span>` : ''} ${esc(e.text)}</span></li>`).join('') : '<li class="empty">The hall is quiet.</li>';
+  renderQuestsPressed();
+}
+function renderQuestsPressed() { document.querySelectorAll('#quests button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.i) === scenarioIdx))); }
+
+// ───────────────────────── controls ─────────────────────────
+$('quests').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { loadScenario(Number(b.dataset.i)); } });
+$('play').addEventListener('click', () => { playing = !playing; $('play').textContent = playing ? 'PAUSE' : 'PLAY'; });
+$('restart').addEventListener('click', () => loadScenario(scenarioIdx));
+document.querySelectorAll('.spd').forEach(b => b.addEventListener('click', () => { speed = Number(b.dataset.speed); document.querySelectorAll('.spd').forEach(x => x.setAttribute('aria-pressed', String(x === b))); }));
+const EXAMPLES = ['cargo nextest run', 'uv run pytest -x', './gradlew spotlessApply', 'npx playwright test', 'ctest --output-on-failure', 'poetry install', 'clang-tidy src/main.cpp', 'docker compose up -d', 'git log --oneline'];
+$('examples').innerHTML = EXAMPLES.map(c => `<button type="button">${esc(c)}</button>`).join('');
+$('examples').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { $('cmd').value = b.textContent; cast(b.textContent); } });
+$('castForm').addEventListener('submit', e => { e.preventDefault(); const v = $('cmd').value.trim(); if (v) cast(v); });
+const ROOM_NAMES = { study: "Wizard's Study", armory: 'Armory', tavern: 'Tavern Board', dungeon: 'Dungeon', cauldron: "Alchemist's Cauldron" };
+const LANG_NAMES = { javascript: 'JavaScript', python: 'Python', java: 'Java', cpp: 'C++', rust: 'Rust' };
+function cast(command) {
+  const p = classifyTool('Bash', { command });
+  $('verdict').innerHTML = `<b>${esc(ROOM_NAMES[p.location])}</b>${p.lang ? ` · <b>${LANG_NAMES[p.lang]}</b>` : ''}${p.framework ? ` · ${esc(p.framework)}` : ''}`;
+  const st = { who: 'main', tool: 'Bash', in: { command }, simulated: true };
+  if (p.location === 'dungeon') { const m = state.dungeon.monsters; st.battle = m > 0 ? { failed: m - 1, passed: state.dungeon.slain + 1 } : { failed: 2, passed: 10 + Math.floor(Math.random() * 20) }; }
+  manual.push(st);
+  if (!playing) { playing = true; $('play').textContent = 'PAUSE'; }
+}
+
+// ───────────────────────── loop ─────────────────────────
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (playing) { const sub = speed; for (let i = 0; i < sub; i++) update(dt); }
+  draw();
+  requestAnimationFrame(frame);
+}
+function start() {
+  paintBackground();
+  actors.set('main', newHero());
+  renderQuests(); loadScenario(0);
+  requestAnimationFrame(frame);
+}
+(document.fonts?.load ? document.fonts.load(FONT).catch(() => {}) : Promise.resolve()).finally(start);
+})();
+</script>
