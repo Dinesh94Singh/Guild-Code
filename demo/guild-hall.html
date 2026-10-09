@@ -23,6 +23,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { background: var(--void); color: var(--text); }
 body { font-family: var(--body); font-size: 20px; line-height: 1.15; padding-inline: 16px; padding-block: 18px 28px; }
 .wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }
@@ -92,29 +93,87 @@ ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; }
 .empty { color: var(--muted); grid-column: 1 / -1; }
 footer { color: var(--muted); font-size: 18px; }
 @media (prefers-reduced-motion: reduce) { .hp i { transition: none; } }
+.realms { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.realm .swatch { width: 10px; height: 10px; background: var(--c); border: 2px solid #000; flex: none; }
+.realm { border-left: 6px solid var(--c, var(--gold)); }
+.realm[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--c, var(--gold)), 2px 2px 0 #000; border-color: var(--c, var(--gold)); }
+.proj { font-family: var(--display); font-size: 7px; padding: 2px 4px 1px; background: var(--c); color: #1b1424; margin-right: 5px; white-space: nowrap; vertical-align: middle; }
+.phead { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-top: 4px; }
+.phead small { color: var(--muted); font-size: 16px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border: 1px solid #000; }
+.realm { display: grid; gap: 5px; padding: 6px; text-align: left; font-family: var(--body); font-size: 18px; }
+.realm[aria-pressed="true"] { background: var(--panel-2); color: var(--text); border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold), 2px 2px 0 #000; }
+.realm .rname { display: flex; gap: 6px; align-items: center; font-family: var(--display); font-size: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.realm .rstat { color: var(--muted); font-size: 16px; min-height: 1.1em; }
+.realm .fail { color: var(--blood); }
+.places { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.team { font-family: var(--display); font-size: 7px; padding: 2px 4px 1px; border: 1px solid var(--gold); color: var(--parch); margin-right: 4px; white-space: nowrap; }
+.party { gap: 4px; }
+.party .member { width: 100%; display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 6px; align-items: center; text-align: left; font-family: var(--body); font-size: 19px; padding: 3px 6px; box-shadow: none; }
+.party small { color: var(--muted); text-align: right; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quota { gap: 8px; }
+.qhead { display: flex; justify-content: space-between; font-size: 20px; }
+.qhead b { font-weight: normal; font-variant-numeric: tabular-nums; } .qhead b.low { color: var(--blood); }
+.qbar { height: 10px; background: var(--void); border: 2px solid #000; } .qbar.week { height: 6px; margin-top: 2px; }
+.qbar i { display: block; height: 100%; transition: width .4s steps(6); }
+.quota small { color: var(--muted); font-size: 16px; }
+.sample { font-size: 7px; color: var(--void); background: var(--muted); padding: 2px 4px 1px; vertical-align: middle; }
+.note { color: var(--muted); font-size: 16px; }
+.inspect { position: relative; border-color: var(--gold); }
+.inspect h2 { padding-right: 28px; line-height: 1.4; }
+.inspect h3 { font-family: var(--display); font-size: 8px; color: var(--muted); margin: 4px 0 0; }
+.inspect .blurb { margin: 0; } .inspect .tools { margin: 0; color: var(--muted); font-size: 17px; }
+.inspect .x { position: absolute; top: 6px; right: 6px; padding: 4px 6px 3px; }
+.stat-row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-family: var(--display); font-size: 7px; color: var(--muted); }
+.stat-row b { font-family: var(--body); font-size: 20px; font-weight: normal; color: var(--text); margin-left: 3px; }
+.here li { font-size: 19px; }
+.dim { color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .qbar i { transition: none; } }
 </style>
 
 <div class="wrap">
   <header>
     <h1>GUILD CODE</h1>
     <span class="badge">DRY RUN</span>
-    <p>A sample session replayed through the mod's own classifier. The party travels the realm: every command lands in the place Guild Code would send it to. Cast your own command to see where it goes.</p>
+    <p>Five sample projects share one realm, replayed through the mod's own classifier: every party, subagent and team walks the same roads to the place Guild Code would send its work. Pick a project to follow it; cast your own command to see where it goes.</p>
   </header>
 
   <div class="stage">
     <section class="screen px" aria-label="Guild realm map">
-      <div class="quests" id="quests" role="group" aria-label="Choose a quest"></div>
+      <div class="realms" id="realms" role="group" aria-label="Projects"></div>
       <div class="crt"><canvas id="map" width="480" height="270" tabindex="0" aria-label="Pixel-art world map of the guild realm with the party at work. Drag or use the arrow keys to explore; press M for the whole map."></canvas></div>
       <div class="bar">
         <button id="play" type="button">PAUSE</button>
         <button id="restart" type="button">RESTART</button>
         <button class="cam" data-cam="follow" type="button" aria-pressed="true">FOLLOW</button>
         <button class="cam" data-cam="world" type="button" aria-pressed="false">WORLD MAP</button>
-        <span class="hint">drag to explore</span>
+        <span class="hint">click a place or a hero · drag to explore</span>
         <span class="grow"></span>
         <button class="spd" data-speed="1" type="button" aria-pressed="true">1X</button>
         <button class="spd" data-speed="2" type="button">2X</button>
         <button class="spd" data-speed="4" type="button">4X</button>
+      </div>
+      <div class="bar sky" role="group" aria-label="Weather and time of day">
+        <span class="hint">WEATHER</span>
+        <button type="button" data-weather="auto" aria-pressed="true">AUTO</button>
+        <button type="button" data-weather="sun" aria-pressed="false">SUN</button>
+        <button type="button" data-weather="cloud" aria-pressed="false">CLOUDS</button>
+        <button type="button" data-weather="rain" aria-pressed="false">RAIN</button>
+        <button type="button" data-weather="storm" aria-pressed="false">STORM</button>
+        <button type="button" data-weather="snow" aria-pressed="false">SNOW</button>
+        <span class="grow"></span>
+        <span class="hint">TIME</span>
+        <button type="button" data-time="auto" aria-pressed="true">AUTO</button>
+        <button type="button" data-time="day" aria-pressed="false">DAY</button>
+        <button type="button" data-time="night" aria-pressed="false">NIGHT</button>
+      </div>
+      <div class="places" role="group" aria-label="Inspect a place">
+        <span class="hint">VISIT</span>
+        <button type="button" data-place="tavern">TAVERN</button>
+        <button type="button" data-place="study">STUDY</button>
+        <button type="button" data-place="dungeon">DUNGEON</button>
+        <button type="button" data-place="armory">ARMORY</button>
+        <button type="button" data-place="cauldron">CAULDRON</button>
       </div>
       <div class="caster">
         <label for="cmd">CAST A COMMAND</label>
@@ -128,9 +187,19 @@ footer { color: var(--muted); font-size: 18px; }
     </section>
 
     <aside>
+      <div class="card px inspect" id="inspect" hidden aria-live="polite"></div>
       <div class="card px">
         <h2>NOW</h2>
         <div class="now" id="now"></div>
+      </div>
+      <div class="card px">
+        <h2 id="partyTitle">ALL PARTIES</h2>
+        <ul class="party" id="party"></ul>
+      </div>
+      <div class="card px">
+        <h2>MODEL QUOTA <span class="sample">SAMPLE</span></h2>
+        <ul class="quota" id="quota"></ul>
+        <small class="note">Bars show what is left: the thick one is the 5-hour window, the thin one the week.</small>
       </div>
       <div class="card px">
         <h2>DUNGEON</h2>
@@ -575,8 +644,6 @@ const MON = [['#d1495b', '#9e2f3f'], ['#9b59d0', '#6d3a99'], ['#e07a2f', '#a8541
 
 
 // ───────────────────────── terrain ─────────────────────────
-const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
-const mini = document.createElement('canvas'); mini.width = 120; mini.height = 68;
 const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
 function vnoise(x, y) {
   const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
@@ -591,12 +658,11 @@ const px = (b, c, x, y, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(x, y, w, 
 const CELL = 2, GW = W / CELL, GH = H / CELL;
 const SEA = 0, LAND = 1, FRESH = 2;
 const PLAINS = 0, FOREST = 1, PEAKS = 2, BADLANDS = 3, SWAMP = 4, BEACH = 5;
-const KIND = new Uint8Array(GW * GH), BIOME = new Uint8Array(GW * GH), DEPTH = new Float32Array(GW * GH);
+// Each workspace gets its own island: a seed shapes the coast and scatters the scenery, a season paints it.
+let KIND, BIOME, DEPTH, SNOWY, FOAM, SPARKS, SHIP, SEED = 0, SEASON;
 const cellAt = (x, y) => Math.max(0, Math.min(GH - 1, Math.floor(y / CELL))) * GW + Math.max(0, Math.min(GW - 1, Math.floor(x / CELL)));
-const FOAM = [], SPARKS = [];
-let SHIP = null;
 
-const PAL = Object.fromEntries(Object.entries({
+const BASE_PAL = {
   grassA: '#5c9e3e', grassB: '#529338', grassHi: '#74b54e', grassLo: '#447f30',
   forestA: '#3f7431', forestB: '#376a2c', forestHi: '#4f8a3c', forestLo: '#2c5824',
   peakA: '#7c7467', peakB: '#716a5e', peakHi: '#8d857a', peakLo: '#5f584e',
@@ -608,14 +674,27 @@ const PAL = Object.fromEntries(Object.entries({
   plank: '#9a6a3c', plankLo: '#5a3720', rail: '#3a2414',
   river: '#3f97c9', riverHi: '#5aaed8', bank: '#8f7c58', pool: '#2f4b3e', poolHi: '#3d6150',
   shoal: '#62b4d6', sea1: '#4aa3c9', sea2: '#3484b8', sea3: '#2a68a0', sea4: '#22558a', cliffHi: '#8a6a44', cliffLo: '#5a4028',
-}).map(([k, v]) => [k, rgb(v)]));
+  ice: '#cfe6f2', iceHi: '#f2fbff',
+  snowA: '#e8eef4', snowB: '#dde5ee', snowHi: '#ffffff', snowLo: '#c4cfdc',
+};
+const SNOW_GROUND = ['snowA', 'snowB', 'snowHi', 'snowLo'];
+const SEASONS = {
+  summer: { pal: {}, oak: ['#1d3b1c', '#2f6a2c', '#43893a', '#62a84c'], dark: ['#14301a', '#24552a', '#336f34', '#4a8a42'], willow: ['#16261a', '#2e4a2a', '#3c5e34', '#557a46'], crops: true, flowers: 0.13 },
+  autumn: { pal: { grassA: '#8f9a45', grassB: '#84903e', grassHi: '#b0a850', grassLo: '#6f7a32', forestA: '#6b6a30', forestB: '#62612b', forestHi: '#8a7a38', forestLo: '#4f4e22', swampA: '#5e5a34', swampB: '#55522f' },
+            oak: ['#3a1a0c', '#a8461c', '#d9762a', '#f2a640'], dark: ['#2e140a', '#8e3a18', '#b85a22', '#d98a34'], willow: ['#2e200c', '#7a5a1c', '#a8822a', '#c9a640'], crops: true, flowers: 0.03, leaves: true },
+  winter: { pal: { grassA: '#e8eef4', grassB: '#dde5ee', grassHi: '#ffffff', grassLo: '#c4cfdc', forestA: '#d3dce6', forestB: '#c9d3de', forestHi: '#eef3f8', forestLo: '#aebccc', swampA: '#b7c2bf', swampB: '#adb8b4', swampHi: '#d0d8d5', swampLo: '#93a09b', badA: '#a39e94', badB: '#99948a', sandA: '#e6e2d6', sandB: '#ddd8ca', bank: '#b9b2a2', pool: '#a8c8d6', poolHi: '#d6ecf4' },
+            oak: ['#2a2420', '#5a4a40', '#6e5c50', '#8a7666'], dark: ['#1e2a24', '#3e5a4a', '#4e6e5a', '#6a8a74'], willow: ['#2a2420', '#5a4a40', '#6e5c50', '#8a7666'], crops: false, flowers: 0, snow: true, iceLakes: true },
+  spring: { pal: { grassA: '#6cb24a', grassB: '#62a842', grassHi: '#8fd06a', grassLo: '#4f8f36' },
+            oak: ['#5a2a3a', '#d77fa0', '#f0a8c4', '#ffd6e6'], dark: ['#14301a', '#24552a', '#336f34', '#4a8a42'], willow: ['#16261a', '#2e4a2a', '#3c5e34', '#557a46'], crops: true, flowers: 0.24 },
+};
+let PAL, OAK, DARK_OAK, WILLOW;
 const GROUND = {
   [PLAINS]: ['grassA', 'grassB', 'grassHi', 'grassLo'], [FOREST]: ['forestA', 'forestB', 'forestHi', 'forestLo'],
   [PEAKS]: ['peakA', 'peakB', 'peakHi', 'peakLo'], [BADLANDS]: ['badA', 'badB', 'badHi', 'badLo'],
   [SWAMP]: ['swampA', 'swampB', 'swampHi', 'swampLo'], [BEACH]: ['sandA', 'sandB', 'sandHi', 'sandLo'],
 };
 const LANDMARKS = [ROOMS.study.at, ROOMS.armory.at, ROOMS.dungeon.at, ROOMS.cauldron.at, HUB];
-const CLEAR = [{ x: 168, y: 128, r: 34 }, { x: 800, y: 122, r: 66 }, { x: 156, y: 404, r: 58 }, { x: 818, y: 424, r: 50 }, { x: 568, y: 190, r: 20 }];
+const CLEAR = [{ x: 318, y: 314, r: 42 }, { x: 356, y: 152, r: 20 }, { x: 168, y: 128, r: 34 }, { x: 800, y: 122, r: 66 }, { x: 156, y: 404, r: 58 }, { x: 818, y: 424, r: 50 }, { x: 568, y: 190, r: 20 }];
 const FIELDS = [{ x: 494, y: 172, w: 58, h: 30, crop: 'wheat' }, { x: 356, y: 398, w: 52, h: 26, crop: 'cabbage' }];
 const inTown = (x, y) => ((x - 480) / 126) ** 2 + ((y - 292) / 90) ** 2 < 1;
 const inField = (x, y) => FIELDS.some(f => x > f.x - 5 && x < f.x + f.w + 5 && y > f.y - 3 && y < f.y + f.h + 10);
@@ -623,14 +702,14 @@ const cleared = (x, y) => CLEAR.some(c => Math.hypot(x - c.x, y - c.y) < c.r) ||
 
 function landness(x, y) {
   const nx = (x - 480) / 470, ny = (y - 270) / 250;
-  let d = 1 - Math.hypot(nx, ny) + (fbm(x / 70, y / 70) - 0.5) * 0.42;
+  let d = 1 - Math.hypot(nx, ny) + (fbm((x + SEED * 977) / 70, (y + SEED * 613) / 70) - 0.5) * 0.42;
   for (const p of LANDMARKS) { const dist = Math.hypot(x - p.x, y - p.y); if (dist < 150) d += 0.32 * (1 - dist / 150); }
   return d;
 }
 function biomeAt(x, y) {
-  const n = fbm(x / 45 + 50, y / 45 + 50) - 0.5;
+  const n = fbm(x / 45 + 50 + SEED * 13, y / 45 + 50 + SEED * 7) - 0.5;
   const ell = (cx, cy, rx, ry) => 1 - Math.hypot((x - cx) / rx, (y - cy) / ry) + n * 0.6;
-  const w = [[PEAKS, ell(830, 48, 210, 112)], [FOREST, ell(180, 140, 196, 132)], [BADLANDS, ell(150, 440, 180, 112)], [SWAMP, ell(820, 444, 180, 106)]];
+  const w = [[PEAKS, ell(830, 54, 226, 122)], [FOREST, ell(180, 140, 196, 132)], [BADLANDS, ell(150, 440, 180, 112)], [SWAMP, ell(820, 444, 180, 106)]];
   let best = PLAINS, top = 0;
   for (const [b, v] of w) if (v > top) { top = v; best = b; }
   return best;
@@ -648,6 +727,7 @@ const riverMask = extra => mask(x => { for (let i = 0; i < RIVER.length - 1; i++
 const ovalMask = (cx, cy, rx, ry) => mask(x => { x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); x.fill(); });
 
 function paintTerrain(b) {
+  SNOWY = new Uint8Array(GW * GH); KIND = new Uint8Array(GW * GH); BIOME = new Uint8Array(GW * GH); DEPTH = new Float32Array(GW * GH); FOAM = []; SPARKS = []; SHIP = null;
   const ROAD = roadsMask(8), ROAD_EDGE = roadsMask(12), ROAD_NEAR = roadsMask(30);
   const RIV = riverMask(0), RIV_BANK = riverMask(6), LAKE = ovalMask(318, 118, 34, 18), LAKE_BANK = ovalMask(318, 118, 38, 21);
   const PLAZA = ovalMask(480, 302, 60, 34), PLAZA_EDGE = ovalMask(480, 302, 63, 37);
@@ -661,6 +741,8 @@ function paintTerrain(b) {
       if (RIV[k] || LAKE[k]) kind = FRESH;
       else if (biome === SWAMP && !ROAD_NEAR[k] && fbm(x / 22 + 9, y / 22 + 4) > 0.64 && Math.hypot(x - 818, y - 424) > 42) kind = FRESH;
     }
+    // The mountains around the Armory lie under snow whatever the season.
+    if (kind === LAND) SNOWY[k] = biome === PEAKS || Math.hypot((x - 800) / 1.35, y - 112) + (fbm(x / 40 + 5, y / 40 + 5) - 0.5) * 80 < 178 ? 1 : 0;
     KIND[k] = kind; BIOME[k] = biome;
   }
   const img = b.createImageData(W, H), buf = img.data;
@@ -678,6 +760,7 @@ function paintTerrain(b) {
         if (ROAD[k]) c = x % 4 === 0 ? PAL.plankLo : PAL.plank;               // bridge deck
         else if (ROAD_EDGE[k]) c = PAL.rail;
         else if (!RIV[k] && !LAKE[k]) c = h > 0.92 ? PAL.poolHi : PAL.pool;   // swamp pools
+        else if (LAKE[k] && SEASON.iceLakes) c = h > 0.9 ? PAL.iceHi : PAL.ice;
         else c = h > 0.96 ? PAL.riverHi : PAL.river;
       } else if (PLAZA[k]) {
         const off = Math.floor(y / 3) % 2 ? 3 : 0;
@@ -691,7 +774,7 @@ function paintTerrain(b) {
       } else if (RIV_BANK[k] || LAKE_BANK[k]) {
         c = h > 0.9 ? PAL.sandLo : PAL.bank;
       } else {
-        const g = GROUND[biome];
+        const g = SNOWY[k] && biome !== BEACH ? SNOW_GROUND : GROUND[biome];
         const base = tone > 0.52 || (tone > 0.48 && (x + y) % 2) ? g[0] : g[1];
         c = PAL[h > 0.94 ? g[2] : h < 0.05 ? g[3] : base];
       }
@@ -730,7 +813,7 @@ function paintTerrain(b) {
 
 // ───────────────────────── scenery sprites ─────────────────────────
 const shadow = (b, x, y, w) => px(b, 'rgba(0,0,0,.28)', x - (w >> 1), y - 1, w, 3);
-function pine(b, x, y, h) {
+function pine(b, x, y, h, snowy = SEASON.snow) {
   shadow(b, x + 1, y, 11);
   px(b, '#3a2414', x - 1, y - 3, 3, 3);
   const half = i => { let w = Math.max(0, Math.round((h - i) * 0.38)); if (i % 4 === 0 && i > 1) w += 1; return w; };
@@ -739,12 +822,11 @@ function pine(b, x, y, h) {
   for (let i = 0; i < h; i++) {
     const w = half(i), yy = y - 3 - i;
     px(b, '#2e6a3a', x - w, yy, w + 1, 1); if (w) px(b, '#22502c', x + 1, yy, w, 1);
-    if (i % 4 === 1 && w > 1) px(b, '#4a8f4f', x - w, yy, Math.max(1, w >> 1), 1);
+    if (i % 4 === 1 && w > 1) px(b, snowy ? '#f4f8fc' : '#4a8f4f', x - w, yy, Math.max(1, snowy ? w : w >> 1), 1);
   }
 }
-const OAK = ['#1d3b1c', '#2f6a2c', '#43893a', '#62a84c'], DARK_OAK = ['#14301a', '#24552a', '#336f34', '#4a8a42'];
-const WILLOW = ['#16261a', '#2e4a2a', '#3c5e34', '#557a46'];
-function oak(b, x, y, r, pal = OAK, trunk = 5) {
+function oak(b, x, y, r, pal, trunk = 5) {
+  pal = pal ?? OAK;
   shadow(b, x + 1, y, r * 2 + 2);
   if (trunk) { px(b, '#3a2414', x - 1, y - trunk, 3, trunk); px(b, '#5a3a20', x - 1, y - trunk, 1, trunk); }
   const cy = y - trunk - r;
@@ -786,7 +868,7 @@ function mushroom(b, x, y, cap = '#c0392b') { px(b, '#efe6d2', x, y - 2, 1, 2); 
 function reeds(b, x, y) { for (let k = 0; k < 4; k++) { const hgt = 4 + Math.floor(hash(x + k, y) * 4); px(b, '#5e7a3a', x + k * 2 - 3, y - hgt, 1, hgt); if (k % 2) px(b, '#6b4426', x + k * 2 - 3, y - hgt - 1, 1, 2); } }
 function tuft(b, x, y, c = '#3f7a2c') { px(b, c, x, y - 2, 1, 2); px(b, c, x + 2, y - 3, 1, 3); px(b, c, x + 1, y - 1, 1, 1); }
 function flowers(b, x, y) { const cs = ['#fff3d0', '#f7dd5b', '#e88aa8', '#8ab4f0']; for (let k = 0; k < 3; k++) px(b, cs[Math.floor(hash(x + k, y) * 4)], x + Math.floor(hash(x, y + k) * 6) - 3, y + Math.floor(hash(x + k * 3, y) * 4) - 2); }
-function mountain(b, x, y, w, h, snow = 0.32) {
+function mountain(b, x, y, w, h, snow = 0.42) {
   px(b, '#2f2a26', x, y - h - 1, 1, 1);
   for (let i = 0; i <= h; i++) { const hw = Math.round(i / h * w / 2); px(b, '#2f2a26', x - hw - 1, y - h + i, hw * 2 + 3, 1); }
   for (let i = 1; i <= h; i++) {
@@ -818,7 +900,8 @@ function roof(b, x, top, w, rows, a, dark) {
   px(b, '#1b1424', L - 4 + inset, top - 1 - rows, w + 8 - inset * 2, 1);
   px(b, 'rgba(0,0,0,.28)', L, top, w, 2);
 }
-function window_(b, x, y) { px(b, '#1b1424', x - 1, y - 1, 6, 6); px(b, '#ffd27a', x, y, 4, 4); px(b, '#fff3c0', x, y, 2, 2); px(b, '#5a3720', x + 2, y, 1, 4); }
+const WINDOWS = [];
+function window_(b, x, y) { WINDOWS.push({ x: x + 2, y: y + 2 }); px(b, '#1b1424', x - 1, y - 1, 6, 6); px(b, '#ffd27a', x, y, 4, 4); px(b, '#fff3c0', x, y, 2, 2); px(b, '#5a3720', x + 2, y, 1, 4); }
 function door(b, x, y) { px(b, '#1b1424', x - 4, y - 11, 8, 11); px(b, '#6b4426', x - 3, y - 10, 6, 10); px(b, '#4a2f1d', x, y - 10, 1, 10); px(b, '#f2b84b', x + 1, y - 5, 1, 1); }
 function house(b, x, y, w, wallH, rows, a, dark, chimney) {
   const L = x - (w >> 1);
@@ -874,7 +957,8 @@ function field(b, f) {
   for (let yy = f.y + 2; yy < f.y + f.h - 1; yy += 4) {
     px(b, '#7f5e36', f.x + 1, yy, f.w - 2, 2);
     for (let xx = f.x + 2; xx < f.x + f.w - 2; xx += 3) {
-      if (f.crop === 'wheat') { px(b, hash(xx, yy) > 0.25 ? '#e0c050' : '#c9a33a', xx, yy - 2, 2, 3); px(b, '#f2dc7a', xx, yy - 2, 1, 1); }
+      if (!SEASON.crops) { px(b, '#f4f8fc', xx, yy - 1, 3, 2); }
+      else if (f.crop === 'wheat') { px(b, hash(xx, yy) > 0.25 ? '#e0c050' : '#c9a33a', xx, yy - 2, 2, 3); px(b, '#f2dc7a', xx, yy - 2, 1, 1); }
       else { px(b, '#2f6a2c', xx, yy - 1, 3, 2); px(b, '#84d488', xx + 1, yy - 1, 1, 1); }
     }
   }
@@ -981,15 +1065,21 @@ function alchemistHut(b, x, y) {
   HUT = { window: { x: x + 7, y: y - 25 } };
 }
 
-function paintBackground() {
+function paintBackground(seed, season) {
+  SEED = seed; SEASON = SEASONS[season];
+  PAL = Object.fromEntries(Object.entries({ ...BASE_PAL, ...SEASON.pal }).map(([k, v]) => [k, rgb(v)]));
+  OAK = SEASON.oak; DARK_OAK = SEASON.dark; WILLOW = SEASON.willow;
+  CHIMNEYS.length = VENTS.length = LAMPS.length = TORCHES.length = WINDOWS.length = 0;
+  const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+  const mini = document.createElement('canvas'); mini.width = 120; mini.height = 68;
   const b = bg.getContext('2d');
   const { ROAD_NEAR } = paintTerrain(b);
   FIELDS.forEach(f => field(b, f));
   const items = [];
   const add = (y, fn) => items.push({ y, fn });
   // mountain ranges in the north-east
-  for (let y = -6; y < 200; y += 11) for (let x = 560; x < W + 20; x += 17) {
-    const jx = x + Math.floor(hash(x, y + 99) * 12) - 6, jy = y + Math.floor(hash(y + 99, x) * 8);
+  for (let y = -6; y < 210; y += 10) for (let x = 548; x < W + 20; x += 15) {
+    const jx = x + Math.floor(hash(x + SEED * 31, y + 99) * 12) - 6, jy = y + Math.floor(hash(y + 99, x + SEED * 17) * 8);
     const k = cellAt(jx, jy);
     if (BIOME[k] !== PEAKS || KIND[k] !== LAND || DEPTH[k] < 0.05 || ROAD_NEAR[k] || Math.hypot(jx - 800, jy - 120) < 72) continue;
     const w = 24 + Math.floor(hash(jx, jy * 3) * 26), h = Math.floor(w * (0.6 + hash(jy, jx) * 0.3));
@@ -998,27 +1088,43 @@ function paintBackground() {
   }
   // trees, rocks and the small things, by biome
   for (let y = 4; y < H; y += 7) for (let x = 3; x < W; x += 7) {
-    const jx = x + Math.floor(hash(x, y * 3) * 6) - 3, jy = y + Math.floor(hash(x * 5, y) * 6) - 3;
-    const k = cellAt(jx, jy), r = hash(jx * 7, jy * 13), biome = BIOME[k];
+    const jx = x + Math.floor(hash(x + SEED * 31, y * 3) * 6) - 3, jy = y + Math.floor(hash(x * 5, y + SEED * 17) * 6) - 3;
+    const k = cellAt(jx, jy), r = hash(jx * 7 + SEED * 101, jy * 13), biome = BIOME[k];
     if (KIND[k] === FRESH && biome === SWAMP && r < 0.12) { add(jy, () => { px(b, '#4f8a3c', jx - 1, jy, 3, 2); if (r < 0.04) px(b, '#e88aa8', jx, jy, 1, 1); }); continue; }
     if (KIND[k] !== LAND || DEPTH[k] < 0.03 || ROAD_NEAR[k] || cleared(jx, jy)) continue;
     const nearSkull = Math.hypot(jx - 156, jy - 414) < 120;
+    if (SNOWY[k] && biome !== PEAKS) {
+      if (r < 0.3) add(jy, () => pine(b, jx, jy, 10 + Math.floor(hash(jy, jx) * 8), true));
+      else if (r < 0.36) add(jy, () => rock(b, jx, jy, 2, '#f4f8fc', '#aebccc'));
+      else if (r < 0.42) add(jy, () => tuft(b, jx, jy, '#aebccc'));
+      continue;
+    }
+    // Groves: patches of the plains grow thick with trees.
+    const grove = biome === PLAINS && fbm(jx / 36 + SEED * 3, jy / 36 + 11) > 0.58;
+    if (grove) {
+      if (r < 0.42) add(jy, () => oak(b, jx, jy, 5 + Math.floor(hash(jx, 2) * 3), hash(jx, 3) > 0.5 ? OAK : DARK_OAK));
+      else if (r < 0.55) add(jy, () => pine(b, jx, jy, 11 + Math.floor(hash(jy, jx) * 7)));
+      else if (r < 0.66) add(jy, () => oak(b, jx, jy, 3, OAK, 0));
+      else if (r < 0.7) add(jy, () => mushroom(b, jx, jy));
+      continue;
+    }
     switch (biome) {
       case FOREST:
-        if (r < 0.6) add(jy, () => pine(b, jx, jy, 12 + Math.floor(hash(jy, jx) * 9)));
-        else if (r < 0.72) add(jy, () => oak(b, jx, jy, 5, DARK_OAK));
+        if (r < 0.66) add(jy, () => pine(b, jx, jy, 12 + Math.floor(hash(jy, jx) * 9)));
+        else if (r < 0.78) add(jy, () => oak(b, jx, jy, 5, DARK_OAK));
         else if (r < 0.76) add(jy, () => mushroom(b, jx, jy));
         break;
       case PLAINS:
-        if (r < 0.045) add(jy, () => oak(b, jx, jy, 5 + Math.floor(hash(jx, 1) * 2)));
-        else if (r < 0.075) add(jy, () => oak(b, jx, jy, 3, OAK, 0));
-        else if (r < 0.2) add(jy, () => flowers(b, jx, jy));
-        else if (r < 0.22) add(jy, () => rock(b, jx, jy, 2));
-        else if (r < 0.32) add(jy, () => tuft(b, jx, jy));
+        if (SEASON.leaves && r > 0.9) { add(jy, () => { px(b, '#d9762a', jx, jy); px(b, '#a8461c', jx + 2, jy + 1); }); break; }
+        if (r < 0.085) add(jy, () => oak(b, jx, jy, 5 + Math.floor(hash(jx, 1) * 2)));
+        else if (r < 0.14) add(jy, () => oak(b, jx, jy, 3, OAK, 0));
+        else if (r < 0.14 + SEASON.flowers) add(jy, () => flowers(b, jx, jy));
+        else if (r < 0.16 + SEASON.flowers) add(jy, () => rock(b, jx, jy, 2));
+        else if (r < 0.3 + SEASON.flowers) add(jy, () => tuft(b, jx, jy, SEASON.snow ? '#aebccc' : '#3f7a2c'));
         break;
       case PEAKS:
         if (r < 0.12) add(jy, () => rock(b, jx, jy, 2 + Math.floor(r * 20)));
-        else if (r < 0.2) add(jy, () => pine(b, jx, jy, 9));
+        else if (r < 0.3) add(jy, () => pine(b, jx, jy, 9 + Math.floor(r * 20), true));
         break;
       case BADLANDS:
         if (nearSkull && r < 0.14) add(jy, () => gravestone(b, jx, jy, r < 0.05));
@@ -1027,7 +1133,7 @@ function paintBackground() {
         else if (r < 0.2) add(jy, () => tuft(b, jx, jy, '#7a6a48'));
         break;
       case SWAMP:
-        if (r < 0.1) add(jy, () => willow(b, jx, jy));
+        if (r < 0.16) add(jy, () => willow(b, jx, jy));
         else if (r < 0.2) add(jy, () => reeds(b, jx, jy));
         else if (r < 0.25) add(jy, () => mushroom(b, jx, jy, r < 0.22 ? '#a593ff' : '#c0392b'));
         break;
@@ -1056,72 +1162,49 @@ function paintBackground() {
   add(420, () => alchemistHut(b, 822, 420));
   items.sort((p, q) => p.y - q.y).forEach(it => it.fn());
   const m = mini.getContext('2d'); m.imageSmoothingEnabled = true; m.drawImage(bg, 0, 0, mini.width, mini.height);
+  return { bg, mini, foam: FOAM, sparks: SPARKS, ship: SHIP };
 }
 
 // Clouds drift over the realm; each has a matching shadow on the ground.
-const CLOUDS = [0, 1, 2, 3].map(seed => {
+const CLOUDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(seed => {
   const w = 44 + Math.floor(hash(seed, 1) * 36), h = 20, c = document.createElement('canvas'), s = document.createElement('canvas');
   c.width = s.width = w; c.height = s.height = h;
   const blobs = Array.from({ length: 6 }, (_, i) => ({ x: 9 + hash(seed, i + 3) * (w - 18), y: 11 + (hash(seed, i + 9) - 0.5) * 5, r: 5 + hash(seed, i + 20) * 4 }));
   const inside = (x, y) => blobs.some(bl => Math.hypot(x - bl.x, (y - bl.y) * 1.3) < bl.r);
-  const cx = c.getContext('2d'), sx = s.getContext('2d');
+  const dark = document.createElement('canvas'); dark.width = w; dark.height = h;
+  const cx = c.getContext('2d'), sx = s.getContext('2d'), dx = dark.getContext('2d');
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (inside(x, y)) {
-    cx.fillStyle = !inside(x, y + 2) ? '#c9d4e4' : !inside(x, y - 2) ? '#ffffff' : '#f1f5fb'; cx.fillRect(x, y, 1, 1);
+    const edge = !inside(x, y + 2) ? 0 : !inside(x, y - 2) ? 2 : 1;
+    cx.fillStyle = ['#c9d4e4', '#f1f5fb', '#ffffff'][edge]; cx.fillRect(x, y, 1, 1);
+    dx.fillStyle = ['#4a5060', '#6a7080', '#8a90a0'][edge]; dx.fillRect(x, y, 1, 1);
     sx.fillStyle = '#000'; sx.fillRect(x, y, 1, 1);
   }
-  return { c, s, x: hash(seed, 7) * W, y: 30 + seed * 120 + hash(seed, 8) * 40, v: 5 + hash(seed, 9) * 4 };
+  return { c, s, dark, x: hash(seed, 7) * W, y: 20 + (seed % 5) * 104 + hash(seed, 8) * 40, v: 5 + hash(seed, 9) * 4 };
 });
 const FIREFLIES = Array.from({ length: 14 }, (_, i) => ({ x: 720 + hash(i, 51) * 200, y: 380 + hash(i, 52) * 120, ph: hash(i, 53) * 6.28 }));
 
-// ───────────────────────── game state ─────────────────────────
-const state = { chronicle: [], dungeon: { monsters: 0, slain: 0, hasRun: false }, quests: [], xp: { guildmaster: 0, wizard: 0, rogue: 0, dwarf: 0, alchemist: 0 } };
-let actors = new Map(), monsters = [], particles = [], floats = [], banner = null;
-let fogAlpha = 1, speed = 1, playing = true, scenarioIdx = 0, steps = [], stepIdx = 0, current = null, gap = 0, ending = 0;
-const manual = [];
-let seq = 0;
 const WALK_SPEED = 120;
 
-function newHero() {
-  const s = ROOMS.tavern.spots[0];
-  return { id: 'main', label: 'Guildmaster', fixed: null, x: s.x, y: s.y, room: 'tavern', spot: 0, path: [], busy: false, activity: 'awaits a quest', facing: 1, dist: 0, alpha: 1, bubble: '', lang: undefined };
+// ───────────────────────── models and quota ─────────────────────────
+// Sample figures: the mod itself reads the account's real rate-limit windows from the engine.
+const MODELS = {
+  'opus-5.5':   { name: 'Opus 5.5',   color: '#f2b84b', hour: 34, week: 58 },
+  'sonnet-5.5': { name: 'Sonnet 5.5', color: '#a593ff', hour: 21, week: 44 },
+  'haiku-5.5':  { name: 'Haiku 5.5',  color: '#4fc7b5', hour: 9,  week: 17 },
+  'fable-5.1':  { name: 'Fable 5.1',  color: '#e8606f', hour: 47, week: 71 },
+};
+const MODEL_OF = { guildmaster: 'opus-5.5', wizard: 'fable-5.1', rogue: 'sonnet-5.5', dwarf: 'haiku-5.5', alchemist: 'haiku-5.5', sellsword: 'sonnet-5.5' };
+const T0 = Date.now();
+const RESETS = { hour: 2 * 3600e3 + 41 * 60e3, week: 3 * 86400e3 + 5 * 3600e3 };
+function burn(model, amount) {
+  const m = MODELS[model]; if (!m) return;
+  m.hour += amount; m.week += amount * 0.18;
+  if (m.hour >= 99) { m.hour = 3; } // the 5-hour window rolls over in the demo rather than running dry
 }
-function classOf(a) { return a.fixed ?? ROOMS[a.room].resident; }
-function spriteOf(a) {
-  if (a.fixed) return a.fixed === 'sellsword' ? 'sellsword' : a.fixed;
-  if (a.path.length > 0 || a.room === 'tavern') return 'guildmaster';
-  return ROOMS[a.room].resident; // the hero takes up the class of the place
-}
-function pickSpot(room, who) {
-  const taken = new Set([...actors.values()].filter(a => a !== who && a.room === room).map(a => a.spot));
-  const spots = ROOMS[room].spots; const i = spots.findIndex((_, k) => !taken.has(k));
-  return i < 0 ? 0 : i;
-}
-// Every journey goes by road: back to the town square, then out along the road to the destination.
-function route(a, to, spot) {
-  const from = a.room;
-  if (from === to) return [{ ...spot }];
-  const pts = [];
-  if (from !== 'tavern') pts.push(...WALK[from].slice().reverse());
-  if (to !== 'tavern') pts.push(...WALK[to]); else pts.push({ ...HUB });
-  pts.push({ ...spot });
-  return pts;
-}
-function sendTo(a, room) {
-  const k = pickSpot(room, a); const spot = ROOMS[room].spots[k];
-  a.path = route(a, room, spot); a.room = room; a.spot = k;
-}
-
-// ───────────────────────── chronicle & ledger ─────────────────────────
-function log(entry) { const e = { id: ++seq, ...entry }; state.chronicle.push(e); if (state.chronicle.length > 40) state.chronicle.shift(); renderSide(); return e; }
-function gainXp(cls, n, at) { state.xp[cls] = (state.xp[cls] ?? 0) + n; if (at) floats.push({ x: at.x, y: at.y - 22, text: `+${n} XP`, color: '#f2b84b', life: 1.4 }); }
-function narrate(p, tool) {
-  switch (p.location) {
-    case 'study': return tool === 'Bash' ? `consults ${p.detail}` : `reads ${p.detail}`;
-    case 'armory': return ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(tool) ? `forges ${p.detail}` : `hammers ${p.detail}`;
-    case 'dungeon': return `delves: ${p.detail}`;
-    case 'cauldron': return `brews ${p.detail}`;
-    default: return tool === 'Agent' ? `dispatches: ${p.detail}` : p.detail;
-  }
+const left = used => Math.max(0, Math.round(100 - used));
+function untilText(ms) {
+  const left = Math.max(0, ms - (Date.now() - T0)), h = Math.floor(left / 3600e3), d = Math.floor(h / 24), mm = Math.floor(left / 60e3) % 60;
+  return d ? `${d}d ${h % 24}h` : `${h}h ${mm}m`;
 }
 
 // ───────────────────────── quests (sample sessions) ─────────────────────────
@@ -1132,66 +1215,79 @@ const R = (file_path) => ({ tool: 'Read', in: { file_path } });
 const E = (file_path) => ({ tool: 'Edit', in: { file_path } });
 const G = (pattern) => ({ tool: 'Grep', in: { pattern } });
 const on = (who, ...xs) => xs.map(x => ({ ...x, who }));
+const member = (id, cls, desc, ...steps) => ({ id, cls, desc, steps });
 
-const SCENARIOS = [
-  { name: 'Rust', lang: 'RS', title: 'Slay the parser bugs', steps: [
-    { prompt: 'Fix the failing tests in the parser crate' },
-    ...on('main', R('Cargo.toml'), G('fn parse_expr'), T('Find why the parser tests fail'), T('Fix the parser'), T('Lint and ship a release build')),
-    { spawn: 'w1', cls: 'wizard', desc: 'Map the parser module' },
-    ...on('w1', R('crates/parser/src/lib.rs'), { tool: 'Glob', in: { pattern: 'crates/parser/**/*.rs' } }, R('crates/parser/tests/expr.rs')),
-    { back: 'w1' },
-    ...on('main', B('cargo test -p parser', 'running 21 tests\ntest result: FAILED. 18 passed; 3 failed; 0 ignored'), U(1)),
-    { spawn: 'r1', cls: 'rogue', desc: 'Slay the failing parser tests' },
-    ...on('r1', R('crates/parser/src/expr.rs'), E('crates/parser/src/expr.rs'), B('cargo test -p parser', 'test result: FAILED. 20 passed; 1 failed; 0 ignored'),
-      E('crates/parser/src/lexer.rs'), B('cargo test -p parser', 'test result: ok. 21 passed; 0 failed; 0 ignored')),
-    { back: 'r1' },
-    ...on('main', U(2)),
-    { spawn: 'd1', cls: 'dwarf', desc: 'Format and lint the crate' },
-    ...on('d1', B('cargo fmt --all'), B('cargo clippy --all-targets -- -D warnings'), B('git diff --stat')),
-    { back: 'd1' },
+const QUESTS = {
+  rustTeam: { title: 'Raid on the release', steps: [
+    { prompt: 'Ship v2.0: fix the flaky tests, refresh the docs, cut a release build' },
+    ...on('main', R('Cargo.toml'), T('Survey the 2.0 changes'), T('Fix the flaky parser tests'), T('Format and lint'), T('Brew the release')),
+    { team: 'Vanguard', members: [
+      member('w1', 'wizard', 'Survey the changelog and public API', R('CHANGELOG.md'), G('pub fn'), R('crates/parser/src/lib.rs'), { tool: 'WebFetch', in: { url: 'https://docs.rs/nom/latest' } }),
+      member('r1', 'rogue', 'Hunt the flaky tests', B('cargo test -p parser', 'test result: FAILED. 40 passed; 3 failed; 0 ignored'), R('crates/parser/src/expr.rs'), E('crates/parser/src/expr.rs'), B('cargo test -p parser', 'test result: FAILED. 42 passed; 1 failed; 0 ignored'), E('crates/parser/src/lexer.rs'), B('cargo test -p parser', 'test result: ok. 43 passed; 0 failed; 0 ignored')),
+      member('d1', 'dwarf', 'Format and lint the crate', B('cargo fmt --all'), B('cargo clippy --all-targets -- -D warnings'), E('crates/parser/src/ast.rs'), B('git diff --stat')),
+    ] },
+    ...on('main', U(1), U(2), U(3)),
     { spawn: 'a1', cls: 'alchemist', desc: 'Brew the release build' },
-    ...on('a1', B('cargo build --release'), B('docker build -t parser-svc .')),
+    ...on('a1', B('cargo build --release'), B('docker build -t parser-svc:2.0 .')),
     { back: 'a1' },
-    ...on('main', U(3)),
+    ...on('main', U(4)),
   ] },
-  { name: 'Python', lang: 'PY', title: 'The broken login', steps: [
+  rust: { title: 'Slay the parser bugs', steps: [
+    { prompt: 'Fix the failing tests in the parser crate' },
+    ...on('main', R('Cargo.toml'), G('fn parse_expr'), T('Find why the parser tests fail'), T('Fix the parser')),
+    { spawn: 'w1', cls: 'wizard', desc: 'Map the parser module' },
+    ...on('w1', R('crates/parser/src/lib.rs'), { tool: 'Glob', in: { pattern: 'crates/parser/**/*.rs' } }),
+    { back: 'w1' },
+    ...on('main', B('cargo test -p parser', 'running 21 tests\ntest result: FAILED. 18 passed; 3 failed; 0 ignored'), U(1), E('crates/parser/src/expr.rs'),
+      B('cargo test -p parser', 'test result: ok. 21 passed; 0 failed; 0 ignored'), U(2)),
+  ] },
+  pyTeam: { title: 'The great migration', steps: [
+    { prompt: 'Move us from Django 4 to 5 without breaking checkout' },
+    ...on('main', R('pyproject.toml'), T('Read the Django 5 release notes'), T('Upgrade and fix the tests'), T('Rebuild the image')),
+    { team: 'Lantern Company', members: [
+      member('w1', 'wizard', 'Read the release notes', { tool: 'WebFetch', in: { url: 'https://docs.djangoproject.com/en/5.0/releases/5.0/' } }, G('USE_L10N'), R('shop/settings.py')),
+      member('a1', 'alchemist', 'Upgrade the dependencies', B('uv add "django>=5.0"'), B('uv sync'), B('uv lock --upgrade-package django')),
+      member('r1', 'rogue', 'Fix what the upgrade breaks', B('uv run pytest -q', '======== 6 failed, 112 passed in 9.4s ========'), E('shop/checkout/views.py'), E('shop/settings.py'), B('uv run pytest -q', '======== 118 passed in 9.1s ========')),
+    ] },
+    ...on('main', U(1), U(2), B('ruff check --fix .'), B('docker compose build'), U(3)),
+  ] },
+  py: { title: 'The broken login', steps: [
     { prompt: "Users can't log in since the last deploy. Fix it." },
-    ...on('main', R('pyproject.toml'), G('def login'), T('Reproduce the login failure'), T('Fix token handling'), T('Lint, type-check and redeploy')),
-    ...on('main', B('uv sync'), B('uv run pytest -q', '======== 4 failed, 52 passed in 3.21s ========'), U(1)),
+    ...on('main', R('pyproject.toml'), G('def login'), T('Reproduce the login failure'), T('Fix token handling')),
+    ...on('main', B('uv run pytest -q', '======== 4 failed, 52 passed in 3.21s ========'), U(1)),
     { spawn: 'r1', cls: 'rogue', desc: 'Hunt the auth test failures' },
-    ...on('r1', R('app/auth/tokens.py'), E('app/auth/tokens.py'), B('uv run pytest -q', '======== 1 failed, 55 passed in 3.08s ========'),
-      E('app/auth/session.py'), B('uv run pytest -q', '======== 56 passed in 3.02s ========')),
+    ...on('r1', R('app/auth/tokens.py'), E('app/auth/tokens.py'), B('uv run pytest -q', '======== 56 passed in 3.02s ========')),
     { back: 'r1' },
-    ...on('main', U(2)),
-    { spawn: 'd1', cls: 'dwarf', desc: 'Lint and type-check' },
-    ...on('d1', B('ruff check --fix .'), B('ruff format .'), B('uv run mypy app')),
-    { back: 'd1' },
-    { spawn: 'a1', cls: 'alchemist', desc: 'Rebuild the containers' },
-    ...on('a1', B('docker compose up --build -d')),
-    { back: 'a1' },
-    ...on('main', U(3)),
+    ...on('main', B('uv run mypy app'), U(2)),
   ] },
-  { name: 'JS / TS', lang: 'JS', title: 'Checkout cart chaos', steps: [
+  jsTeam: { title: 'Storefront siege', steps: [
+    { prompt: 'Black Friday prep: fix checkout e2e tests, lint, and ship a build' },
+    ...on('main', R('package.json'), T('Trace the checkout flow'), T('Fix the e2e tests'), T('Lint and format'), T('Production build')),
+    { team: 'Iron Wardens', members: [
+      member('w1', 'wizard', 'Trace the checkout flow', G('calculateTotal'), R('src/cart/total.ts'), R('src/checkout/Checkout.tsx')),
+      member('r1', 'rogue', 'Fix the Playwright suite', B('npx playwright test', '  3 failed\n  41 passed (1.2m)'), E('src/checkout/Checkout.tsx'), B('npx playwright test', '  44 passed (1.1m)')),
+      member('d1', 'dwarf', 'Lint, format and type-check', B('npx eslint . --fix'), B('npx prettier --write src'), B('npx tsc --noEmit')),
+      member('a1', 'alchemist', 'Warm the build cache', B('pnpm install --frozen-lockfile'), B('pnpm build')),
+    ] },
+    ...on('main', U(1), U(2), U(3), U(4)),
+  ] },
+  js: { title: 'Checkout cart chaos', steps: [
     { prompt: 'The checkout cart total is wrong for discounts' },
     { spawn: 'w1', cls: 'wizard', desc: 'Trace the cart total' },
     ...on('w1', R('package.json'), G('calculateTotal'), R('src/cart/total.ts')),
     { back: 'w1' },
-    ...on('main', T('Fix discount math'), T('Ship a production build'), B('npm ci'), B('npx vitest run', ' Tests  2 failed | 38 passed (40)')),
-    { spawn: 'r1', cls: 'rogue', desc: 'Fix the cart tests' },
-    ...on('r1', E('src/cart/total.ts'), E('src/components/Cart.tsx'), B('npx vitest run', ' Tests  40 passed (40)')),
-    { back: 'r1' },
-    ...on('main', U(1), B('npx eslint . --fix'), B('npx prettier --write src'), B('npx tsc --noEmit'), B('npm run build'), U(2)),
+    ...on('main', T('Fix discount math'), B('npx vitest run', ' Tests  2 failed | 38 passed (40)'), E('src/cart/total.ts'), B('npx vitest run', ' Tests  40 passed (40)'), U(1)),
   ] },
-  { name: 'Java', lang: 'JV', title: 'Orders that never ship', steps: [
+  java: { title: 'Orders that never ship', steps: [
     { prompt: 'Orders get stuck in PENDING. Find out why.' },
-    ...on('main', R('pom.xml'), G('class OrderService'), R('src/main/java/com/shop/orders/OrderService.java'), T('Fix the order state machine'), T('Package the service')),
-    ...on('main', B('./mvnw -q test', '[ERROR] Tests run: 64, Failures: 2, Errors: 0, Skipped: 0')),
-    { spawn: 'r1', cls: 'rogue', desc: 'Fix OrderService transitions' },
-    ...on('r1', R('src/test/java/com/shop/orders/OrderServiceTest.java'), E('src/main/java/com/shop/orders/OrderService.java'), B('./mvnw -q test', '[INFO] Tests run: 64, Failures: 0, Errors: 0, Skipped: 0')),
-    { back: 'r1' },
+    ...on('main', R('pom.xml'), G('class OrderService'), T('Fix the order state machine'), T('Package the service')),
+    { team: 'Night Watch', members: [
+      member('w1', 'wizard', 'Map the order states', R('src/main/java/com/shop/orders/OrderService.java'), G('OrderStatus.PENDING')),
+      member('r1', 'rogue', 'Fix OrderService transitions', B('./mvnw -q test', '[ERROR] Tests run: 64, Failures: 2, Errors: 0, Skipped: 0'), E('src/main/java/com/shop/orders/OrderService.java'), B('./mvnw -q test', '[INFO] Tests run: 64, Failures: 0, Errors: 0, Skipped: 0')),
+    ] },
     ...on('main', U(1), B('./mvnw spotless:apply'), B('./mvnw -q -DskipTests package'), B('docker build -t orders .'), U(2)),
   ] },
-  { name: 'C++', lang: 'C++', title: 'Physics engine panic', steps: [
+  cpp: { title: 'Physics engine panic', steps: [
     { prompt: 'Objects fall through the floor at high speed' },
     ...on('main', R('CMakeLists.txt'), R('src/physics/collision.cpp'), T('Reproduce the tunnelling bug'), T('Fix continuous collision')),
     ...on('main', B('cmake -S . -B build -G Ninja'), B('cmake --build build -j'), B('ctest --test-dir build --output-on-failure', '83% tests passed, 2 tests failed out of 12'), U(1)),
@@ -1203,199 +1299,540 @@ const SCENARIOS = [
     { back: 'd1' },
     ...on('main', U(2)),
   ] },
-];
+};
 
-// ───────────────────────── the step runner ─────────────────────────
-function loadScenario(i) {
-  scenarioIdx = (i + SCENARIOS.length) % SCENARIOS.length;
-  steps = SCENARIOS[scenarioIdx].steps; stepIdx = 0; current = null; gap = 0.6; ending = 0;
-  const hero = actors.get('main') ?? newHero();
-  actors = new Map([['main', hero]]);
-  Object.assign(hero, { busy: false, activity: 'awaits a quest', bubble: '' });
-  if (hero.room !== 'tavern') sendTo(hero, 'tavern');
-  state.dungeon = { monsters: 0, slain: 0, hasRun: false }; state.quests = []; state.chronicle = [];
-  monsters = []; fogAlpha = 1; banner = { text: SCENARIOS[scenarioIdx].title.toUpperCase(), life: 2.4 };
-  renderQuests(); renderSide();
+// ───────────────────────── projects ─────────────────────────
+// Every project shares one world. Each runs its own quests with its own party, marked by its
+// colour: the guildmaster wears it as a cape and every member stands on a ring of it.
+const REALM_DEFS = [
+  { id: 'parser', name: 'parser-svc', lang: 'RS', color: '#ff8a5c', quests: ['rustTeam', 'rust'] },
+  { id: 'shop', name: 'shop-api', lang: 'PY', color: '#5fd3f3', quests: ['pyTeam', 'py'] },
+  { id: 'store', name: 'storefront', lang: 'JS', color: '#f7dd5b', quests: ['jsTeam', 'js'] },
+  { id: 'orders', name: 'orders', lang: 'JV', color: '#c9f27a', quests: ['java'] },
+  { id: 'physics', name: 'physics-engine', lang: 'C++', color: '#ff7ad9', quests: ['cpp'] },
+];
+const TEAM_COLORS = ['#f2b84b', '#4fc7b5', '#e8606f', '#a593ff', '#e39a4d'];
+const PLACE_KEYS = Object.keys(ROOMS);
+const WORLD_SEASON = 'summer';
+const xp = { guildmaster: 0, wizard: 0, rogue: 0, dwarf: 0, alchemist: 0 };
+let speed = 1, playing = true, clock = 0;
+
+function makeRealm(def, i) {
+  return { ...def, index: i, questIdx: 0, questTitle: '', actors: new Map(), monsters: [], state: null, places: {}, threads: [], main: null, focus: null, manual: [], ending: 0, chest: 0, delay: i * 3.1 };
+}
+const REALMS = REALM_DEFS.map(makeRealm);
+// Each project's guildmaster wears its colour as a cape.
+for (const r of REALMS) {
+  const def = BODIES.guildmaster, pal = { ...BASE, ...def.pal, R: r.color };
+  SPR[`gm:${r.id}`] = LEGS.map(legs => [makeSprite([...def.rows, ...legs], pal, false), makeSprite([...def.rows, ...legs], pal, true)]);
+}
+// With every party in one world, each place needs room for a crowd.
+for (const room of Object.values(ROOMS)) {
+  const base = room.spots.slice();
+  for (const [dx, dy] of [[0, 12], [-14, 8], [14, 10], [-10, -8], [12, -8], [-22, 2], [24, 4], [0, 22]]) for (const s of base) if (room.spots.length < 16) room.spots.push({ x: s.x + dx, y: s.y + dy });
+}
+MONSTER_SLOTS.push(...[[176, 446], [188, 456], [204, 432], [172, 424], [192, 412], [160, 444], [208, 448], [180, 462], [196, 466], [166, 464], [150, 452], [200, 404]].map(([x, y]) => ({ x, y })));
+
+let focusP = null;          // the project picked in the bar, or null for all of them
+let WORLD = null;           // the one island everyone shares
+const FX = { particles: [], floats: [], banners: [] };
+let FOG = 1, gseq = 0, teamCount = 0, lastTask = null, sideDirty = true;
+const director = { actor: null, since: -99 };
+const everyone = () => REALMS.flatMap(r => [...r.actors.values()]);
+const alive = a => !!a && a.proj.actors.get(a.id) === a;
+const isShown = r => !focusP || focusP === r;
+const shown = () => focusP ? [focusP] : REALMS;
+const dirty = () => { sideDirty = true; };
+const anyChest = () => REALMS.some(r => r.chest);
+const allMonsters = () => REALMS.flatMap(r => r.monsters);
+function banner(r, text, gold) {
+  if (FX.banners.length > 2) FX.banners.splice(1, 1);
+  FX.banners.push({ text, who: r, life: 2.6, gold });
 }
 
-function startStep(st) {
+function newHero(r) {
+  const s = ROOMS.tavern.spots[r.index % ROOMS.tavern.spots.length];
+  return { id: 'main', proj: r, label: 'Guildmaster', fixed: null, x: s.x, y: s.y, room: 'tavern', spot: r.index, path: [], busy: false, activity: 'awaits a quest', facing: 1, dist: 0, alpha: 1, bubble: '', lang: undefined, team: null, delay: 0 };
+}
+function classOf(a) { return a.fixed ?? ROOMS[a.room].resident; }
+function spriteOf(a) {
+  if (a.fixed) return a.fixed;
+  if (a.path.length > 0 || a.room === 'tavern') return `gm:${a.proj.id}`;
+  return ROOMS[a.room].resident; // the hero takes up the class of the place
+}
+const modelOf = a => MODEL_OF[a.fixed ?? 'guildmaster'];
+function pickSpot(room, who) {
+  const taken = new Set(everyone().filter(a => a !== who && a.room === room).map(a => a.spot));
+  const spots = ROOMS[room].spots; const i = spots.findIndex((_, k) => !taken.has(k));
+  return i < 0 ? Math.floor(Math.random() * spots.length) : i;
+}
+// Every journey goes by road: back to the town square, then out along the road to the destination.
+function route(a, to, spot) {
+  const from = a.room;
+  if (from === to) return [{ ...spot }];
+  const pts = [];
+  if (from !== 'tavern') pts.push(...WALK[from].slice().reverse());
+  if (to !== 'tavern') pts.push(...WALK[to]); else pts.push({ ...HUB });
+  pts.push({ ...spot });
+  return pts;
+}
+function sendTo(r, a, room) {
+  const k = pickSpot(room, a), spot = ROOMS[room].spots[k];
+  a.path = route(a, room, spot); a.room = room; a.spot = k;
+}
+
+// ───────────────────────── chronicle & ledger ─────────────────────────
+function log(r, entry) { const e = { id: ++gseq, proj: r, ...entry }; r.state.chronicle.push(e); if (r.state.chronicle.length > 60) r.state.chronicle.shift(); dirty(); return e; }
+function gainXp(r, cls, n, at, loc) {
+  xp[cls] = (xp[cls] ?? 0) + n;
+  if (loc) r.places[loc].xp += n;
+  if (at) FX.floats.push({ x: at.x, y: at.y - 22, text: `+${n} XP`, color: '#f2b84b', life: 1.4 });
+}
+function narrate(p, tool) {
+  switch (p.location) {
+    case 'study': return tool === 'Bash' ? `consults ${p.detail}` : `reads ${p.detail}`;
+    case 'armory': return ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(tool) ? `forges ${p.detail}` : `hammers ${p.detail}`;
+    case 'dungeon': return `delves: ${p.detail}`;
+    case 'cauldron': return `brews ${p.detail}`;
+    default: return tool === 'Agent' ? `dispatches: ${p.detail}` : p.detail;
+  }
+}
+
+// ───────────────────────── the runner ─────────────────────────
+// A project runs threads. The main loop's thread walks the quest; a team step starts one
+// thread per member, they work at the same time, and the main thread waits for them all.
+function loadQuest(r, i) {
+  r.questIdx = (i + r.quests.length) % r.quests.length;
+  const q = QUESTS[r.quests[r.questIdx]];
+  const hero = r.actors.get('main') ?? newHero(r);
+  if (selected?.kind === 'actor' && selected.a.proj === r && selected.a !== hero) select(null);
+  r.actors = new Map([['main', hero]]);
+  Object.assign(hero, { busy: false, activity: 'awaits a quest', bubble: '', team: null, fading: false, alpha: 1 });
+  if (hero.room !== 'tavern') sendTo(r, hero, 'tavern');
+  r.state = { chronicle: [], dungeon: { monsters: 0, slain: 0, hasRun: false }, quests: [] };
+  r.places = Object.fromEntries(PLACE_KEYS.map(k => [k, { visits: 0, xp: 0 }]));
+  r.monsters = []; r.chest = 0; r.ending = 0; r.manual = []; r.focus = null; r.questTitle = q.title;
+  r.main = { id: 'main', steps: q.steps, idx: 0, task: null, gap: 0.6 + r.delay, wait: null };
+  r.delay = 0;
+  r.threads = [r.main];
+  dirty();
+}
+function noteTask(r, task) { r.focus = task; lastTask = task; }
+
+function startTask(r, th, st) {
+  const hero = r.actors.get('main');
   if (st.prompt) {
-    const hero = actors.get('main'); sendTo(hero, 'tavern'); hero.path = route(hero, 'tavern', ROOMS.tavern.spots[0]); hero.spot = 0;
+    sendTo(r, hero, 'tavern');
     hero.busy = true; hero.activity = `takes a quest: ${st.prompt}`; hero.bubble = 'A new quest!';
-    current = { st, actor: hero, dwell: 1.5, entry: log({ who: 'Guildmaster', cls: 'guildmaster', text: `New quest: ${st.prompt}`, outcome: 'ok' }) };
-    renderSide(); return;
+    banner(r, r.questTitle.toUpperCase());
+    th.task = { st, actor: hero, dwell: 1.5, entry: log(r, { who: 'Guildmaster', cls: 'guildmaster', aid: 'main', loc: 'tavern', text: `New quest: ${st.prompt}`, outcome: 'ok' }) };
+    noteTask(r, th.task); return;
   }
   if (st.spawn) {
-    // New party members step out of the tavern door.
-    const a = { id: st.spawn, label: CLASSES[st.cls].name, fixed: st.cls, x: DOORWAY.x, y: DOORWAY.y, room: 'tavern', path: [], busy: true, activity: `joins the party: ${st.desc}`, facing: 1, dist: 0, alpha: 0, bubble: 'At your service!', spot: 3 };
-    actors.set(a.id, a); burst(DOORWAY.x, DOORWAY.y - 8, CLASSES[st.cls].color, 26);
-    sendTo(a, 'tavern');
-    current = { st, actor: a, dwell: 1.0, entry: log({ who: a.label, cls: st.cls, text: `answers the call: ${st.desc}`, outcome: 'ok' }) };
-    return;
+    const a = spawnMember(r, st.spawn, st.cls, st.desc, null, 0);
+    sendTo(r, a, 'tavern');
+    th.task = { st, actor: a, dwell: 1.0, entry: log(r, { who: a.label, cls: st.cls, aid: a.id, loc: 'tavern', text: `answers the call: ${st.desc}`, outcome: 'ok' }) };
+    noteTask(r, th.task); return;
   }
   if (st.back) {
-    const a = actors.get(st.back); if (!a) return;
-    a.busy = false; a.bubble = 'Quest done!'; sendTo(a, 'tavern'); a.path.push({ ...DOORWAY });
-    current = { st, actor: a, dwell: 0.6, entry: log({ who: a.label, cls: a.fixed, text: 'returns with the spoils', outcome: 'ok' }) };
+    const a = r.actors.get(st.back); if (!a) return;
+    a.busy = false; a.bubble = a.team ? `Back to the ${a.team.name}!` : 'Quest done!'; sendTo(r, a, 'tavern'); a.path.push({ ...DOORWAY });
+    th.task = { st, actor: a, dwell: 0.6, entry: log(r, { who: a.label, cls: a.fixed, aid: a.id, loc: 'tavern', text: 'returns with the spoils', outcome: 'ok' }) };
+    noteTask(r, th.task); return;
+  }
+  if (st.team) {
+    const team = { name: st.team, color: TEAM_COLORS[teamCount++ % TEAM_COLORS.length], ids: st.members.map(m => m.id) };
+    st.members.forEach((m, i) => {
+      const a = spawnMember(r, m.id, m.cls, m.desc, team, i * 0.45);
+      a.activity = `marches with the ${team.name}: ${m.desc}`;
+      r.threads.push({ id: m.id, steps: [...m.steps.map(x => ({ ...x, who: m.id })), { back: m.id }], idx: 0, task: null, gap: 0.9 + i * 0.45, wait: null });
+    });
+    const names = st.members.map(m => CLASSES[m.cls].name).join(', ');
+    log(r, { who: 'Guildmaster', cls: 'guildmaster', aid: 'main', loc: 'tavern', text: `sends out the ${team.name}: ${names}`, outcome: 'ok', team: team.name });
+    banner(r, `THE ${team.name.toUpperCase()} SETS OUT`);
+    hero.busy = false; hero.activity = `awaits the ${team.name}`; hero.bubble = `Go, ${team.name}!`;
+    th.wait = team;
     return;
   }
-  const a = actors.get(st.who); if (!a) return;
+  const a = r.actors.get(st.who); if (!a) return;
   const place = classifyTool(st.tool, st.in);
-  sendTo(a, place.location);
+  sendTo(r, a, place.location);
+  r.places[place.location].visits++;
   a.busy = true; a.lang = place.lang ?? a.lang; a.activity = narrate(place, st.tool);
   a.bubble = place.detail.length > 19 ? place.detail.slice(0, 18) + '…' : place.detail;
-  const shown = a.fixed ? a.label : CLASSES[ROOMS[place.location].resident].name;
-  const entry = log({ who: shown, cls: classOf(a), text: a.activity + (st.simulated ? ' (simulated)' : ''), lang: place.lang, outcome: 'running' });
-  current = { st, actor: a, place, entry, dwell: place.location === 'dungeon' ? 2.2 : 1.3 };
-  renderSide();
+  const who = a.fixed ? a.label : CLASSES[ROOMS[place.location].resident].name;
+  const entry = log(r, { who, cls: classOf(a), aid: a.id, loc: place.location, text: a.activity + (st.simulated ? ' (simulated)' : ''), lang: place.lang, outcome: 'running', team: a.team?.name });
+  th.task = { st, actor: a, place, entry, dwell: place.location === 'dungeon' ? 2.2 : 1.3 };
+  noteTask(r, th.task);
+}
+function spawnMember(r, id, cls, desc, team, delay) {
+  const a = { id, proj: r, label: CLASSES[cls].name, fixed: cls, x: DOORWAY.x, y: DOORWAY.y, room: 'tavern', spot: 3, path: [], busy: true, activity: `joins the party: ${desc}`, desc, facing: 1, dist: 0, alpha: 0, bubble: team ? '' : 'At your service!', team, delay };
+  r.actors.set(id, a);
+  burst(r, DOORWAY.x, DOORWAY.y - 8, CLASSES[cls].color, team ? 10 : 26);
+  return a;
 }
 
-function finishStep() {
-  const { st, actor: a, place, entry } = current;
-  if (st.back) { a.fading = true; burst(a.x, a.y - 8, '#f2b84b', 16); }
-  if (st.prompt || st.spawn || st.back) { a.busy = st.spawn ? true : a.busy; current = null; gap = 0.35; renderSide(); return; }
+function finishTask(r, th) {
+  const { st, actor: a, place, entry } = th.task;
+  th.task = null; th.gap = 0.3;
+  burn(modelOf(a), st.tool ? 0.35 : 0.1);
+  if (st.back) { a.fading = true; burst(r, a.x, a.y - 8, a.team?.color ?? r.color, 16); th.gap = 0.35; dirty(); return; }
+  if (st.prompt || st.spawn) { th.gap = 0.35; dirty(); return; }
   const cls = classOf(a);
   let outcome = 'ok';
   if (place.location === 'dungeon' && st.tool === 'Bash') {
     const battle = st.simulated ? st.battle : readBattle(st.out ?? '');
-    const before = state.dungeon.monsters;
-    if (!state.dungeon.hasRun) state.dungeon.hasRun = true;
+    const before = r.state.dungeon.monsters;
+    r.state.dungeon.hasRun = true;
     if (battle) {
       outcome = battle.failed > 0 ? 'fail' : 'ok';
       entry.text = battle.failed > 0 ? `${place.detail}: ${battle.failed} monster${battle.failed === 1 ? '' : 's'} stand, ${battle.passed} slain` : `${place.detail}: all ${battle.passed} slain`;
-      state.dungeon.monsters = battle.failed; state.dungeon.slain = battle.passed;
-      setMonsters(battle.failed);
-      gainXp(cls, 2 + Math.max(0, before - battle.failed) * 5, a);
-      if (battle.failed === 0 && before > 0) banner = { text: 'DUNGEON CLEARED!', life: 2.6, gold: true };
+      r.state.dungeon.monsters = battle.failed; r.state.dungeon.slain = battle.passed;
+      setMonsters(r, battle.failed);
+      gainXp(r, cls, 2 + Math.max(0, before - battle.failed) * 5, a, 'dungeon');
+      if (battle.failed === 0 && before > 0) { banner(r, 'DUNGEON CLEARED!', true); r.chest = 1; burst(r, CHEST.x, CHEST.y - 6, '#f2b84b', 24); }
     }
   } else {
-    gainXp(cls, 1, a);
-    if (place.location === 'cauldron') burst(CAULDRON.x, CAULDRON.y - 12, '#84d488', 14);
-    if (place.location === 'armory') burst(ANVIL.x, ANVIL.y - 4, '#ffd27a', 12);
+    gainXp(r, cls, 1, a, place.location);
+    if (place.location === 'cauldron') burst(r, CAULDRON.x, CAULDRON.y - 12, '#84d488', 14);
+    if (place.location === 'armory') { burst(r, ANVIL.x, ANVIL.y - 4, '#ffd27a', 12); FX.floats.push({ x: ANVIL.x, y: ANVIL.y - 14, text: 'CLANG!', color: '#ffd27a', life: .9 }); }
   }
-  if (st.tool === 'TaskCreate') state.quests.push({ id: String(state.quests.length + 1), title: st.in.subject, isDone: false });
-  if (st.tool === 'TaskUpdate') { const q = state.quests.find(q => q.id === st.in.taskId); if (q) { q.isDone = true; gainXp('guildmaster', 10, a); } }
+  if (st.tool === 'TaskCreate') r.state.quests.push({ id: String(r.state.quests.length + 1), title: st.in.subject, isDone: false });
+  if (st.tool === 'TaskUpdate') { const q = r.state.quests.find(q => q.id === st.in.taskId); if (q) { q.isDone = true; gainXp(r, 'guildmaster', 10, a, 'tavern'); } }
   entry.outcome = outcome;
-  a.busy = a.id !== 'main' ? true : false; a.bubble = '';
-  current = null; gap = 0.3; renderSide();
+  a.busy = a.id !== 'main'; a.bubble = '';
+  dirty();
 }
 
-function setMonsters(n) {
-  const alive = monsters.filter(m => !m.dying);
-  if (n < alive.length) {
-    alive.slice(n).forEach((m, k) => { m.dying = 0.5 + k * 0.18; });
+function runThread(r, th, dt) {
+  if (th.done) return;
+  if (th.wait) {
+    const out = th.wait.ids.some(id => r.threads.some(t => t.id === id && !t.done));
+    if (out) return;
+    log(r, { who: 'Guildmaster', cls: 'guildmaster', aid: 'main', loc: 'tavern', text: `the ${th.wait.name} returns, every task done`, outcome: 'ok', team: th.wait.name });
+    banner(r, `THE ${th.wait.name.toUpperCase()} RETURNS`, true);
+    const hero = r.actors.get('main'); hero.bubble = 'Well fought!'; hero.activity = 'takes the reports';
+    r.threads = r.threads.filter(t => !th.wait.ids.includes(t.id));
+    th.wait = null; th.gap = 0.5; return;
+  }
+  if (th.task) {
+    const a = th.task.actor;
+    if (a.path.length === 0 && !(a.delay > 0)) { th.task.dwell -= dt; if (th.task.dwell <= 0) finishTask(r, th); }
+    return;
+  }
+  if (th.gap > 0) { th.gap -= dt; return; }
+  if (th === r.main && r.manual.length) { startTask(r, th, r.manual.shift()); return; }
+  if (th.idx < th.steps.length) startTask(r, th, th.steps[th.idx++]);
+  else if (th !== r.main) th.done = true;
+}
+
+function setMonsters(r, n) {
+  // The Dungeon is shared: each project's failing tests take free posts around the skull.
+  const alive = r.monsters.filter(m => !m.dying), want = Math.min(n, 5);
+  if (want < alive.length) {
+    alive.slice(want).forEach((m, k) => { m.dying = 0.5 + k * 0.18; });
   } else {
-    for (let i = alive.length; i < Math.min(n, MONSTER_SLOTS.length); i++) {
-      const slot = MONSTER_SLOTS.findIndex((_, k) => !monsters.some(m => m.slot === k && !m.dead));
-      const s = MONSTER_SLOTS[slot < 0 ? i : slot];
-      // Monsters crawl out of the skull's mouth to their posts.
-      monsters.push({ slot, x: SKULL.mouth.x, y: SKULL.mouth.y, tx: s.x, ty: s.y, kind: i % 3, t: Math.random() * 6, born: 0 });
-      burst(SKULL.mouth.x, SKULL.mouth.y - 4, '#e8606f', 8);
+    for (let i = alive.length; i < want; i++) {
+      const slot = MONSTER_SLOTS.findIndex((_, k) => !allMonsters().some(m => m.slot === k && !m.dead));
+      if (slot < 0) break;
+      const s = MONSTER_SLOTS[slot];
+      r.monsters.push({ slot, proj: r, x: SKULL.mouth.x, y: SKULL.mouth.y, tx: s.x, ty: s.y, kind: i % 3, t: Math.random() * 6, born: 0 });
+      burst(r, SKULL.mouth.x, SKULL.mouth.y - 4, '#e8606f', 8);
     }
   }
 }
 
 // ───────────────────────── particles ─────────────────────────
-function burst(x, y, color, n) {
+function burst(r, x, y, color, n) {
   if (reduced) n = Math.ceil(n / 3);
-  for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = 20 + Math.random() * 40; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 20, life: .6 + Math.random() * .5, color, g: 60 }); }
+  for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = 20 + Math.random() * 40; FX.particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 20, life: .6 + Math.random() * .5, color, g: 60 }); }
 }
-function emit(x, y, color, vy = -18, spread = 6, g = 0, s = 1, life = 0.8) { particles.push({ x: x + (Math.random() - .5) * spread, y, vx: (Math.random() - .5) * 8, vy: vy * (0.6 + Math.random() * .6), life: life + Math.random() * .6, color, g, s }); }
-function smoke(x, y, color, s = 2) { particles.push({ x: x + (Math.random() - .5) * 2, y, vx: 5 + Math.random() * 4, vy: -9 - Math.random() * 5, life: 1.4 + Math.random(), color, g: 0, s, fade: true }); }
+function emit(x, y, color, vy = -18, spread = 6, g = 0, s = 1, life = 0.8) { FX.particles.push({ x: x + (Math.random() - .5) * spread, y, vx: (Math.random() - .5) * 8, vy: vy * (0.6 + Math.random() * .6), life: life + Math.random() * .6, color, g, s }); }
+function smoke(x, y, color, s = 2) { FX.particles.push({ x: x + (Math.random() - .5) * 2, y, vx: 5 + Math.random() * 4, vy: -9 - Math.random() * 5, life: 1.4 + Math.random(), color, g: 0, s, fade: true }); }
+
+// ───────────────────────── life around the realm ─────────────────────────
+// Townsfolk, animals and creatures that live in each place, drawn for the realm on screen.
+const CHEST = { x: 122, y: 424 }, FROG_PAD = [{ x: 800, y: 424 }, { x: 838, y: 427 }], POOLS = [{ x: 796, y: 424 }, { x: 846, y: 426 }, { x: 822, y: 430 }];
+const TOWN_POINTS = [{ x: 446, y: 296 }, { x: 512, y: 296 }, { x: 480, y: 330 }, { x: 430, y: 316 }, { x: 534, y: 318 }, { x: 470, y: 280 }, { x: 404, y: 256 }, { x: 556, y: 256 }, { x: 498, y: 342 }];
+const VILLAGERS = [['#b8323f', '#6b4426'], ['#3b5fa8', '#2b1b14'], ['#84d488', '#c9a86e'], ['#e39a4d', '#3a2414']].map(([shirt, hair], i) => ({ ...TOWN_POINTS[i * 2], tx: TOWN_POINTS[i * 2].x, ty: TOWN_POINTS[i * 2].y, wait: i, shirt, hair, dist: 0, facing: 1 }));
+const CAT = { x: 404, y: 262, tx: 404, ty: 262, wait: 2, dist: 0, facing: 1 };
+const CHICKENS = [{ x: 506, y: 212, ph: 0 }, { x: 534, y: 214, ph: 2 }, { x: 520, y: 218, ph: 4 }];
+// A loyal hound trots after the guildmaster; a sheepdog minds the flock west of town.
+const DOG = { x: 470, y: 316, dist: 0, facing: 1, sit: 0 };
+const PEN = { x: 318, y: 314, rx: 30, ry: 16 };
+const SHEEP = Array.from({ length: 6 }, (_, i) => ({ x: PEN.x + Math.cos(i) * 16, y: PEN.y + Math.sin(i * 2) * 8, tx: PEN.x, ty: PEN.y, wait: i * .7, dist: 0, facing: i % 2 ? 1 : -1 }));
+const SHEEPDOG = { a: 0, dist: 0 };
+const DEER = [{ x: 350, y: 152, tx: 350, ty: 152, wait: 1, dist: 0, facing: 1 }, { x: 362, y: 158, tx: 362, ty: 158, wait: 3, dist: 0, facing: -1, fawn: true }];
+const GLADE = [{ x: 346, y: 150 }, { x: 364, y: 156 }, { x: 354, y: 162 }, { x: 340, y: 158 }];
+// Travellers walk the roads; a merchant's cart plies the road to the Armory.
+const TRAVELLERS = [{ road: 'dungeon', t: .2, dir: 1, shirt: '#7a4fc9', hat: '#3a2414' }, { road: 'study', t: .7, dir: -1, shirt: '#3b5fa8', hat: '#b8323f' }, { road: 'cauldron', t: .4, dir: 1, shirt: '#4f9c5a', hat: '#f2b84b' }];
+const CART = { road: 'armory', t: .1, dir: 1 };
+const FLOCKS = [{ y: 210, v: 26, off: 0, n: 5 }, { y: 90, v: -20, off: 500, n: 4 }, { y: 380, v: 32, off: 900, n: 6 }];
+const GULLS = [{ x: 60, y: 260, r: 22, v: .9 }, { x: 900, y: 300, r: 26, v: -.7 }, { x: 470, y: 528, r: 30, v: .6 }];
+const BUTTERFLIES = Array.from({ length: 6 }, (_, i) => ({ x: 380 + hash(i, 61) * 240, y: 360 + hash(i, 62) * 60, ph: hash(i, 63) * 6.28, c: ['#f7dd5b', '#e88aa8', '#8ab4f0', '#fff3d0'][i % 4] }));
+const LAKE_FISH = { t: 0 };
+const along = (pts, t) => { const i = Math.max(0, Math.min(pts.length - 1, t * (pts.length - 1))), a = pts[Math.floor(i)], b = pts[Math.min(pts.length - 1, Math.floor(i) + 1)], f = i % 1; return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, dx: b.x - a.x }; };
+function wander(c, dt, pts, v, pause) {
+  if (c.wait > 0) { c.wait -= dt; return; }
+  const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
+  if (d < 1) { c.wait = pause * (0.5 + Math.random()); const p = pts[Math.floor(Math.random() * pts.length)]; c.tx = p.x + (Math.random() - .5) * 10; c.ty = p.y + (Math.random() - .5) * 6; return; }
+  const s = Math.min(d, v * dt); c.x += dx / d * s; c.y += dy / d * s; c.dist += s; if (Math.abs(dx) > .5) c.facing = dx < 0 ? -1 : 1;
+}
+function updateLife(dt) {
+  for (const v of VILLAGERS) wander(v, dt, TOWN_POINTS, 16, 3);
+  wander(CAT, dt, [{ x: 404, y: 262 }, { x: 392, y: 330 }, { x: 562, y: 330 }, { x: 556, y: 262 }, { x: 528, y: 304 }], 22, 5);
+  const pen = Array.from({ length: 8 }, (_, i) => ({ x: PEN.x + Math.cos(i * .8) * PEN.rx * .7, y: PEN.y + Math.sin(i * .8) * PEN.ry * .6 }));
+  for (const sh of SHEEP) wander(sh, dt, pen, 7, 4);
+  SHEEPDOG.a += dt * 0.9; SHEEPDOG.dist += dt * 30;
+  for (const d of DEER) wander(d, dt, GLADE, 10, 5);
+  for (const t of TRAVELLERS) { const len = WALK[t.road].length * 4; t.t += t.dir * dt * 14 / len; if (t.t > 1 || t.t < 0) { t.dir *= -1; t.t = Math.max(0, Math.min(1, t.t)); } }
+  { const len = WALK[CART.road].length * 4; CART.t += CART.dir * dt * 18 / len; if (CART.t > .93 || CART.t < .05) { CART.dir *= -1; CART.t = Math.max(.05, Math.min(.93, CART.t)); } }
+  // the hound keeps a few steps behind the guildmaster, and sits when they stop
+  const hero = (focusP || REALMS[0]).actors.get('main');
+  if (hero) {
+    const tx = hero.x - hero.facing * 12, ty = hero.y + 3, dx = tx - DOG.x, dy = ty - DOG.y, d = Math.hypot(dx, dy);
+    if (d > 260) { DOG.x = tx; DOG.y = ty; }
+    else if (d > 2) { const st = Math.min(d, (d > 30 ? 150 : 110) * dt); DOG.x += dx / d * st; DOG.y += dy / d * st; DOG.dist += st; if (Math.abs(dx) > .5) DOG.facing = dx < 0 ? -1 : 1; DOG.sit = 0; }
+    else DOG.sit += dt;
+  }
+  LAKE_FISH.t += dt;
+}
+function drawDog(x, y, facing, moving, coat, sit) {
+  x = Math.round(x); y = Math.round(y);
+  const f = facing, step = moving ? Math.floor(clock * 11) % 2 : 0, tail = Math.sin(clock * 14) > 0 ? 1 : 0, hx = f > 0 ? x + 3 : x - 6;
+  px(g, 'rgba(0,0,0,.3)', x - 4, y - 1, 9, 2);
+  px(g, '#1b1424', x - 4, y - 6, 9, 5); px(g, coat[0], x - 3, y - 5, 7, 3); px(g, coat[1], x - 3, y - 3, 7, 1);
+  px(g, '#1b1424', hx, y - 8, 4, 4); px(g, coat[0], hx + (f > 0 ? 0 : 1), y - 7, 3, 2); px(g, '#1b1424', f > 0 ? hx + 3 : hx, y - 6, 1, 1);
+  px(g, coat[1], f > 0 ? hx : hx + 2, y - 9, 1, 2);
+  px(g, '#1b1424', f > 0 ? x - 5 : x + 4, y - 7 - tail, 1, 2);
+  if (sit > .5) { px(g, '#1b1424', x - 3, y - 2, 2, 2); px(g, '#1b1424', x + 2, y - 2, 2, 2); }
+  else { px(g, '#1b1424', x - 3 + step, y - 2, 1, 2); px(g, '#1b1424', x - 1 - step, y - 2, 1, 2); px(g, '#1b1424', x + 1 + step, y - 2, 1, 2); px(g, '#1b1424', x + 3 - step, y - 2, 1, 2); }
+}
+function drawSheep(sh) {
+  const x = Math.round(sh.x), y = Math.round(sh.y), f = sh.facing, graze = sh.wait > 0 && Math.sin(clock * 2 + sh.x) > 0 ? 1 : 0;
+  px(g, 'rgba(0,0,0,.3)', x - 4, y - 1, 9, 2);
+  px(g, '#1b1424', x - 4, y - 6, 9, 5); px(g, '#f4f1e8', x - 3, y - 6, 7, 4); px(g, '#d9d3c3', x - 3, y - 3, 7, 1);
+  px(g, '#2b2433', f > 0 ? x + 3 : x - 5, y - 6 + graze, 3, 3);
+  px(g, '#2b2433', x - 2, y - 2, 1, 2); px(g, '#2b2433', x + 2, y - 2, 1, 2);
+}
+function drawDeer(d) {
+  const x = Math.round(d.x), y = Math.round(d.y), f = d.facing, s = d.fawn ? 1 : 0, graze = d.wait > 0 && Math.sin(clock * 1.5 + d.x) > 0 ? 2 : 0;
+  px(g, 'rgba(0,0,0,.3)', x - 4, y - 1, 9, 2);
+  px(g, '#1b1424', x - 4 + s, y - 8 + s, 9 - s * 2, 4); px(g, '#a8683a', x - 3 + s, y - 7 + s, 7 - s * 2, 2); px(g, '#f3e6c0', f > 0 ? x - 3 : x + 2, y - 7 + s, 1, 1);
+  const hx = f > 0 ? x + 3 - s : x - 5 + s;
+  px(g, '#1b1424', hx, y - 11 + s + graze, 3, 4); px(g, '#a8683a', hx + (f > 0 ? 0 : 1), y - 10 + s + graze, 2, 2);
+  if (!d.fawn) { px(g, '#5a3720', hx, y - 14 + graze, 1, 3); px(g, '#5a3720', hx + 2, y - 14 + graze, 1, 3); px(g, '#5a3720', hx - 1, y - 14 + graze, 1, 1); px(g, '#5a3720', hx + 3, y - 14 + graze, 1, 1); }
+  for (const lx of [-3, -1, 1, 3]) px(g, '#5a3720', x + lx + (lx > 0 ? -s : s), y - 4 + s, 1, 4 - s);
+}
+function drawTraveller(t) {
+  const p = along(WALK[t.road], t.t), facing = (p.dx * t.dir) < 0 ? -1 : 1;
+  drawVillager({ x: p.x, y: p.y, wait: 0, dist: t.t * 900, hair: t.hat, shirt: t.shirt });
+  px(g, '#6b4426', Math.round(p.x) + (facing > 0 ? -4 : 2), Math.round(p.y) - 8, 2, 4); // a pack on the back
+  px(g, '#8a5a34', Math.round(p.x) + (facing > 0 ? 3 : -4), Math.round(p.y) - 9, 1, 9); // a walking staff
+}
+function drawCart() {
+  const p = along(WALK[CART.road], CART.t), f = (p.dx * CART.dir) < 0 ? -1 : 1, x = Math.round(p.x), y = Math.round(p.y), step = Math.floor(clock * 8) % 2;
+  const hx = x + f * 9;
+  px(g, 'rgba(0,0,0,.3)', x - 8, y - 1, 26, 3);
+  // horse
+  px(g, '#1b1424', hx - 5, y - 9, 11, 6); px(g, '#8a5a34', hx - 4, y - 8, 9, 4);
+  px(g, '#1b1424', hx + f * 4, y - 13, 4, 6); px(g, '#8a5a34', hx + f * 4 + (f > 0 ? 0 : 1), y - 12, 3, 4); px(g, '#3a2414', hx + f * 3, y - 12, 1, 4);
+  for (const lx of [-4, -2, 2, 4]) px(g, '#3a2414', hx + lx + (lx % 4 ? step : -step), y - 4, 1, 4);
+  // cart with goods
+  const cx = x - f * 4;
+  px(g, '#1b1424', cx - 7, y - 10, 14, 7); px(g, '#8a5a34', cx - 6, y - 9, 12, 5); px(g, '#e8606f', cx - 5, y - 12, 4, 3); px(g, '#f2b84b', cx - 1, y - 13, 3, 4); px(g, '#84d488', cx + 2, y - 11, 3, 2);
+  px(g, '#1b1424', cx - 4, y - 4, 4, 4); px(g, '#c9a86e', cx - 3, y - 3, 2, 2); px(g, '#1b1424', cx + 2, y - 4, 4, 4); px(g, '#c9a86e', cx + 3, y - 3, 2, 2);
+}
+function drawVillager(v) {
+  const x = Math.round(v.x), y = Math.round(v.y), step = v.wait > 0 ? 0 : Math.floor(v.dist / 3) % 2;
+  px(g, 'rgba(0,0,0,.35)', x - 3, y - 1, 7, 2);
+  px(g, '#1b1424', x - 3, y - 11, 6, 9); px(g, v.hair, x - 2, y - 11, 4, 2); px(g, '#f1c49b', x - 2, y - 9, 4, 2);
+  px(g, v.shirt, x - 2, y - 7, 4, 4); px(g, '#2b2433', x - 2 + step, y - 3, 1, 3); px(g, '#2b2433', x + 1 - step, y - 3, 1, 3);
+}
+function drawLife() {
+  // the town: villagers, a cat and chickens by the wheat
+  for (const v of VILLAGERS) drawVillager(v);
+  // the meadow west of town: a fenced flock and the dog that minds it
+  g.strokeStyle = '#6b4426'; g.lineWidth = 1; g.beginPath(); g.ellipse(PEN.x, PEN.y, PEN.rx + 6, PEN.ry + 6, 0, 0, Math.PI * 2); g.stroke();
+  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; px(g, '#4a2f1d', Math.round(PEN.x + Math.cos(a) * (PEN.rx + 6)), Math.round(PEN.y + Math.sin(a) * (PEN.ry + 6)) - 2, 1, 3); }
+  for (const sh of [...SHEEP].sort((p, q) => p.y - q.y)) drawSheep(sh);
+  drawDog(PEN.x + Math.cos(SHEEPDOG.a) * (PEN.rx + 14), PEN.y + Math.sin(SHEEPDOG.a) * (PEN.ry + 10), -Math.sin(SHEEPDOG.a) > 0 ? 1 : -1, true, ['#1b1424', '#efe6d2'], 0);
+  // deer in the glade by the lake, and a fish that leaps now and then
+  for (const d of DEER) drawDeer(d);
+  { const t = LAKE_FISH.t % 7; if (t < .8) { const k = t / .8, fx = Math.round(300 + k * 14), fy = Math.round(118 - Math.sin(k * Math.PI) * 8); px(g, '#c9d4e4', fx, fy, 3, 2); px(g, '#8ab4f0', fx - 1, fy + 1, 1, 1); } else if (t < 1.2) { px(g, '#e8f6ff', 312, 118, 1, 1); px(g, '#e8f6ff', 316, 118, 1, 1); px(g, '#e8f6ff', 314, 116, 1, 1); } }
+  // travellers on the roads and the merchant's cart
+  for (const t of TRAVELLERS) drawTraveller(t);
+  drawCart();
+  // the guildmaster's hound
+  drawDog(DOG.x, DOG.y, DOG.facing, DOG.sit === 0, ['#b8732f', '#8a5020'], DOG.sit);
+  // butterflies over the fields, when it is warm
+  if (WORLD_SEASON !== 'winter') for (const b of BUTTERFLIES) { const x = Math.round(b.x + Math.sin(clock * .6 + b.ph) * 14), y = Math.round(b.y + Math.sin(clock * 1.3 + b.ph) * 6), w = Math.sin(clock * 16 + b.ph) > 0 ? 1 : 0; px(g, b.c, x - 1 - w, y, 1 + w, 1); px(g, b.c, x + 1, y, 1 + w, 1); px(g, '#1b1424', x, y, 1, 1); }
+  { const x = Math.round(CAT.x), y = Math.round(CAT.y), f = CAT.facing, tail = Math.sin(clock * 4) > 0 ? 1 : 0;
+    px(g, '#1b1424', x - 3, y - 3, 6, 3); px(g, '#1b1424', x + (f > 0 ? 2 : -4), y - 5, 2, 2); px(g, '#f7dd5b', x + (f > 0 ? 3 : -4), y - 5, 1, 1); px(g, '#1b1424', x + (f > 0 ? -4 : 3), y - 5 + tail, 1, 3); }
+  for (const c of CHICKENS) { const peck = Math.sin(clock * 3 + c.ph) > .6 ? 1 : 0, x = c.x + Math.round(Math.sin(clock * .4 + c.ph) * 6);
+    px(g, '#1b1424', x - 2, c.y - 4, 5, 4); px(g, '#fff3d0', x - 1, c.y - 4, 3, 3); px(g, '#fff3d0', x + 1, c.y - 6 + peck, 2, 2); px(g, '#e8606f', x + 2, c.y - 7 + peck, 1, 1); px(g, '#f2b84b', x + 3, c.y - 5 + peck, 1, 1); }
+  // the study: an owl on the battlements; books and a rune circle while someone studies
+  { const ox = TOWER.x + 9, oy = TOWER.top - 4, blink = Math.sin(clock * 1.3) > .96;
+    px(g, '#1b1424', ox - 2, oy - 5, 5, 5); px(g, '#8a5a34', ox - 1, oy - 4, 3, 4); px(g, blink ? '#8a5a34' : '#f7dd5b', ox - 1, oy - 3, 1, 1); px(g, blink ? '#8a5a34' : '#f7dd5b', ox + 1, oy - 3, 1, 1); }
+  if (busyAt('study')) {
+    const books = ['#b8323f', '#3b5fa8', '#4f9c5a'];
+    for (let i = 0; i < 3; i++) { const a = clock * 1.2 + i * 2.09, bx = Math.round(TOWER.x + Math.cos(a) * 28), by = Math.round(TOWER.top + 14 + Math.sin(a) * 8 + Math.sin(clock * 3 + i) * 2), flap = Math.sin(clock * 10 + i) > 0 ? 1 : 0;
+      px(g, '#1b1424', bx - 3, by - 2, 7, 5); px(g, books[i], bx - 2, by - 1, 5, 3); px(g, '#fff3d0', bx - 2 + flap, by - 2, 2, 1); }
+    const s = ROOMS.study.spots[0];
+    for (let i = 0; i < 12; i++) { const a = clock * 1.5 + i * Math.PI / 6; px(g, i % 3 ? '#a593ff' : '#e0d7ff', Math.round(s.x + Math.cos(a) * 13), Math.round(s.y + Math.sin(a) * 4), 1, 1); }
+  }
+  // the armory: a minecart rolls ore out of the gate and back
+  { const t = (clock * 0.12) % 1, out = t < .5 ? t * 2 : 2 - t * 2, cx = Math.round(FORGE.x - 14 - out * 34), cy = Math.round(FORGE.y + 12 + out * 10);
+    g.strokeStyle = '#4a4458'; g.lineWidth = 1; g.beginPath(); g.moveTo(FORGE.x - 10, FORGE.y + 14); g.lineTo(FORGE.x - 52, FORGE.y + 26); g.stroke();
+    px(g, '#1b1424', cx - 5, cy - 6, 10, 6); px(g, '#5b6470', cx - 4, cy - 5, 8, 4); px(g, '#e39a4d', cx - 3, cy - 7, 2, 2); px(g, '#ffd27a', cx, cy - 7, 2, 2); px(g, '#1b1424', cx - 4, cy, 2, 2); px(g, '#1b1424', cx + 2, cy, 2, 2); }
+  // the dungeon: bats, a ghost among the graves, and treasure once it is cleared
+  for (let i = 0; i < 3; i++) { const a = clock * (0.9 + i * .2) + i * 2, bx = Math.round(SKULL.x + Math.sin(a) * 40 + i * 6), by = Math.round(372 + Math.sin(a * 2) * 12 + i * 5), up = Math.floor(clock * 9 + i) % 2;
+    px(g, '#2a1d3a', bx - 1, by, 3, 2); px(g, '#2a1d3a', bx - 4, by - up, 3, 1); px(g, '#2a1d3a', bx + 2, by - up, 3, 1); px(g, '#e8606f', bx, by, 1, 1); }
+  { const gx = Math.round(96 + Math.sin(clock * .3) * 26), gy = Math.round(452 + Math.sin(clock * .9) * 4); g.globalAlpha = .35 + Math.sin(clock * .7) * .2;
+    px(g, '#e6f0ff', gx - 3, gy - 9, 7, 7); px(g, '#e6f0ff', gx - 4, gy - 4, 9, 3); px(g, '#e6f0ff', gx - 4, gy - 1, 2, 2); px(g, '#e6f0ff', gx, gy - 1, 2, 2); px(g, '#e6f0ff', gx + 3, gy - 1, 2, 2); px(g, '#1b1424', gx - 2, gy - 7, 1, 2); px(g, '#1b1424', gx + 1, gy - 7, 1, 2); g.globalAlpha = 1; }
+  { const { x, y } = CHEST, open = anyChest();
+    px(g, 'rgba(0,0,0,.35)', x - 6, y, 13, 2); px(g, '#1b1424', x - 6, y - 7, 13, 8); px(g, '#8a5a34', x - 5, y - 6, 11, 6); px(g, '#f2b84b', x - 5, y - 4, 11, 1);
+    if (open) { px(g, '#1b1424', x - 6, y - 12, 13, 5); px(g, '#6b4426', x - 5, y - 11, 11, 3); px(g, '#ffd27a', x - 4, y - 7, 9, 2); if (Math.sin(clock * 5) > .3) px(g, '#fff', x - 2 + Math.round(Math.sin(clock) * 3), y - 9, 1, 1); }
+    else { px(g, '#1b1424', x - 6, y - 10, 13, 4); px(g, '#7a4a2a', x - 5, y - 9, 11, 2); px(g, '#f2b84b', x, y - 7, 1, 2); } }
+  // the swamp: a frog hopping between lily pads, bubbles from the pools
+  { const t = (clock * .25) % 2, hop = t % 1, from = FROG_PAD[t < 1 ? 0 : 1], to = FROG_PAD[t < 1 ? 1 : 0], jumping = hop > .8, k = jumping ? (hop - .8) / .2 : 0;
+    for (const p of FROG_PAD) { px(g, '#3f7a32', p.x - 3, p.y, 7, 2); px(g, '#4f8a3c', p.x - 2, p.y, 4, 1); }
+    const fx = Math.round(from.x + (to.x - from.x) * k), fy = Math.round(from.y + (to.y - from.y) * k - Math.sin(k * Math.PI) * 10);
+    px(g, '#1b1424', fx - 2, fy - 3, 5, 3); px(g, '#6aa84f', fx - 1, fy - 3, 3, 2); px(g, '#f7dd5b', fx - 1, fy - 4, 1, 1); px(g, '#f7dd5b', fx + 1, fy - 4, 1, 1); }
+}
 
 // ───────────────────────── update ─────────────────────────
-let clock = 0, emitAcc = 0;
-const roomBusy = key => (current?.place?.location === key && current.actor.path.length === 0) || [...actors.values()].some(a => a.room === key && a.busy && a.path.length === 0 && a.id !== 'main');
-function update(dt) {
-  clock += dt;
-  for (const a of actors.values()) {
-    if (a.alpha < 1 && !a.fading) a.alpha = Math.min(1, a.alpha + dt * 3);
+let emitAcc = 0;
+const roomBusy = (r, key) => r.threads.some(t => t.task?.place?.location === key && t.task.actor.path.length === 0) || [...r.actors.values()].some(a => a.room === key && a.busy && a.path.length === 0 && a.id !== 'main' && !a.delay);
+const busyAt = key => REALMS.some(r => roomBusy(r, key));
+function updateRealm(r, dt) {
+  for (const a of r.actors.values()) {
+    if (a.alpha < 1 && !a.fading && !(a.delay > 0)) a.alpha = Math.min(1, a.alpha + dt * 3);
     if (a.fading) a.alpha -= dt * 2;
+    if (a.delay > 0) { a.delay = Math.max(0, a.delay - dt); continue; }
     let rem = WALK_SPEED * dt;
     while (rem > 0 && a.path.length) {
       const p = a.path[0], dx = p.x - a.x, dy = p.y - a.y, d = Math.hypot(dx, dy);
       if (Math.abs(dx) > 0.3 * d && d > 0.5) a.facing = dx < 0 ? -1 : 1;
       if (d <= rem) { a.x = p.x; a.y = p.y; a.path.shift(); rem -= d; a.dist += d; } else { a.x += dx / d * rem; a.y += dy / d * rem; a.dist += rem; rem = 0; }
     }
-    if (!a.path.length && a.room === 'dungeon' && monsters.length) a.facing = -1;
-    if (!a.path.length && a.room === 'armory' && a.spot === 0) a.facing = 1;
-    if (!a.path.length && a.room === 'cauldron' && a.spot === 0) a.facing = 1;
+    if (!a.path.length && a.room === 'dungeon' && allMonsters().length) a.facing = -1;
+    if (!a.path.length && (a.room === 'armory' || a.room === 'cauldron') && a.spot === 0) a.facing = 1;
   }
-  for (const [id, a] of actors) if (a.fading && a.alpha <= 0) actors.delete(id);
+  for (const [id, a] of r.actors) if (a.fading && a.alpha <= 0) { r.actors.delete(id); dirty(); }
 
-  // runner
-  if (manual.length && !current && gap <= 0) startStep(manual.shift());
-  if (current) {
-    if (current.actor.path.length === 0) { current.dwell -= dt; if (current.dwell <= 0) finishStep(); }
-  } else if (gap > 0) gap -= dt;
-  else if (stepIdx < steps.length) startStep(steps[stepIdx++]);
-  else if (!ending) { const hero = actors.get('main'); sendTo(hero, 'tavern'); hero.busy = false; hero.activity = 'rests at the tavern'; hero.bubble = 'Quest complete!'; ending = 4.5; renderSide(); }
-  else { ending -= dt; if (ending <= 0) { actors.get('main').bubble = ''; loadScenario(scenarioIdx + 1); } }
+  for (const th of [...r.threads]) runThread(r, th, dt);
+  const m = r.main;
+  const idle = m.idx >= m.steps.length && !m.task && !m.wait && m.gap <= 0 && !r.manual.length && r.threads.every(t => t === m || t.done);
+  if (idle && !r.ending) { const hero = r.actors.get('main'); sendTo(r, hero, 'tavern'); hero.busy = false; hero.activity = 'rests at the tavern'; hero.bubble = 'Quest complete!'; r.ending = 4.5 + r.index * 0.7; dirty(); }
+  else if (r.ending && !idle) r.ending = 0;
+  else if (r.ending) { r.ending -= dt; if (r.ending <= 0) { r.actors.get('main').bubble = ''; loadQuest(r, r.questIdx + 1); } }
+
+  for (const mo of r.monsters) {
+    mo.t += dt; mo.born = Math.min(1, mo.born + dt * 3);
+    const dx = mo.tx - mo.x, dy = mo.ty - mo.y, d = Math.hypot(dx, dy), step = 40 * dt;
+    if (d > step) { mo.x += dx / d * step; mo.y += dy / d * step; } else { mo.x = mo.tx; mo.y = mo.ty; }
+    if (mo.dying !== undefined) { mo.dying -= dt; if (mo.dying <= 0 && !mo.dead) { mo.dead = true; burst(r, mo.x, mo.y - 4, '#ffffff', 10); burst(r, mo.x, mo.y - 4, '#e8606f', 8); FX.floats.push({ x: mo.x, y: mo.y - 12, text: '+5', color: '#84d488', life: 1.1 }); } }
+  }
+  r.monsters = r.monsters.filter(mo => !mo.dead);
+}
+function update(dt) {
+  clock += dt;
+  for (const r of REALMS) updateRealm(r, dt);
+  for (const p of FX.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g ?? 0) * dt; p.life -= dt; }
+  FX.particles = FX.particles.filter(p => p.life > 0);
+  if (FX.particles.length > 1200) FX.particles.splice(0, FX.particles.length - 1200);
+  for (const f of FX.floats) { f.y -= 14 * dt; f.life -= dt; }
+  FX.floats = FX.floats.filter(f => f.life > 0);
+  if (FX.banners[0]) { FX.banners[0].life -= dt; if (FX.banners[0].life <= 0) FX.banners.shift(); }
+  if (REALMS.some(r => r.state.dungeon.hasRun) && FOG > 0) FOG = Math.max(0, FOG - dt * 0.8);
+  updateLife(dt);
+  for (const c of CLOUDS) { c.x += c.v * dt * (1 + sky.storm * 1.5); if (c.x > W + 60) c.x = -c.c.width - 60; }
+  updateSky(dt);
 
   // the living world
   emitAcc += dt;
-  const working = current && current.place && current.actor.path.length === 0 ? current : null;
   if (emitAcc > 0.05) {
     emitAcc = 0;
     if (Math.random() < .35) emit(CAULDRON.x + (Math.random() - .5) * 14, CAULDRON.y - 8, '#9be89f', -10, 4);
     for (const c of CHIMNEYS) if (Math.random() < .18) smoke(c.x, c.y, c.magic ? (Math.random() < .5 ? 'rgba(165,147,255,.6)' : 'rgba(132,212,136,.6)') : 'rgba(225,225,230,.55)');
-    const forging = roomBusy('armory');
+    const forging = busyAt('armory');
     for (const v of VENTS) { if (Math.random() < (forging ? .5 : .2)) smoke(v.x, v.y, 'rgba(90,86,96,.6)', 3); if (forging && Math.random() < .25) emit(v.x, v.y, '#ff9a3a', -30, 4, 10); }
     if (Math.random() < .25) emit(TOWER.tip.x, TOWER.tip.y, Math.random() < .5 ? '#f7dd5b' : '#e0d7ff', -6, 8);
-    if (working) {
-      const a = working.actor;
-      switch (working.place.location) {
-        case 'study': emit(a.x, a.y - 14, Math.random() < .5 ? '#a593ff' : '#e0d7ff', -22, 14); emit(TOWER.windows[1].x + 1, TOWER.windows[1].y, '#c8bfff', -14, 6); break;
-        case 'armory': if (Math.random() < .7) { const ang = -Math.PI / 2 + (Math.random() - .5) * 2.2, v = 30 + Math.random() * 40; particles.push({ x: ANVIL.x, y: ANVIL.y - 4, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, life: .4, color: Math.random() < .5 ? '#ffd27a' : '#ff8a3a', g: 120 }); } break;
-        case 'cauldron': emit(CAULDRON.x + (Math.random() - .5) * 18, CAULDRON.y - 10, Math.random() < .5 ? '#84d488' : '#d6ffd8', -26, 6); if (Math.random() < .2) emit(CAULDRON.x, CAULDRON.y - 18, 'rgba(200,200,210,.5)', -14, 10); break;
-        case 'tavern': if (Math.random() < .3) emit(a.x, a.y - 18, '#f2b84b', -12, 8); break;
+    if (Math.random() < .12) { const p = POOLS[Math.floor(Math.random() * POOLS.length)]; emit(p.x, p.y, '#9bd8a0', -6, 6, 0, 1, .4); }
+    if (anyChest() && Math.random() < .3) emit(CHEST.x, CHEST.y - 8, '#ffd27a', -14, 8);
+    for (const r of REALMS) for (const th of r.threads) {
+      const t = th.task; if (!t?.place || t.actor.path.length || Math.random() < .4) continue;
+      const a = t.actor;
+      switch (t.place.location) {
+        case 'study': emit(a.x, a.y - 14, Math.random() < .5 ? '#a593ff' : '#e0d7ff', -22, 14); break;
+        case 'armory': if (Math.random() < .7) { const ang = -Math.PI / 2 + (Math.random() - .5) * 2.2, v = 30 + Math.random() * 40; FX.particles.push({ x: ANVIL.x, y: ANVIL.y - 4, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, life: .4, color: Math.random() < .5 ? '#ffd27a' : '#ff8a3a', g: 120 }); } break;
+        case 'cauldron': { const hue = ['#84d488', '#a593ff', '#e8606f', '#f2b84b'][Math.floor(clock) % 4]; emit(CAULDRON.x + (Math.random() - .5) * 18, CAULDRON.y - 10, Math.random() < .6 ? hue : '#d6ffd8', -30, 6); if (Math.random() < .2) emit(CAULDRON.x, CAULDRON.y - 18, 'rgba(200,200,210,.5)', -14, 10); break; }
+        case 'tavern': if (Math.random() < .3) emit(a.x, a.y - 18, r.color, -12, 8); break;
         case 'dungeon': if (Math.random() < .3) emit(SKULL.mouth.x, SKULL.mouth.y - 4, '#5a4a6a', -10, 10); break;
       }
     }
   }
-  if (state.dungeon.hasRun && fogAlpha > 0) fogAlpha = Math.max(0, fogAlpha - dt * 0.8);
-  for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g ?? 0) * dt; p.life -= dt; }
-  particles = particles.filter(p => p.life > 0);
-  if (particles.length > 900) particles.splice(0, particles.length - 900);
-  for (const f of floats) { f.y -= 14 * dt; f.life -= dt; }
-  floats = floats.filter(f => f.life > 0);
-  for (const m of monsters) {
-    m.t += dt; m.born = Math.min(1, m.born + dt * 3);
-    const dx = m.tx - m.x, dy = m.ty - m.y, d = Math.hypot(dx, dy), step = 40 * dt;
-    if (d > step) { m.x += dx / d * step; m.y += dy / d * step; } else { m.x = m.tx; m.y = m.ty; }
-    if (m.dying !== undefined) { m.dying -= dt; if (m.dying <= 0 && !m.dead) { m.dead = true; burst(m.x, m.y - 4, '#ffffff', 10); burst(m.x, m.y - 4, '#e8606f', 8); floats.push({ x: m.x, y: m.y - 12, text: '+5', color: '#84d488', life: 1.1 }); } }
-  }
-  monsters = monsters.filter(m => !m.dead);
-  for (const c of CLOUDS) { c.x += c.v * dt; if (c.x > W + 60) c.x = -c.c.width - 60; }
-  if (banner) { banner.life -= dt; if (banner.life <= 0) banner = null; }
 }
 
 // ───────────────────────── camera ─────────────────────────
+// follow: whoever works now · world: the whole island · free: wherever you dragged · inspect: close on what you clicked
 const cam = { x: HUB.x, y: HUB.y - 20, z: 1, tx: HUB.x, ty: HUB.y };
-let camMode = 'follow';
+let camMode = 'follow', selected = null, hover = null;
 const view = { ox: 0, oy: 0, z: 1 };
-function focusActor() { const a = current?.actor; return a && actors.has(a.id) ? a : actors.get('main'); }
+// With every project at work the camera is a director: it follows the latest task,
+// but holds a shot for a few seconds before cutting to the next.
+function focusActor() {
+  if (focusP) { const a = focusP.focus?.actor; return alive(a) ? a : focusP.actors.get('main'); }
+  if (alive(director.actor) && clock - director.since < 3.5) return director.actor;
+  const next = lastTask?.actor;
+  if (alive(next)) { if (next !== director.actor) { director.actor = next; director.since = clock; } return next; }
+  return alive(director.actor) ? director.actor : REALMS[0].actors.get('main');
+}
 function camTarget() {
   if (camMode === 'world') return { x: W / 2, y: H / 2, z: VW / W };
   if (camMode === 'free') return { x: cam.tx, y: cam.ty, z: 1 };
+  if (camMode === 'inspect' && selected) {
+    if (selected.kind === 'place') { const r = ROOMS[selected.key]; return { x: r.at.x + (selected.key === 'tavern' ? 0 : 10), y: (r.at.y + r.spots[0].y) / 2 - 10, z: 2 }; }
+    const a = selected.a; if (alive(a)) return { x: a.x, y: a.y - 14, z: 2 };
+  }
   const a = focusActor(); return { x: a.x, y: a.y - 18, z: 1 };
 }
 function clampCam(x, y, z) { const hw = VW / 2 / z, hh = VH / 2 / z; return { x: Math.max(hw, Math.min(W - hw, x)), y: Math.max(hh, Math.min(H - hh, y)) }; }
-function updateCamera(rdt) {
-  const t = camTarget(), k = reduced ? 1 : 1 - Math.exp(-rdt * (2.4 + speed));
+function updateCamera(rdt, snap) {
+  const t = camTarget(), k = reduced || snap ? 1 : 1 - Math.exp(-rdt * (2.4 + speed));
   cam.z += (t.z - cam.z) * k; if (Math.abs(cam.z - t.z) < 0.002) cam.z = t.z;
   const c = clampCam(t.x, t.y, cam.z);
   cam.x += (c.x - cam.x) * k; cam.y += (c.y - cam.y) * k;
   const cc = clampCam(cam.x, cam.y, cam.z); cam.x = cc.x; cam.y = cc.y;
   view.z = cam.z; view.ox = VW / 2 - cam.x * cam.z; view.oy = VH / 2 - cam.y * cam.z;
-  if (cam.z === 1) { view.ox = Math.round(view.ox); view.oy = Math.round(view.oy); }
+  if (Number.isInteger(cam.z)) { view.ox = Math.round(view.ox); view.oy = Math.round(view.oy); }
 }
 const toScreen = (x, y) => ({ x: x * view.z + view.ox, y: y * view.z + view.oy });
 const toWorld = (x, y) => ({ x: (x - view.ox) / view.z, y: (y - view.oy) / view.z });
 function setCam(mode, at) {
   camMode = mode;
+  if (mode !== 'inspect' && selected) { selected = null; renderInspect(); }
   if (at) { const c = clampCam(at.x, at.y, 1); cam.tx = c.x; cam.ty = c.y; }
   document.querySelectorAll('.cam').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cam === mode)));
+}
+function select(what) {
+  selected = what;
+  if (what) { camMode = 'inspect'; document.querySelectorAll('.cam').forEach(b => b.setAttribute('aria-pressed', 'false')); }
+  else if (camMode === 'inspect') setCam('follow');
+  renderInspect();
+}
+
+// Clickable things: every place's landmark, and every member of every party.
+const HIT = {
+  study: { x: 148, y: 50, w: 70, h: 124 }, armory: { x: 742, y: 60, w: 120, h: 112 }, tavern: { x: 424, y: 196, w: 112, h: 140 },
+  dungeon: { x: 104, y: 352, w: 128, h: 112 }, cauldron: { x: 754, y: 368, w: 100, h: 100 },
+};
+function hitTest(wx, wy) {
+  const people = everyone().filter(a => a.alpha > .5 && !(a.delay > 0)).sort((p, q) => (q.proj === focusP) - (p.proj === focusP) || q.y - p.y);
+  for (const a of people) if (Math.abs(wx - a.x) < 8 && wy < a.y + 3 && wy > a.y - 20) return { kind: 'actor', a };
+  for (const [key, h] of Object.entries(HIT)) if (wx >= h.x && wx < h.x + h.w && wy >= h.y && wy < h.y + h.h) return { kind: 'place', key };
+  return null;
 }
 
 // ───────────────────────── draw ─────────────────────────
@@ -1412,85 +1849,79 @@ function torch(x, y) {
   glow(x, y, 18 + f * 6, 'rgba(255,170,70,.55)', 1);
   px(g, f > .5 ? '#ffd27a' : '#ff9a3a', x - 1, y - 3, 3, 3); px(g, '#fff3c0', x, y - 2, 1, 1);
 }
-function drawWater() {
+function drawWater(w) {
   const t = reduced ? 0 : clock;
   g.fillStyle = '#e8f6ff';
-  for (const f of FOAM) { const v = Math.sin(t * 2.2 + f.ph); if (v > .55) g.fillRect(f.x, f.y, 2, 2); }
+  for (const f of w.foam) { const v = Math.sin(t * 2.2 + f.ph); if (v > .55) g.fillRect(f.x, f.y, 2, 2); }
   g.globalAlpha = .45;
-  for (const f of FOAM) { const v = Math.sin(t * 2.2 + f.ph); if (v > 0 && v <= .55) g.fillRect(f.x, f.y, 2, 2); }
+  for (const f of w.foam) { const v = Math.sin(t * 2.2 + f.ph); if (v > 0 && v <= .55) g.fillRect(f.x, f.y, 2, 2); }
   g.globalAlpha = 1;
-  for (const s of SPARKS) { if (Math.sin(t * 1.7 + s.ph) > .95) { g.fillStyle = s.fresh ? '#bfe6f7' : '#d6f0ff'; g.fillRect(s.x, s.y, 2, 1); } }
+  for (const s of w.sparks) { if (Math.sin(t * 1.7 + s.ph) > .95) { g.fillStyle = s.fresh ? '#bfe6f7' : '#d6f0ff'; g.fillRect(s.x, s.y, 2, 1); } }
   g.fillStyle = '#8fd0ee';
   const shift = Math.floor(t * 16);
   for (let i = 0; i < RIVER.length; i += 9) { const p = RIVER[(i + shift) % RIVER.length]; g.fillRect(Math.round(p.x) - 1 + Math.round(Math.sin(i) * 2), Math.round(p.y), 1, 3); }
 }
 function drawPlaceGlow() {
   for (const [key, r] of Object.entries(ROOMS)) {
-    if (!roomBusy(key)) continue;
+    if (!busyAt(key)) continue;
     const pulse = reduced ? .35 : .3 + Math.sin(clock * 4) * .12;
     glow(r.spots[0].x, r.spots[0].y - 6, 46, r.color, pulse);
   }
 }
 function drawTrails() {
-  for (const a of actors.values()) {
-    if (a.path.length < 3 || a.fading) continue;
-    const col = a.fixed ? CLASSES[a.fixed].color : '#f2b84b';
+  for (const a of everyone()) {
+    if (a.path.length < 3 || a.fading || (focusP && a.proj !== focusP)) continue;
+    const col = a.proj.color;
     g.fillStyle = col;
     let prev = a, acc = (clock * 30) % 8;
     for (let i = 0; i < a.path.length && i < 160; i++) {
       const p = a.path[i], d = Math.hypot(p.x - prev.x, p.y - prev.y); acc += d; prev = p;
-      if (acc >= 8) { acc -= 8; g.globalAlpha = Math.max(.15, .7 - i / 200); g.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 2, 2); }
+      if (acc >= 8) { acc -= 8; g.globalAlpha = Math.max(.15, .6 - i / 220); g.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 2, 2); }
     }
     g.globalAlpha = 1;
-    const end = a.path[a.path.length - 1];
-    { const s = !reduced && Math.sin(clock * 6) > 0 ? 1 : 0; px(g, '#1b1424', end.x - 4 - s, end.y - 1, 9 + 2 * s, 3); px(g, col, end.x - 3 - s, end.y, 7 + 2 * s, 1); }
+    const end = a.path[a.path.length - 1], s = !reduced && Math.sin(clock * 6) > 0 ? 1 : 0;
+    px(g, '#1b1424', end.x - 4 - s, end.y - 1, 9 + 2 * s, 3); px(g, col, end.x - 3 - s, end.y, 7 + 2 * s, 1);
   }
 }
-function drawDynamicProps() {
-  // quest notes on the board
-  const qs = state.quests;
+function drawDynamicProps(w) {
+  const qs = shown().flatMap(p => p.state.quests);
   for (let i = 0; i < Math.min(qs.length, 6); i++) { const x = BOARD.x + 3 + (i % 3) * 10, y = BOARD.y + 4 + Math.floor(i / 3) * 9; g.fillStyle = qs[i].isDone ? '#b9a77e' : '#f3e6c0'; g.fillRect(x, y, 8, 7); g.fillStyle = '#b8323f'; g.fillRect(x + 3, y, 2, 1); g.fillStyle = qs[i].isDone ? '#4f9c5a' : '#6b5a3a'; if (qs[i].isDone) { g.fillRect(x + 2, y + 4, 1, 1); g.fillRect(x + 3, y + 5, 1, 1); g.fillRect(x + 4, y + 3, 1, 2); g.fillRect(x + 5, y + 2, 1, 1); } else { g.fillRect(x + 1, y + 3, 6, 1); g.fillRect(x + 1, y + 5, 4, 1); } }
   for (const l of LAMPS) glow(l.x, l.y, 10 + flick(l.x, l.y) * 3, 'rgba(255,210,122,.5)', 1);
-  // windmill sails
   if (WINDMILL) {
     const ang = reduced ? .4 : clock * 1.4;
     for (let k = 0; k < 4; k++) {
       const a = ang + k * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
-      for (let r = 2; r <= 14; r++) { const x = Math.round(WINDMILL.x + ca * r), y = Math.round(WINDMILL.y + sa * r); px(g, '#3a2414', x, y); if (r > 4) px(g, '#efe6d2', Math.round(x - sa * 2), Math.round(y + ca * 2), 2, 2); }
+      for (let rr = 2; rr <= 14; rr++) { const x = Math.round(WINDMILL.x + ca * rr), y = Math.round(WINDMILL.y + sa * rr); px(g, '#3a2414', x, y); if (rr > 4) px(g, '#efe6d2', Math.round(x - sa * 2), Math.round(y + ca * 2), 2, 2); }
     }
     px(g, '#1b1424', WINDMILL.x - 1, WINDMILL.y - 1, 3, 3);
   }
-  // the wizard's tower: lit windows and a circling crystal
-  const study = roomBusy('study');
-  for (const w of TOWER.windows) { const f = .6 + Math.sin(clock * 3 + w.y) * .25; px(g, study ? '#e0d7ff' : '#a593ff', w.x, w.y, 3, 6); glow(w.x + 1, w.y + 3, study ? 14 : 8, 'rgba(165,147,255,.7)', f); }
-  { const a = reduced ? 0 : clock * 1.6, cx = TOWER.x + Math.cos(a) * 20, cy = TOWER.top - 18 + Math.sin(a) * 5;
-    glow(cx, cy, 8, 'rgba(165,230,255,.7)', .8); px(g, '#1b1424', Math.round(cx) - 2, Math.round(cy) - 3, 4, 6); px(g, '#7fe0ff', Math.round(cx) - 1, Math.round(cy) - 2, 2, 4); px(g, '#e6fbff', Math.round(cx) - 1, Math.round(cy) - 2, 1, 2); }
+  const study = busyAt('study');
+  for (const wdw of TOWER.windows) { const f = .6 + Math.sin(clock * 3 + wdw.y) * .25; px(g, study ? '#e0d7ff' : '#a593ff', wdw.x, wdw.y, 3, 6); glow(wdw.x + 1, wdw.y + 3, study ? 14 : 8, 'rgba(165,147,255,.7)', f); }
+  { const a = reduced ? 0 : clock * 1.6, cx = Math.round(TOWER.x + Math.cos(a) * 20), cy = Math.round(TOWER.top - 18 + Math.sin(a) * 5);
+    glow(cx, cy, 8, 'rgba(165,230,255,.7)', .8); px(g, '#1b1424', cx - 2, cy - 3, 4, 6); px(g, '#7fe0ff', cx - 1, cy - 2, 2, 4); px(g, '#e6fbff', cx - 1, cy - 2, 1, 2); }
   glow(TOWER.tip.x, TOWER.tip.y, 7, 'rgba(247,221,91,.8)', .6 + Math.sin(clock * 5) * .3);
-  // the forge glows in its gate
-  { const hot = roomBusy('armory'), f = flick(FORGE.x, FORGE.y);
+  { const hot = busyAt('armory'), f = flick(FORGE.x, FORGE.y);
     glow(FORGE.x, FORGE.y + 4, hot ? 26 : 16, 'rgba(255,120,40,.85)', .55 + f * .35);
     px(g, '#ff7a2a', FORGE.x - 6, FORGE.y + 8 - Math.round(f * 2), 12, 3 + Math.round(f * 2)); px(g, '#ffd27a', FORGE.x - 3, FORGE.y + 9, 6, 2); }
-  // the dungeon: torches and the skull's eyes
   for (const t of TORCHES) torch(t.x, t.y);
-  { const angry = state.dungeon.monsters > 0, f = .5 + Math.sin(clock * (angry ? 6 : 2)) * .5;
+  { const angry = allMonsters().length > 0, f = .5 + Math.sin(clock * (angry ? 6 : 2)) * .5;
     for (const e of SKULL.eyes) { glow(e.x, e.y, angry ? 10 : 6, 'rgba(232,96,111,.9)', .3 + f * .6); px(g, angry ? '#ff5a6a' : '#8a2a3a', e.x - 1, e.y - 1, 2, 2); } }
-  // the alchemist's hut: a green window, fireflies, and the cauldron
   glow(HUT.window.x, HUT.window.y, 10, 'rgba(132,212,136,.8)', .6 + Math.sin(clock * 2) * .2); px(g, '#9be89f', HUT.window.x - 1, HUT.window.y - 1, 3, 3);
   for (const f of FIREFLIES) { const v = Math.sin(clock * 2 + f.ph); if (v < .3) continue; const x = f.x + Math.sin(clock * .7 + f.ph) * 6, y = f.y + Math.cos(clock * .9 + f.ph) * 4; g.globalAlpha = v; px(g, '#e9ff8a', Math.round(x), Math.round(y)); g.globalAlpha = 1; }
-  const c = CAULDRON; const fl = reduced ? 0 : Math.sin(clock * 12) > 0 ? 1 : 0;
-  glow(c.x, c.y + 4, 16, 'rgba(255,140,50,.6)', .6);
+  const c = CAULDRON; const fl = reduced ? 0 : Math.sin(clock * 12) > 0 ? 1 : 0, brewing = busyAt('cauldron');
+  glow(c.x, c.y + 4, brewing ? 24 : 16, 'rgba(255,140,50,.6)', .6);
   g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(c.x - 13, c.y + 7, 26, 3);
   g.fillStyle = '#ff7a2a'; g.fillRect(c.x - 8, c.y + 4 - fl, 16, 4 + fl); g.fillStyle = '#ffd27a'; g.fillRect(c.x - 5, c.y + 5, 10, 3);
   g.fillStyle = '#1b1424'; g.fillRect(c.x - 13, c.y - 10, 26, 14); g.fillRect(c.x - 11, c.y + 4, 22, 2);
   g.fillStyle = '#2e2a36'; g.fillRect(c.x - 12, c.y - 9, 24, 12); g.fillStyle = '#4a4556'; g.fillRect(c.x - 12, c.y - 9, 24, 2);
-  g.fillStyle = '#4fbf5a'; g.fillRect(c.x - 10, c.y - 10, 20, 3); g.fillStyle = '#9be89f'; g.fillRect(c.x - 6 + Math.round(Math.sin(clock * 3) * 3), c.y - 10, 3, 1);
-  // a ship on the southern sea
-  if (SHIP) {
-    const span = SHIP.to - SHIP.from, u = (clock * 10) % (span * 2), dir = u < span ? 1 : -1, x = Math.round(SHIP.from + (u < span ? u : span * 2 - u)), y = SHIP.y + (reduced ? 0 : Math.round(Math.sin(clock * 2)));
+  g.fillStyle = brewing ? ['#4fbf5a', '#7a5fd9', '#d1495b', '#e0a030'][Math.floor(clock) % 4] : '#4fbf5a'; g.fillRect(c.x - 10, c.y - 10, 20, 3); g.fillStyle = '#d6ffd8'; g.fillRect(c.x - 6 + Math.round(Math.sin(clock * 3) * 3), c.y - 10, 3, 1);
+  if (w.ship) {
+    const S = w.ship, span = S.to - S.from, u = (clock * 10) % (span * 2), dir = u < span ? 1 : -1, x = Math.round(S.from + (u < span ? u : span * 2 - u)), y = S.y + (reduced ? 0 : Math.round(Math.sin(clock * 2)));
     px(g, 'rgba(255,255,255,.5)', x - dir * 10, y + 1, 4, 1);
     px(g, '#1b1424', x - 8, y - 4, 16, 5); px(g, '#7a4a2a', x - 7, y - 4, 14, 3); px(g, '#5a3720', x - 6, y - 1, 12, 1);
     px(g, '#3a2414', x, y - 16, 1, 12);
-    px(g, '#1b1424', x - 5 + (dir > 0 ? 1 : 0), y - 15, 10, 10); px(g, '#fff3d0', x - 4 + (dir > 0 ? 1 : 0), y - 14, 8, 8); px(g, '#b8323f', x - 4 + (dir > 0 ? 1 : 0), y - 11, 8, 2);
+    const o = dir > 0 ? 1 : 0;
+    px(g, '#1b1424', x - 5 + o, y - 15, 10, 10); px(g, '#fff3d0', x - 4 + o, y - 14, 8, 8); px(g, '#b8323f', x - 4 + o, y - 11, 8, 2);
     px(g, '#b8323f', dir > 0 ? x + 1 : x - 3, y - 18, 3, 2);
   }
 }
@@ -1502,95 +1933,265 @@ function drawMonster(m) {
   const w = 10 * pop, h = 8 * pop; g.drawImage(spr, Math.round(m.x - w / 2), Math.round(m.y - h + bob), w, h);
 }
 function drawActor(a) {
+  if (a.delay > 0) return; // still inside the tavern
   const frame = a.path.length ? 1 + (Math.floor(a.dist / 5) % 2) : 0;
   const working = a.busy && !a.path.length;
   const bob = working && !reduced ? Math.round(Math.abs(Math.sin(clock * 6 + a.x))) : 0;
   const spr = SPR[spriteOf(a)][frame][a.facing < 0 ? 1 : 0];
-  g.globalAlpha = Math.max(0, Math.min(1, a.alpha));
-  g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(Math.round(a.x) - 5, Math.round(a.y) - 1, 10, 3);
-  g.drawImage(spr, Math.round(a.x) - 6, Math.round(a.y) - 16 - bob);
-  if (a.id === 'main' && spriteOf(a) !== 'guildmaster') { const x = Math.round(a.x) - 3, y = Math.round(a.y) - 20 - bob; g.fillStyle = '#1b1424'; g.fillRect(x - 1, y - 1, 8, 4); g.fillStyle = '#f2b84b'; g.fillRect(x, y + 1, 6, 1); g.fillRect(x, y, 1, 1); g.fillRect(x + 2, y, 2, 1); g.fillRect(x + 5, y, 1, 1); }
-  if (a.lang && a.alpha > .5) { const crest = LANGS[a.lang]; g.font = '6px "Press Start 2P", monospace'; const w = Math.ceil(g.measureText(crest).width) + 3; const x = Math.round(a.x) + 4, y = Math.round(a.y) - 22 - bob; g.fillStyle = '#3b2a1a'; g.fillRect(x, y, w, 7); g.fillStyle = '#ffd27a'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(crest, x + 2, y + 1); }
-  if (working && a.room === 'dungeon' && monsters.length && Math.floor(clock * 3) % 2 === 0) {
-    const tgt = monsters[0]; g.strokeStyle = '#fff3c0'; g.lineWidth = 1; g.beginPath(); g.arc(tgt.x, tgt.y - 4, 7, -2.4 + (clock * 6) % 1, -0.6 + (clock * 6) % 1); g.stroke();
+  const x = Math.round(a.x), y = Math.round(a.y), faded = focusP && a.proj !== focusP;
+  g.globalAlpha = Math.max(0, Math.min(1, a.alpha)) * (faded ? .45 : 1);
+  // the project's colour underfoot; a team member also flies the team's pennant
+  px(g, a.proj.color, x - 6, y - 1, 13, 1); px(g, a.proj.color, x - 5, y, 11, 1);
+  g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(x - 5, y - 1, 10, 2);
+  const isSel = selected?.kind === 'actor' && selected.a === a, isHover = hover?.kind === 'actor' && hover.a === a;
+  if (isSel || isHover) { g.strokeStyle = isSel ? '#f2b84b' : '#f3e6c0'; g.lineWidth = 1; g.strokeRect(x - 8.5, y - 21.5, 17, 24); }
+  g.drawImage(spr, x - 6, y - 16 - bob);
+  if (a.team) { px(g, '#3a2414', x - 7, y - 18 - bob, 1, 9); px(g, a.team.color, x - 6, y - 18 - bob, 3, 2); }
+  if (a.id === 'main' && !spriteOf(a).startsWith('gm:')) { const cx = x - 3, cy = y - 20 - bob; g.fillStyle = '#1b1424'; g.fillRect(cx - 1, cy - 1, 8, 4); g.fillStyle = a.proj.color; g.fillRect(cx, cy + 1, 6, 1); g.fillRect(cx, cy, 1, 1); g.fillRect(cx + 2, cy, 2, 1); g.fillRect(cx + 5, cy, 1, 1); }
+  if (a.alpha > .5 && !faded) { const crest = a.proj.lang; g.font = '6px "Press Start 2P", monospace'; const w = Math.ceil(g.measureText(crest).width) + 3; const lx = x + 4, ly = y - 22 - bob; g.fillStyle = '#1b1424'; g.fillRect(lx - 1, ly - 1, w + 2, 9); g.fillStyle = a.proj.color; g.fillRect(lx, ly, w, 7); g.fillStyle = '#1b1424'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(crest, lx + 2, ly + 1); }
+  const foes = allMonsters();
+  if (working && a.room === 'dungeon' && foes.length && Math.floor(clock * 3 + a.x) % 2 === 0) {
+    const tgt = foes.find(m => m.proj === a.proj) ?? foes[0]; g.strokeStyle = '#fff3c0'; g.lineWidth = 1; g.beginPath(); g.arc(tgt.x, tgt.y - 4, 7, -2.4 + (clock * 6) % 1, -0.6 + (clock * 6) % 1); g.stroke();
   }
   g.globalAlpha = 1;
 }
 function drawFog() {
-  if (fogAlpha <= 0) return;
-  const r = ROOMS.dungeon.at;
-  const grd = g.createRadialGradient(r.x + 10, r.y - 10, 20, r.x + 10, r.y - 10, 150);
-  grd.addColorStop(0, `rgba(12,8,20,${.9 * fogAlpha})`); grd.addColorStop(.65, `rgba(12,8,20,${.75 * fogAlpha})`); grd.addColorStop(1, 'rgba(12,8,20,0)');
-  g.fillStyle = grd; g.fillRect(r.x - 150, r.y - 160, 320, 320);
-  g.globalAlpha = .5 * fogAlpha;
-  for (let i = 0; i < 6; i++) { const x = r.x - 60 + i * 26 + Math.sin(clock * .5 + i) * 10, y = r.y - 50 + (i % 3) * 30; g.drawImage(CLOUDS[i % 4].s, Math.round(x), Math.round(y)); }
+  if (FOG <= 0) return;
+  const at = ROOMS.dungeon.at;
+  const grd = g.createRadialGradient(at.x + 10, at.y - 10, 20, at.x + 10, at.y - 10, 150);
+  grd.addColorStop(0, `rgba(12,8,20,${.9 * FOG})`); grd.addColorStop(.65, `rgba(12,8,20,${.75 * FOG})`); grd.addColorStop(1, 'rgba(12,8,20,0)');
+  g.fillStyle = grd; g.fillRect(at.x - 150, at.y - 160, 320, 320);
+  g.globalAlpha = .5 * FOG;
+  for (let i = 0; i < 6; i++) { const x = at.x - 60 + i * 26 + Math.sin(clock * .5 + i) * 10, y = at.y - 50 + (i % 3) * 30; g.drawImage(CLOUDS[i % 4].s, Math.round(x), Math.round(y)); }
   g.globalAlpha = 1;
 }
 function drawClouds(shadows) {
-  for (const c of CLOUDS) {
-    if (shadows) { g.globalAlpha = .13; g.drawImage(c.s, Math.round(c.x + 26), Math.round(c.y + 70)); }
-    else { g.globalAlpha = camMode === 'world' ? .9 : .7; g.drawImage(c.c, Math.round(c.x), Math.round(c.y)); }
-  }
+  const shown = 2 + Math.round(sky.cloud * 8), base = camMode === 'world' ? .9 : camMode === 'inspect' ? .35 : .7, grey = Math.min(1, sky.rain + sky.storm);
+  CLOUDS.slice(0, shown).forEach((c, i) => {
+    const fade = Math.min(1, 2 + sky.cloud * 8 - i);
+    if (shadows) { g.globalAlpha = (.1 + sky.cloud * .1) * fade; g.drawImage(c.s, Math.round(c.x + 26), Math.round(c.y + 70)); }
+    else {
+      g.globalAlpha = base * fade * (1 - grey); g.drawImage(c.c, Math.round(c.x), Math.round(c.y));
+      if (grey > 0) { g.globalAlpha = Math.min(1, base + .15) * fade * grey; g.drawImage(c.dark, Math.round(c.x), Math.round(c.y)); }
+    }
+  });
   g.globalAlpha = 1;
+}
+// ───────────────────────── sky: weather and the time of day ─────────────────────────
+// Auto picks weather that suits the season and lets the sun go round; the SKY buttons take over either.
+const DAY_LENGTH = 240; // seconds of play for one whole day
+const sky = { weatherMode: 'auto', timeMode: 'auto', weather: 'sun', next: 28, tod: 0.34, cloud: .25, rain: 0, snow: 0, storm: 0, flash: 0, bolt: null, day: 1 };
+const WEATHER_TARGETS = { sun: { cloud: .15, rain: 0, snow: 0, storm: 0 }, cloud: { cloud: 1, rain: 0, snow: 0, storm: 0 }, rain: { cloud: .9, rain: 1, snow: 0, storm: 0 }, storm: { cloud: 1, rain: 1, snow: 0, storm: 1 }, snow: { cloud: .8, rain: 0, snow: 1, storm: 0 } };
+function pickWeather() {
+  const odds = WORLD_SEASON === 'winter' ? { sun: 3, cloud: 3, snow: 4 } : WORLD_SEASON === 'summer' ? { sun: 5, cloud: 2, rain: 2, storm: 1 } : { sun: 3, cloud: 3, rain: 3, storm: 1 };
+  let roll = Math.random() * Object.values(odds).reduce((a, b) => a + b, 0);
+  for (const [w, n] of Object.entries(odds)) { roll -= n; if (roll <= 0) return w; }
+  return 'sun';
+}
+const sunHeight = () => Math.sin((sky.tod - 0.25) * Math.PI * 2); // 1 at noon, -1 at midnight
+const darkness = () => Math.max(0, Math.min(1, (0.2 - sunHeight()) / 0.55));
+function updateSky(dt) {
+  if (sky.timeMode === 'auto') { const before = sky.tod; sky.tod = (sky.tod + dt / DAY_LENGTH) % 1; if (sky.tod < before) sky.day++; }
+  else { const goal = sky.timeMode === 'day' ? 0.42 : 0.92; let d = goal - sky.tod; if (d > .5) d -= 1; if (d < -.5) d += 1; sky.tod = (sky.tod + d * Math.min(1, dt * 1.5) + 1) % 1; }
+  if (sky.weatherMode === 'auto') { sky.next -= dt; if (sky.next <= 0) { sky.weather = pickWeather(); sky.next = 30 + Math.random() * 40; renderSky(); } }
+  else sky.weather = sky.weatherMode;
+  const t = WEATHER_TARGETS[sky.weather], k = Math.min(1, dt * .5);
+  for (const key of ['cloud', 'rain', 'snow', 'storm']) sky[key] += (t[key] - sky[key]) * k;
+  if (sky.storm > .5 && !reduced && Math.random() < dt * .18) { sky.flash = 1; sky.bolt = { x: 40 + Math.random() * (VW - 80), y: 60 + Math.random() * (VH - 100), seed: Math.random() * 1000 }; }
+  sky.flash = Math.max(0, sky.flash - dt * 2.5);
+}
+const LIGHT = (x, y, r, color, a) => glow(x, y, r, color, a);
+function drawNight() {
+  // After dark the land dims and every lamp, window, torch and forge lights its patch of it.
+  const dark = darkness(), sun = sunHeight(), warm = Math.max(0, 1 - Math.abs(sun) / 0.35) * (sun > -0.2 ? 1 : 0);
+  const tl = toWorld(0, 0), br = toWorld(VW, VH);
+  if (warm > 0.01) { g.fillStyle = `rgba(255,120,60,${0.16 * warm})`; g.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y); }
+  const wet = Math.max(sky.rain, sky.snow * .6) * .22 + sky.cloud * .06;
+  if (wet > 0.01) { g.fillStyle = `rgba(40,50,72,${wet})`; g.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y); }
+  if (dark < 0.02) return;
+  g.fillStyle = `rgba(10,14,44,${0.7 * dark})`; g.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+  g.globalCompositeOperation = 'lighter';
+  const f = t => .75 + flick(t.x, t.y) * .25;
+  for (const l of LAMPS) LIGHT(l.x, l.y, 26, 'rgba(255,190,90,.55)', dark * f(l));
+  for (const t of TORCHES) LIGHT(t.x, t.y - 2, 34, 'rgba(255,150,60,.6)', dark * f(t));
+  for (const w of WINDOWS) LIGHT(w.x, w.y, 11, 'rgba(255,200,110,.6)', dark * .9);
+  for (const w of TOWER.windows) LIGHT(w.x + 1, w.y + 3, 18, 'rgba(165,147,255,.7)', dark);
+  LIGHT(FORGE.x, FORGE.y + 4, 48, 'rgba(255,110,40,.7)', dark * f(FORGE));
+  LIGHT(CAULDRON.x, CAULDRON.y, 34, 'rgba(255,140,60,.6)', dark);
+  LIGHT(HUT.window.x, HUT.window.y, 18, 'rgba(132,212,136,.6)', dark);
+  for (const e of SKULL.eyes) LIGHT(e.x, e.y, 12, 'rgba(232,96,111,.7)', dark);
+  for (const a of everyone()) if (!(a.delay > 0) && a.alpha > .3) LIGHT(a.x, a.y - 8, 20, 'rgba(255,214,140,.45)', dark * a.alpha); // everyone carries a lantern
+  if (anyChest()) LIGHT(CHEST.x, CHEST.y - 6, 14, 'rgba(255,210,90,.6)', dark);
+  g.globalCompositeOperation = 'source-over';
+  for (const w of WINDOWS) px(g, '#ffd27a', w.x - 2, w.y - 2, 4, 4);
+  for (const ff of FIREFLIES) { const v = Math.sin(clock * 2 + ff.ph); if (v > .3) { g.globalAlpha = v * dark; px(g, '#e9ff8a', Math.round(ff.x + Math.sin(clock * .7 + ff.ph) * 6), Math.round(ff.y + Math.cos(clock * .9 + ff.ph) * 4)); g.globalAlpha = 1; } }
+  // stars glint on the open sea
+  g.fillStyle = '#f3f6ff';
+  for (const s of WORLD.sparks) if (!s.fresh && Math.sin(clock * 1.1 + s.ph * 3) > .985) { g.globalAlpha = dark; g.fillRect(s.x, s.y, 1, 1); }
+  g.globalAlpha = 1;
+}
+function drawWeatherWorld() {
+  // Flurries always drift over the Armory's mountains; rain splashes on the ground.
+  if (reduced) return;
+  const tl = toWorld(0, 0), br = toWorld(VW, VH);
+  g.fillStyle = 'rgba(255,255,255,.85)';
+  for (let i = 0; i < 70; i++) {
+    const x = 640 + ((hash(i, 11) * 320 + clock * (6 + hash(i, 12) * 6) + Math.sin(clock + i) * 5) % 320), y = (hash(i, 13) * 230 + clock * (12 + hash(i, 14) * 8)) % 230;
+    if (x > tl.x && x < br.x && y > tl.y && y < br.y) g.fillRect(Math.round(x), Math.round(y), 1, 1);
+  }
+  if (sky.rain > .05) {
+    g.fillStyle = 'rgba(210,225,245,.7)';
+    const n = Math.round(60 * sky.rain), bucket = Math.floor(clock * 6);
+    for (let i = 0; i < n; i++) { const x = tl.x + hash(i, bucket) * (br.x - tl.x), y = tl.y + hash(bucket, i) * (br.y - tl.y); g.fillRect(Math.round(x) - 1, Math.round(y), 1, 1); g.fillRect(Math.round(x) + 1, Math.round(y), 1, 1); g.fillRect(Math.round(x), Math.round(y) - 1, 1, 1); }
+  }
+}
+function drawWeatherScreen() {
+  if (reduced) return;
+  const dim = 1 - darkness() * .45, t = clock;
+  if (sky.rain > .03) {
+    g.strokeStyle = `rgba(180,200,235,${.55 * dim})`; g.lineWidth = 1; g.beginPath();
+    const n = Math.round(220 * sky.rain * (1 + sky.storm * .5)), wind = 0.25 + sky.storm * .2;
+    for (let i = 0; i < n; i++) {
+      const y = ((hash(i, 21) * (VH + 40)) + t * (300 + hash(i, 22) * 120)) % (VH + 40) - 20, x = ((hash(i, 23) * (VW + 80)) - y * wind + t * 40) % (VW + 80);
+      const xx = x < 0 ? x + VW + 80 : x; g.moveTo(Math.round(xx) + .5, Math.round(y)); g.lineTo(Math.round(xx - 6 * wind * 4) + .5, Math.round(y + 7));
+    }
+    g.stroke();
+  }
+  const flakes = Math.max(sky.snow, WORLD_SEASON === 'winter' && sky.rain < .3 ? .3 : 0);
+  if (flakes > .03) {
+    g.fillStyle = `rgba(255,255,255,${.9 * dim})`;
+    const n = Math.round(200 * flakes);
+    for (let i = 0; i < n; i++) {
+      const y = ((hash(i, 31) * (VH + 10)) + t * (16 + hash(i, 32) * 18)) % (VH + 10) - 5, x = ((hash(i, 33) * VW) + Math.sin(t * .8 + i) * 8 + t * 6) % VW;
+      g.fillRect(Math.round(x), Math.round(y), hash(i, 34) > .7 ? 2 : 1, hash(i, 34) > .7 ? 2 : 1);
+    }
+  }
+  if (sky.flash > 0) {
+    if (sky.bolt && sky.flash > .55) {
+      g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.beginPath();
+      let x = sky.bolt.x + (hash(sky.bolt.seed, 1) - .5) * 40, y = 0; g.moveTo(x, y);
+      for (let i = 1; i <= 8; i++) { y = sky.bolt.y * i / 8; x = sky.bolt.x + (hash(sky.bolt.seed, i + 2) - .5) * 30 * (1 - i / 8); g.lineTo(x, y); }
+      g.stroke(); g.lineWidth = 1;
+    }
+    g.fillStyle = `rgba(230,236,255,${sky.flash * .45})`; g.fillRect(0, 0, VW, VH);
+  }
+}
+const WEATHER_NAMES = { sun: 'SUNNY', cloud: 'CLOUDY', rain: 'RAIN', storm: 'STORM', snow: 'SNOW' };
+function drawSkyHud() {
+  const hours = Math.floor(sky.tod * 24), mins = Math.floor((sky.tod * 24 % 1) * 60), night = darkness() > .5;
+  const label = `${night ? 'NIGHT' : 'DAY'} ${sky.day} · ${String(hours).padStart(2, '0')}:${String(mins - mins % 10).padStart(2, '0')} · ${WEATHER_NAMES[sky.weather]}`;
+  g.font = FONT; const w = Math.ceil(g.measureText(label).width) + 22, x = VW - w - 6;
+  px(g, '#000', x - 1, 5, w + 2, 15); px(g, '#3d2f4c', x, 6, w, 13); px(g, '#1b1424', x + 1, 7, w - 2, 11);
+  // a little sun or moon
+  if (night) { px(g, '#e6ecff', x + 5, 9, 6, 7); px(g, '#1b1424', x + 8, 9, 4, 5); } else { px(g, '#f7dd5b', x + 5, 10, 6, 5); px(g, '#f7dd5b', x + 6, 9, 4, 7); }
+  text(label, x + 15, 9, night ? '#c8d0ff' : '#f3e6c0');
 }
 function drawBirds() {
   if (reduced) return;
-  const span = W + 400, bx = (clock * 26) % span - 200, by = 210 + Math.sin(clock * .25) * 50;
+  const span = W + 400;
   g.fillStyle = '#1b1424';
-  for (let i = 0; i < 5; i++) {
-    const x = Math.round(bx - i * 9), y = Math.round(by + Math.abs(i - 2) * 5 + Math.sin(clock * 2 + i) * 1.5), up = Math.floor(clock * 7 + i) % 2;
-    g.fillRect(x - 2, y - up, 2, 1); g.fillRect(x + 1, y - up, 2, 1); g.fillRect(x, y + 1 - up, 1, 1);
+  for (const f of FLOCKS) {
+    const dir = Math.sign(f.v), bx = ((clock * Math.abs(f.v) + f.off) % span) - 200, x0 = dir > 0 ? bx : W - bx, by = f.y + Math.sin(clock * .25 + f.off) * 40;
+    for (let i = 0; i < f.n; i++) {
+      const x = Math.round(x0 - dir * i * 9), y = Math.round(by + Math.abs(i - (f.n - 1) / 2) * 5 + Math.sin(clock * 2 + i) * 1.5), up = Math.floor(clock * 7 + i) % 2;
+      g.fillRect(x - 2, y - up, 2, 1); g.fillRect(x + 1, y - up, 2, 1); g.fillRect(x, y + 1 - up, 1, 1);
+    }
+  }
+  for (const s of GULLS) {
+    const a = clock * s.v, x = Math.round(s.x + Math.cos(a) * s.r), y = Math.round(s.y + Math.sin(a) * s.r * .5), up = Math.floor(clock * 5 + s.x) % 2;
+    px(g, 'rgba(0,0,0,.18)', x, y + 14, 3, 1);
+    px(g, '#ffffff', x - 3, y - up, 3, 1); px(g, '#ffffff', x + 1, y - up, 3, 1); px(g, '#c9d4e4', x, y, 1, 1);
   }
 }
 // ── screen-space overlays ──
+function plate(label, cx, cy, color, edge, strong) {
+  g.font = FONT; const w = Math.ceil(g.measureText(label).width) + 10, h = 13;
+  const x = Math.round(Math.max(2, Math.min(VW - w - 2, cx - w / 2))), y = Math.round(Math.max(2, Math.min(VH - h - 2, cy - h / 2)));
+  if (strong) { g.globalAlpha = .45 + Math.sin(clock * 5) * .3; px(g, edge, x - 2, y - 2, w + 4, h + 4); g.globalAlpha = 1; }
+  px(g, '#000', x - 1, y - 1, w + 2, h + 2); px(g, edge, x, y, w, h); px(g, '#1b1424', x + 1, y + 1, w - 2, h - 2);
+  text(label, x + w / 2, y + 3, color, 'center');
+  return { x, y, w, h };
+}
 function drawLabels() {
   for (const [key, r] of Object.entries(ROOMS)) {
     const s = toScreen(r.tag.x, r.tag.y);
     if (s.x < -80 || s.x > VW + 80 || s.y < -20 || s.y > VH + 20) continue;
-    const busy = roomBusy(key);
-    g.font = FONT; const w = Math.ceil(g.measureText(r.label).width) + 10, h = 13;
-    const x = Math.round(Math.max(2, Math.min(VW - w - 2, s.x - w / 2))), y = Math.round(Math.max(2, s.y - h / 2)), edge = busy ? r.color : '#3d2f4c';
-    if (busy) { g.globalAlpha = .45 + Math.sin(clock * 5) * .3; px(g, r.color, x - 2, y - 2, w + 4, h + 4); g.globalAlpha = 1; }
-    px(g, '#000', x - 1, y - 1, w + 2, h + 2); px(g, edge, x, y, w, h); px(g, '#1b1424', x + 1, y + 1, w - 2, h - 2);
-    const tx = Math.round(Math.max(x + 3, Math.min(x + w - 5, s.x - 2)));
-    px(g, edge, tx, y + h, 4, 2); px(g, edge, tx + 1, y + h + 2, 2, 1);
-    text(r.label, x + w / 2, y + 3, r.color, 'center');
+    const busy = busyAt(key), sel = selected?.kind === 'place' && selected.key === key, hov = hover?.kind === 'place' && hover.key === key;
+    const edge = sel ? '#f2b84b' : busy || hov ? r.color : '#3d2f4c';
+    const p = plate(r.label, s.x, s.y, r.color, edge, busy || sel);
+    const tx = Math.round(Math.max(p.x + 3, Math.min(p.x + p.w - 5, s.x - 2)));
+    px(g, edge, tx, p.y + p.h, 4, 2); px(g, edge, tx + 1, p.y + p.h + 2, 2, 1);
   }
 }
-function drawBubble(a) {
-  if (!a.bubble || a.alpha < .5) return;
+function drawTeamBanners() {
+  // A team walking together carries its banner over its leader.
+  const teams = new Map();
+  for (const a of everyone()) if (a.team && !a.fading && (!focusP || a.proj === focusP) && !(a.delay > 0)) { const t = teams.get(a.team.name) ?? []; t.push(a); teams.set(a.team.name, t); }
+  for (const [name, members] of teams) {
+    const lead = members[0], near = members.filter(m => Math.hypot(m.x - lead.x, m.y - lead.y) < 60);
+    if (near.length < 2 && members.length > 1) continue;
+    const s = toScreen(lead.x, lead.y), color = lead.team.color, wave = Math.round(Math.sin(clock * 6));
+    const top = Math.round(s.y - 22 * view.z - 30);
+    px(g, '#3a2414', Math.round(s.x), top, 1, 18);
+    g.font = '6px "Press Start 2P", monospace'; const w = Math.ceil(g.measureText(name.toUpperCase()).width) + 8;
+    px(g, '#1b1424', Math.round(s.x) + 1, top - 1 + wave, w + 2, 10); px(g, color, Math.round(s.x) + 1, top + wave, w, 8);
+    g.fillStyle = '#1b1424'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(name.toUpperCase(), Math.round(s.x) + 5, top + 1 + wave);
+  }
+}
+// Bubbles never stack: one that would cover another already drawn this frame stays quiet.
+let bubbleBoxes = [];
+function drawBubble(a, faint) {
+  if (!a.bubble || a.alpha < .5 || a.delay > 0) return;
   const s = toScreen(a.x, a.y);
+  if (s.x < 0 || s.x > VW || s.y < 0 || s.y > VH + 20) return;
   g.font = FONT; const tw = Math.ceil(g.measureText(a.bubble).width); const w = tw + 8, h = 13;
   let x = Math.round(s.x - w / 2), y = Math.round(s.y - 18 * view.z) - 24;
   x = Math.max(2, Math.min(VW - w - 2, x)); y = Math.max(2, y);
-  g.fillStyle = '#1b1424'; g.fillRect(x - 1, y - 1, w + 2, h + 2); g.fillStyle = '#f3e6c0'; g.fillRect(x, y, w, h);
-  const tx = Math.max(x + 3, Math.min(x + w - 5, Math.round(s.x) - 2)); g.fillStyle = '#1b1424'; g.fillRect(tx, y + h + 1, 4, 2); g.fillStyle = '#f3e6c0'; g.fillRect(tx + 1, y + h, 2, 2);
+  if (bubbleBoxes.some(b => x < b.x + b.w + 3 && b.x < x + w + 3 && y < b.y + b.h + 3 && b.y < y + h + 3)) return;
+  bubbleBoxes.push({ x, y, w, h });
+  g.globalAlpha = faint ? .8 : 1;
+  g.fillStyle = '#1b1424'; g.fillRect(x - 1, y - 1, w + 2, h + 2); g.fillStyle = faint ? '#d9cca6' : '#f3e6c0'; g.fillRect(x, y, w, h);
+  const tx = Math.max(x + 3, Math.min(x + w - 5, Math.round(s.x) - 2)); g.fillStyle = '#1b1424'; g.fillRect(tx, y + h + 1, 4, 2); g.fillStyle = faint ? '#d9cca6' : '#f3e6c0'; g.fillRect(tx + 1, y + h, 2, 2);
   g.textAlign = 'left'; g.textBaseline = 'top'; g.fillStyle = '#2b1b14'; g.fillText(a.bubble, x + 4, y + 3);
+  g.globalAlpha = 1;
 }
 function drawMarkers() {
-  // From far away the party is tiny, so each member gets a pin in their class colour.
   if (view.z > .8) return;
-  for (const a of actors.values()) {
-    if (a.alpha < .3) continue;
-    const s = toScreen(a.x, a.y), col = CLASSES[a.fixed ?? classOf(a)].color, y = Math.round(s.y - 14 - (Math.sin(clock * 5 + a.x) > 0 ? 1 : 0)), x = Math.round(s.x);
+  for (const a of everyone()) {
+    if (a.alpha < .3 || a.delay > 0 || (focusP && a.proj !== focusP)) continue;
+    const s = toScreen(a.x, a.y), col = a.proj.color, y = Math.round(s.y - 14 - (Math.sin(clock * 5 + a.x) > 0 ? 1 : 0)), x = Math.round(s.x);
     px(g, '#1b1424', x - 3, y - 3, 7, 7); px(g, col, x - 2, y - 2, 5, 5); px(g, '#1b1424', x, y + 4, 1, 2);
   }
 }
 const MM = { x: VW - 126, y: VH - 74, w: 120, h: 68 };
 function drawMinimap() {
   if (camMode === 'world' && view.z < .6) return;
-  // Step aside to the other corner when the action is underneath.
   const f = toScreen(focusActor().x, focusActor().y);
   MM.x = f.x > VW - 150 && f.x < VW && f.y > VH - 100 && f.y < VH + 16 ? 6 : VW - 126;
   const { x, y, w, h } = MM, sx = w / W, sy = h / H;
   px(g, '#000', x - 3, y - 3, w + 6, h + 6); px(g, '#3d2f4c', x - 2, y - 2, w + 4, h + 4); px(g, '#1b1424', x - 1, y - 1, w + 2, h + 2);
-  g.drawImage(mini, x, y);
-  if (fogAlpha > 0) { g.globalAlpha = .75 * fogAlpha; px(g, '#0c0814', x + 6, y + 36, 30, 24); g.globalAlpha = 1; }
-  for (const [key, r] of Object.entries(ROOMS)) if (roomBusy(key)) { g.globalAlpha = .5 + Math.sin(clock * 6) * .4; px(g, r.color, Math.round(x + r.at.x * sx) - 3, Math.round(y + r.at.y * sy) - 3, 6, 6); g.globalAlpha = 1; }
-  for (const m of monsters) px(g, '#e8606f', Math.round(x + m.x * sx), Math.round(y + m.y * sy), 1, 1);
-  for (const a of actors.values()) { const col = CLASSES[a.fixed ?? classOf(a)].color; px(g, '#000', Math.round(x + a.x * sx) - 2, Math.round(y + a.y * sy) - 2, 4, 4); px(g, col, Math.round(x + a.x * sx) - 1, Math.round(y + a.y * sy) - 1, 2, 2); }
+  g.drawImage(WORLD.mini, x, y);
+  if (FOG > 0) { g.globalAlpha = .75 * FOG; px(g, '#0c0814', x + 6, y + 36, 30, 24); g.globalAlpha = 1; }
+  for (const [key, r] of Object.entries(ROOMS)) if (busyAt(key)) { g.globalAlpha = .5 + Math.sin(clock * 6) * .4; px(g, r.color, Math.round(x + r.at.x * sx) - 3, Math.round(y + r.at.y * sy) - 3, 6, 6); g.globalAlpha = 1; }
+  for (const m of allMonsters()) px(g, '#e8606f', Math.round(x + m.x * sx), Math.round(y + m.y * sy), 1, 1);
+  for (const a of everyone()) { if (a.delay > 0) continue; const dim = focusP && a.proj !== focusP; g.globalAlpha = dim ? .4 : 1; px(g, '#000', Math.round(x + a.x * sx) - 2, Math.round(y + a.y * sy) - 2, 4, 4); px(g, a.proj.color, Math.round(x + a.x * sx) - 1, Math.round(y + a.y * sy) - 1, 2, 2); g.globalAlpha = 1; }
   const tl = toWorld(0, 0), br = toWorld(VW, VH);
   g.strokeStyle = '#f3e6c0'; g.lineWidth = 1; g.strokeRect(Math.round(x + tl.x * sx) + .5, Math.round(y + tl.y * sy) + .5, Math.round((br.x - tl.x) * sx) - 1, Math.round((br.y - tl.y) * sy) - 1);
+}
+function drawHud() {
+  // Whose shot this is: the project of whoever the camera follows, and the mana left in their model.
+  // Top-left while exploring; bottom-right on the world map, where the minimap would be.
+  const a = focusActor(), p = a.proj, m = MODELS[modelOf(a)], rest = left(m.hour);
+  const name = focusP ? p.name : `${p.name}`, tag = focusP ? p.lang : `${REALMS.length} PROJECTS`;
+  g.font = FONT; const nameW = Math.ceil(g.measureText(name).width);
+  g.font = '6px "Press Start 2P", monospace'; const modelW = Math.ceil(g.measureText(m.name.toUpperCase()).width), tagW = Math.ceil(g.measureText(tag).width);
+  const w = Math.max(nameW + tagW + 28, modelW + 64), world = camMode === 'world' && view.z < .6, x = world ? VW - w - 7 : 6, y = world ? VH - 35 : 6;
+  px(g, '#000', x - 1, y - 1, w + 2, 30); px(g, p.color, x, y, w, 28); px(g, '#1b1424', x + 1, y + 1, w - 2, 26);
+  px(g, '#000', x + 4, y + 6, 6, 6); px(g, p.color, x + 5, y + 7, 4, 4);
+  text(name, x + 13, y + 5, '#f3e6c0'); g.font = '6px "Press Start 2P", monospace'; g.fillStyle = focusP ? '#ffd27a' : '#a898b6'; g.textAlign = 'right'; g.fillText(tag, x + w - 5, y + 6);
+  g.fillStyle = m.color; g.textAlign = 'left'; g.fillText(m.name.toUpperCase(), x + 6, y + 17);
+  const bx = x + modelW + 11, bw = w - modelW - 17;
+  px(g, '#000', bx, y + 16, bw + 2, 7); px(g, '#2a2236', bx + 1, y + 17, bw, 5); px(g, rest < 20 ? '#e8606f' : m.color, bx + 1, y + 17, Math.round(bw * rest / 100), 5);
 }
 let vignette = null;
 function drawVignette() {
@@ -1599,69 +2200,180 @@ function drawVignette() {
 }
 function draw() {
   g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#22558a'; g.fillRect(0, 0, VW, VH);
+  if (!WORLD) { text('CHARTING THE REALM…', VW / 2, VH / 2 - 4, '#f3e6c0', 'center'); return; }
   g.setTransform(view.z, 0, 0, view.z, view.ox, view.oy);
-  g.drawImage(bg, 0, 0);
-  drawWater();
+  g.drawImage(WORLD.bg, 0, 0);
+  drawWater(WORLD);
   drawClouds(true);
   drawPlaceGlow();
   drawTrails();
-  drawDynamicProps();
-  const things = [...actors.values()].map(a => ({ y: a.y, d: () => drawActor(a) })).concat(monsters.map(m => ({ y: m.y, d: () => drawMonster(m) })));
+  drawDynamicProps(WORLD);
+  const people = everyone();
+  const things = people.map(a => ({ y: a.y + (focusP && a.proj === focusP ? .1 : 0), d: () => drawActor(a) }))
+    .concat(allMonsters().map(m => ({ y: m.y, d: () => drawMonster(m) })))
+    .concat([{ y: 0, d: () => drawLife() }]);
   things.sort((p, q) => p.y - q.y).forEach(t => t.d());
-  for (const p of particles) { g.globalAlpha = Math.max(0, Math.min(1, p.life * (p.fade ? .5 : 2))); g.fillStyle = p.color; const s = p.s ?? 1; g.fillRect(Math.round(p.x), Math.round(p.y), s, s); }
+  for (const p of FX.particles) { g.globalAlpha = Math.max(0, Math.min(1, p.life * (p.fade ? .5 : 2))); g.fillStyle = p.color; const s = p.s ?? 1; g.fillRect(Math.round(p.x), Math.round(p.y), s, s); }
   g.globalAlpha = 1;
   drawFog();
-  drawBirds();
+  drawWeatherWorld();
+  if (sky.rain < .5) drawBirds();
   drawClouds(false);
+  drawNight();
   g.setTransform(1, 0, 0, 1, 0, 0);
+  drawWeatherScreen();
   drawVignette();
   drawLabels();
-  if (fogAlpha > 0) { const s = toScreen(ROOMS.dungeon.at.x + 6, ROOMS.dungeon.at.y - 4); g.globalAlpha = fogAlpha; text('UNEXPLORED', Math.round(s.x), Math.round(s.y), '#a898b6', 'center'); g.globalAlpha = 1; }
-  for (const f of floats) { const s = toScreen(f.x, f.y); g.globalAlpha = Math.min(1, f.life * 1.5); text(f.text, Math.round(s.x), Math.round(s.y), f.color, 'center'); }
+  if (FOG > 0) { const s = toScreen(ROOMS.dungeon.at.x + 6, ROOMS.dungeon.at.y - 4); g.globalAlpha = FOG; text('UNEXPLORED', Math.round(s.x), Math.round(s.y), '#a898b6', 'center'); g.globalAlpha = 1; }
+  for (const f of FX.floats) { const s = toScreen(f.x, f.y); g.globalAlpha = Math.min(1, f.life * 1.5); text(f.text, Math.round(s.x), Math.round(s.y), f.color, 'center'); }
   g.globalAlpha = 1;
   drawMarkers();
-  const speaker = current?.actor ?? actors.get('main');
-  for (const a of actors.values()) if (a !== speaker && a.busy && a.path.length === 0 && !reduced && Math.floor(clock * 2 + a.x) % 2) { const s = toScreen(a.x, a.y); px(g, '#f3e6c0', Math.round(s.x) - 1, Math.round(s.y - 26 * view.z), 3, 3); }
-  if (speaker) drawBubble(speaker);
+  drawTeamBanners();
+  // Speech: the hero in the shot speaks up; a few others at work nearby murmur.
+  const speaker = focusActor();
+  const murmurs = people.filter(a => a !== speaker && a.bubble && !a.path.length && (!focusP || a.proj === focusP))
+    .map(a => ({ a, d: Math.hypot(a.x - speaker.x, a.y - speaker.y) })).sort((p, q) => p.d - q.d).slice(0, 3);
+  bubbleBoxes = [];
+  drawBubble(speaker, false);
+  for (const { a } of murmurs) drawBubble(a, true);
   drawMinimap();
-  if (banner) {
-    const alpha = Math.min(1, banner.life * 2, (2.6 - banner.life) * 4 + .2);
-    g.globalAlpha = Math.max(0, alpha); g.font = FONT; const w = g.measureText(banner.text).width + 24;
-    g.fillStyle = '#1b1424'; g.fillRect(VW / 2 - w / 2 - 2, 26, w + 4, 22); g.fillStyle = banner.gold ? '#f2b84b' : '#3d2f4c'; g.fillRect(VW / 2 - w / 2, 28, w, 18);
-    text(banner.text, VW / 2, 33, banner.gold ? '#1b1424' : '#f3e6c0', 'center'); g.globalAlpha = 1;
+  drawHud();
+  drawSkyHud();
+  if (hover && !drag) {
+    const label = hover.kind === 'place' ? 'CLICK TO INSPECT' : `${hover.a.proj.name.toUpperCase()} · ${(hover.a.fixed ? hover.a.label : 'GUILDMASTER').toUpperCase()}`;
+    plate(label, VW / 2, VH - 12, '#f3e6c0', hover.kind === 'actor' ? hover.a.proj.color : '#3d2f4c', false);
+  }
+  const b = FX.banners[0];
+  if (b) {
+    const alpha = Math.min(1, b.life * 2, (2.6 - b.life) * 4 + .2), sub = b.who ? b.who.name.toUpperCase() : '';
+    g.globalAlpha = Math.max(0, alpha); g.font = FONT; const w = Math.max(g.measureText(b.text).width, g.measureText(sub).width) + 24;
+    const top = 40, hgt = sub ? 30 : 22;
+    g.fillStyle = '#1b1424'; g.fillRect(VW / 2 - w / 2 - 2, top, w + 4, hgt); g.fillStyle = b.gold ? '#f2b84b' : '#3d2f4c'; g.fillRect(VW / 2 - w / 2, top + 2, w, hgt - 4);
+    if (b.who) { px(g, b.who.color, VW / 2 - w / 2, top + 2, 4, hgt - 4); text(sub, VW / 2, top + 5, b.gold ? '#3d2f4c' : b.who.color, 'center'); }
+    text(b.text, VW / 2, top + (sub ? 15 : 7), b.gold ? '#1b1424' : '#f3e6c0', 'center'); g.globalAlpha = 1;
   }
 }
 
-// ───────────────────────── sidebar ─────────────────────────
+// ───────────────────────── side panels ─────────────────────────
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-function renderQuests() {
-  $('quests').innerHTML = SCENARIOS.map((s, i) => `<button type="button" data-i="${i}" aria-pressed="${i === scenarioIdx}"><span class="crest">${s.lang}</span>${esc(s.name)}</button>`).join('');
+const glyph = { ok: '✓', fail: '✗', running: '…' };
+const deed = e => `<li><span class="${e.outcome}">${glyph[e.outcome]}</span><span class="t">${!focusP && e.proj ? `<span class="proj" style="--c:${e.proj.color}">${esc(e.proj.name)}</span>` : ''}<span class="who">${esc(e.who)}</span>${e.lang ? ` <span class="crest">${LANGS[e.lang]}</span>` : ''}${e.team ? ` <span class="team">${esc(e.team)}</span>` : ''} ${esc(e.text)}</span></li>`;
+const PLACE_INFO = {
+  tavern: { title: 'The Tavern Board', blurb: 'Prompts arrive here as quests. Subagents are hired at the door and come back with their spoils; the task list hangs on the board.', tools: 'prompts · Agent · TaskCreate · TaskUpdate · TodoWrite' },
+  study: { title: "The Wizard's Study", blurb: 'Reading, searching and research. The tower lights up while someone studies.', tools: 'Read · Grep · Glob · WebFetch · WebSearch · git log · ls' },
+  dungeon: { title: 'The Dungeon', blurb: 'Test runs. Every failing test crawls out as a monster; passing tests are monsters slain.', tools: 'cargo test · pytest · jest · vitest · mvn test · ctest · …' },
+  armory: { title: 'The Armory', blurb: 'Edits are forged on the anvil; linters, formatters and type checkers hammer them true.', tools: 'Edit · Write · eslint · ruff · clippy · tsc · git diff · …' },
+  cauldron: { title: "The Alchemist's Cauldron", blurb: 'Builds, installs, bundlers, compilers and containers bubble here.', tools: 'npm install · cargo build · uv sync · cmake · docker · …' },
+};
+function renderInspect() {
+  const el = $('inspect');
+  if (!selected) { el.hidden = true; return; }
+  el.hidden = false;
+  const close = '<button type="button" class="x" id="closeInspect" aria-label="Close">✕</button>';
+  const projTag = p => `<span class="proj" style="--c:${p.color}">${esc(p.name)}</span>`;
+  if (selected.kind === 'place') {
+    const k = selected.key, r = ROOMS[k], info = PLACE_INFO[k], ps = shown();
+    const visits = ps.reduce((n, p) => n + p.places[k].visits, 0), xpHere = ps.reduce((n, p) => n + p.places[k].xp, 0);
+    const here = ps.flatMap(p => [...p.actors.values()]).filter(a => a.room === k && !a.path.length && !(a.delay > 0));
+    let extra = '';
+    if (k === 'dungeon') extra = `<div class="stat-row">${ps.filter(p => p.state.dungeon.hasRun).map(p => `<span>${esc(p.name)} <b style="color:${p.color}">${p.state.dungeon.monsters}</b>/${p.state.dungeon.slain}</span>`).join('') || '<span>UNEXPLORED</span>'}<span>${anyChest() ? 'TREASURE FOUND' : 'TREASURE SEALED'}</span></div>`;
+    if (k === 'tavern') extra = `<div class="stat-row"><span>QUESTS OPEN <b>${ps.reduce((n, p) => n + p.state.quests.filter(q => !q.isDone).length, 0)}</b></span><span>DONE <b>${ps.reduce((n, p) => n + p.state.quests.filter(q => q.isDone).length, 0)}</b></span></div>`;
+    const deeds = ps.flatMap(p => p.state.chronicle).filter(e => e.loc === k).sort((a, b) => b.id - a.id).slice(0, 6);
+    el.innerHTML = `${close}<h2 style="color:${r.color}">${esc(info.title.toUpperCase())}</h2><p class="blurb">${esc(info.blurb)}</p><p class="tools">${esc(info.tools)}</p>
+      <div class="stat-row"><span>VISITS <b>${visits}</b></span><span>XP EARNED <b>${xpHere}</b></span>${focusP ? `<span>IN <b style="color:${focusP.color}">${esc(focusP.name)}</b></span>` : '<span>ALL PROJECTS</span>'}</div>${extra}
+      <h3>HERE NOW</h3><ul class="here">${here.length ? here.map(a => `<li>${projTag(a.proj)}<span style="color:${CLASSES[a.fixed ?? classOf(a)].color}">${esc(a.fixed ? a.label : CLASSES[classOf(a)].name)}</span>${a.team ? ` <span class="team" style="border-color:${a.team.color}">${esc(a.team.name)}</span>` : ''} ${esc(a.activity)}</li>`).join('') : '<li class="empty">Nobody is here.</li>'}</ul>
+      <h3>RECENT DEEDS</h3><ul class="log">${deeds.length ? deeds.map(deed).join('') : '<li class="empty">Nothing has happened here yet.</li>'}</ul>`;
+  } else {
+    const a = selected.a;
+    if (!alive(a)) { selected = null; el.hidden = true; if (camMode === 'inspect') setCam('follow'); return; }
+    const cls = CLASSES[a.fixed ?? classOf(a)], m = MODELS[modelOf(a)], deeds = a.proj.state.chronicle.filter(e => e.aid === a.id).slice(-6).reverse();
+    el.innerHTML = `${close}<h2 style="color:${cls.color}">${esc((a.fixed ? a.label : `${cls.name} (main loop)`).toUpperCase())}</h2>
+      <p class="blurb">${projTag(a.proj)} ${esc(a.activity)}</p>
+      <div class="stat-row"><span>AT <b style="color:${ROOMS[a.room].color}">${esc(ROOMS[a.room].label)}</b></span>${a.team ? `<span>TEAM <b style="color:${a.team.color}">${esc(a.team.name)}</b></span>` : ''}</div>
+      <div class="stat-row"><span>MODEL <b style="color:${m.color}">${esc(m.name)}</b></span><span>5-HOUR LEFT <b>${left(m.hour)}%</b></span></div>
+      ${a.desc ? `<p class="tools">Sent to: ${esc(a.desc)}</p>` : ''}
+      <h3>DEEDS</h3><ul class="log">${deeds.length ? deeds.map(deed).join('') : '<li class="empty">No deeds yet.</li>'}</ul>`;
+  }
+  $('closeInspect').onclick = () => select(null);
 }
 function renderSide() {
-  const a = current?.actor ?? actors.get('main');
+  sideDirty = false;
+  const ps = shown(), a = focusActor();
   if (a) { const r = ROOMS[a.room]; const cls = CLASSES[classOf(a)];
-    $('now').innerHTML = `<span class="room-tag" style="background:${r.color}">${esc(r.label)}</span> <span style="color:${cls.color}">${esc(a.fixed ? a.label : cls.name)}</span> ${esc(a.activity)}`; }
-  const d = state.dungeon;
-  $('mon').textContent = d.hasRun ? d.monsters : '?'; $('slain').textContent = d.slain;
-  $('qcount').textContent = `${state.quests.filter(q => q.isDone).length}/${state.quests.length}`;
-  const total = d.monsters + d.slain; $('hpbar').style.width = total ? `${(d.monsters / total) * 100}%` : '0%';
-  $('board').innerHTML = state.quests.length ? state.quests.map(q => `<li class="${q.isDone ? 'done' : ''}"><span>${q.isDone ? '[x]' : '[ ]'}</span><span>${esc(q.title)}</span></li>`).join('') : '<li class="empty">No quests posted yet.</li>';
-  $('xp').innerHTML = Object.entries(CLASSES).map(([k, c]) => { const xp = state.xp[k] ?? 0; const lvl = 1 + Math.floor(xp / 50); const pct = (xp % 50) * 2;
+    $('now').innerHTML = `<span class="room-tag" style="background:${r.color}">${esc(r.label)}</span> <span class="proj" style="--c:${a.proj.color}">${esc(a.proj.name)}</span> <span style="color:${cls.color}">${esc(a.fixed ? a.label : cls.name)}</span> ${esc(a.activity)}`; }
+  $('partyTitle').textContent = focusP ? `PARTY · ${focusP.name.toUpperCase()}` : 'ALL PARTIES';
+  $('party').innerHTML = ps.map(p => {
+    const members = [...p.actors.values()].filter(x => !x.fading);
+    return `${focusP ? '' : `<li class="phead"><span class="proj" style="--c:${p.color}">${esc(p.name)}</span><small>${esc(p.questTitle)}</small></li>`}` + members.map(x => { const c = CLASSES[x.fixed ?? classOf(x)];
+      return `<li><button type="button" data-pid="${p.id}" data-actor="${esc(x.id)}" class="member" style="border-left:4px solid ${p.color}"><span style="color:${c.color}">${esc(x.fixed ? x.label : `Main loop · ${c.name}`)}</span>${x.team ? `<span class="team" style="border-color:${x.team.color}">${esc(x.team.name)}</span>` : '<span></span>'}<small>${esc(ROOMS[x.room].label)}</small></button></li>`; }).join('');
+  }).join('');
+  const mon = ps.reduce((n, p) => n + p.state.dungeon.monsters, 0), slain = ps.reduce((n, p) => n + p.state.dungeon.slain, 0), ran = ps.some(p => p.state.dungeon.hasRun);
+  const qs = ps.flatMap(p => p.state.quests.map(q => ({ ...q, p })));
+  $('mon').textContent = ran ? mon : '?'; $('slain').textContent = slain;
+  $('qcount').textContent = `${qs.filter(q => q.isDone).length}/${qs.length}`;
+  $('hpbar').style.width = mon + slain ? `${(mon / (mon + slain)) * 100}%` : '0%';
+  $('board').innerHTML = qs.length ? qs.map(q => `<li class="${q.isDone ? 'done' : ''}"><span>${q.isDone ? '[x]' : '[ ]'}</span><span>${focusP ? '' : `<i class="dot" style="background:${q.p.color}"></i>`}${esc(q.title)}</span></li>`).join('') : '<li class="empty">No quests posted yet.</li>';
+  $('xp').innerHTML = Object.entries(CLASSES).map(([k, c]) => { const v = xp[k] ?? 0; const lvl = 1 + Math.floor(v / 50); const pct = (v % 50) * 2;
     return `<li><span style="color:${c.color}">${c.name}</span><span class="meter"><i style="width:${pct}%;background:${c.color}"></i></span><small>LV ${lvl}</small></li>`; }).join('');
-  const glyph = { ok: '✓', fail: '✗', running: '…' };
-  $('log').innerHTML = state.chronicle.length ? state.chronicle.slice().reverse().slice(0, 14).map(e =>
-    `<li><span class="${e.outcome}">${glyph[e.outcome]}</span><span class="t"><span class="who">${esc(e.who)}</span>${e.lang ? ` <span class="crest">${LANGS[e.lang]}</span>` : ''} ${esc(e.text)}</span></li>`).join('') : '<li class="empty">The realm is quiet.</li>';
-  renderQuestsPressed();
+  const log = ps.flatMap(p => p.state.chronicle).sort((x, y) => y.id - x.id).slice(0, 16);
+  $('log').innerHTML = log.length ? log.map(deed).join('') : '<li class="empty">The realm is quiet.</li>';
+  if (selected) renderInspect();
 }
-function renderQuestsPressed() { document.querySelectorAll('#quests button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.i) === scenarioIdx))); }
+function renderQuota() {
+  $('quota').innerHTML = Object.entries(MODELS).map(([id, m]) => {
+    const h = left(m.hour), w = left(m.week), users = Object.entries(MODEL_OF).filter(([, v]) => v === id && !['sellsword'].includes(v)).map(([k]) => CLASSES[k]?.name).filter(Boolean);
+    return `<li><div class="qhead"><span style="color:${m.color}">${esc(m.name)}</span><b class="${h < 20 ? 'low' : ''}">${h}%</b></div>
+      <div class="qbar" title="5-hour window: ${h}% left"><i style="width:${h}%;background:${h < 20 ? 'var(--blood)' : m.color}"></i></div>
+      <div class="qbar week" title="Weekly window: ${w}% left"><i style="width:${w}%;background:${m.color}"></i></div>
+      <small>5h resets in ${untilText(RESETS.hour)} · week ${w}% left · ${esc(users.join(', '))}</small></li>`;
+  }).join('');
+}
+function renderRealms() {
+  $('realms').innerHTML = `<button type="button" class="realm all" data-i="-1" aria-pressed="${!focusP}"><span class="rname">ALL PROJECTS</span><span class="rstat" data-stat="-1"></span></button>` +
+    REALMS.map((r, i) => `<button type="button" class="realm" data-i="${i}" aria-pressed="${r === focusP}" style="--c:${r.color}">
+    <span class="rname"><i class="swatch"></i><span class="crest">${r.lang}</span>${esc(r.name)}</span><span class="rstat" data-stat="${i}"></span></button>`).join('');
+}
+function updateRealmCards() {
+  let working = 0, monsters = 0;
+  REALMS.forEach((r, i) => {
+    const s = document.querySelector(`[data-stat="${i}"]`); if (!s) return;
+    const n = r.threads.filter(t => t.task?.place).length, team = r.main?.wait?.name, m = r.state?.dungeon.monsters ?? 0;
+    working += n; monsters += m;
+    s.innerHTML = `${team ? `<span class="team">${esc(team)}</span>` : ''}${n ? `${n} at work` : 'resting'}${m ? ` · <span class="fail">${m} monsters</span>` : ''}`;
+  });
+  const all = document.querySelector('[data-stat="-1"]');
+  if (all) all.innerHTML = `${everyone().length} heroes · ${working} at work${monsters ? ` · <span class="fail">${monsters} monsters</span>` : ''}`;
+}
+function renderAll() {
+  document.querySelectorAll('.realm').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.i) === REALMS.indexOf(focusP))));
+  renderSide(); renderInspect();
+}
+function switchRealm(i) {
+  // Picking a project highlights its party and keeps the camera on it; ALL lets the director roam.
+  const next = i < 0 ? null : REALMS[i];
+  focusP = next === focusP ? null : next;
+  hover = null;
+  if (selected?.kind === 'actor' && focusP && selected.a.proj !== focusP) selected = null;
+  if (camMode === 'free') camMode = 'follow';
+  if (camMode !== 'inspect') setCam(camMode);
+  renderAll();
+}
 
 // ───────────────────────── controls ─────────────────────────
-$('quests').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { loadScenario(Number(b.dataset.i)); } });
+$('realms').addEventListener('click', e => { const b = e.target.closest('.realm'); if (b) switchRealm(Number(b.dataset.i)); });
+$('party').addEventListener('click', e => { const b = e.target.closest('[data-actor]'); const a = b && REALMS.find(r => r.id === b.dataset.pid)?.actors.get(b.dataset.actor); if (a) select({ kind: 'actor', a }); });
 $('play').addEventListener('click', () => { playing = !playing; $('play').textContent = playing ? 'PAUSE' : 'PLAY'; });
-$('restart').addEventListener('click', () => loadScenario(scenarioIdx));
+$('restart').addEventListener('click', () => shown().forEach((r, i) => { r.delay = focusP ? 0 : i * 2; loadQuest(r, r.questIdx); }));
 document.querySelectorAll('.spd').forEach(b => b.addEventListener('click', () => { speed = Number(b.dataset.speed); document.querySelectorAll('.spd').forEach(x => x.setAttribute('aria-pressed', String(x === b))); }));
 document.querySelectorAll('.cam').forEach(b => b.addEventListener('click', () => setCam(b.dataset.cam)));
+function renderSky() {
+  document.querySelectorAll('[data-weather]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.weather === sky.weatherMode)));
+  document.querySelectorAll('[data-time]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.time === sky.timeMode)));
+}
+document.querySelectorAll('[data-weather]').forEach(b => b.addEventListener('click', () => { sky.weatherMode = b.dataset.weather; if (sky.weatherMode === 'auto') sky.next = 25; renderSky(); }));
+document.querySelectorAll('[data-time]').forEach(b => b.addEventListener('click', () => { sky.timeMode = b.dataset.time; renderSky(); }));
+document.querySelectorAll('[data-place]').forEach(b => b.addEventListener('click', () => select({ kind: 'place', key: b.dataset.place })));
 const EXAMPLES = ['cargo nextest run', 'uv run pytest -x', './gradlew spotlessApply', 'npx playwright test', 'ctest --output-on-failure', 'poetry install', 'clang-tidy src/main.cpp', 'docker compose up -d', 'git log --oneline'];
 $('examples').innerHTML = EXAMPLES.map(c => `<button type="button">${esc(c)}</button>`).join('');
 $('examples').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { $('cmd').value = b.textContent; cast(b.textContent); } });
@@ -1669,16 +2381,17 @@ $('castForm').addEventListener('submit', e => { e.preventDefault(); const v = $(
 const ROOM_NAMES = { study: "Wizard's Study", armory: 'Armory', tavern: 'Tavern Board', dungeon: 'Dungeon', cauldron: "Alchemist's Cauldron" };
 const LANG_NAMES = { javascript: 'JavaScript', python: 'Python', java: 'Java', cpp: 'C++', rust: 'Rust' };
 function cast(command) {
-  const p = classifyTool('Bash', { command });
-  $('verdict').innerHTML = `<b>${esc(ROOM_NAMES[p.location])}</b>${p.lang ? ` · <b>${LANG_NAMES[p.lang]}</b>` : ''}${p.framework ? ` · ${esc(p.framework)}` : ''}`;
+  const p = classifyTool('Bash', { command }), r = focusP ?? REALMS[0];
+  $('verdict').innerHTML = `<b>${esc(ROOM_NAMES[p.location])}</b>${p.lang ? ` · <b>${LANG_NAMES[p.lang]}</b>` : ''}${p.framework ? ` · ${esc(p.framework)}` : ''} <span class="dim">cast in ${esc(r.name)}</span>`;
   const st = { who: 'main', tool: 'Bash', in: { command }, simulated: true };
-  if (p.location === 'dungeon') { const m = state.dungeon.monsters; st.battle = m > 0 ? { failed: m - 1, passed: state.dungeon.slain + 1 } : { failed: 2, passed: 10 + Math.floor(Math.random() * 20) }; }
-  manual.push(st);
+  if (p.location === 'dungeon') { const m = r.state.dungeon.monsters; st.battle = m > 0 ? { failed: m - 1, passed: r.state.dungeon.slain + 1 } : { failed: 2, passed: 10 + Math.floor(Math.random() * 20) }; }
+  r.manual.push(st);
   if (!playing) { playing = true; $('play').textContent = 'PAUSE'; }
-  if (camMode === 'free') setCam('follow');
+  if (camMode !== 'world') setCam('follow');
+  if (!focusP) { director.actor = r.actors.get('main'); director.since = clock + 3; }
 }
 
-// The map: drag to pan, click the minimap or the world map to fly there, arrows and M/F on the keyboard.
+// The map: click a place or a person to inspect it; drag to pan; the minimap and the world map fly you there.
 const canvasPoint = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * VW / r.width, y: (e.clientY - r.top) * VH / r.height }; };
 const inMinimap = p => camMode !== 'world' && p.x >= MM.x && p.x < MM.x + MM.w && p.y >= MM.y && p.y < MM.y + MM.h;
 let drag = null;
@@ -1688,17 +2401,28 @@ cv.addEventListener('pointerdown', e => {
   drag = { x: p.x, y: p.y, moved: false }; cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener('pointermove', e => {
-  if (!drag) return;
-  const p = canvasPoint(e), dx = p.x - drag.x, dy = p.y - drag.y;
+  const p = canvasPoint(e);
+  if (!drag) {
+    const w = toWorld(p.x, p.y), h = inMinimap(p) ? null : hitTest(w.x, w.y);
+    hover = h; cv.style.cursor = h ? 'pointer' : '';
+    return;
+  }
+  const dx = p.x - drag.x, dy = p.y - drag.y;
   if (!drag.moved && Math.hypot(dx, dy) < 4) return;
   if (camMode === 'world') return;
-  if (!drag.moved) { drag.moved = true; cv.classList.add('dragging'); setCam('free', { x: cam.x, y: cam.y }); }
+  if (!drag.moved) { drag.moved = true; hover = null; cv.classList.add('dragging'); setCam('free', { x: cam.x, y: cam.y }); }
   const c = clampCam(cam.tx - dx / view.z, cam.ty - dy / view.z, 1);
   cam.tx = cam.x = c.x; cam.ty = cam.y = c.y; drag.x = p.x; drag.y = p.y;
 });
+cv.addEventListener('pointerleave', () => { hover = null; });
 const endDrag = e => {
   if (!drag) return;
-  if (!drag.moved && camMode === 'world') setCam('free', toWorld(canvasPoint(e).x, canvasPoint(e).y));
+  if (!drag.moved) {
+    const p = canvasPoint(e), w = toWorld(p.x, p.y), h = hitTest(w.x, w.y);
+    if (h) select(h);
+    else if (camMode === 'world') setCam('free', w);
+    else if (selected) select(null);
+  }
   drag = null; cv.classList.remove('dragging');
 };
 cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', () => { drag = null; cv.classList.remove('dragging'); });
@@ -1706,23 +2430,28 @@ cv.addEventListener('keydown', e => {
   const k = e.key.toLowerCase(), step = 32, dirs = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] };
   if (k === 'm') { setCam(camMode === 'world' ? 'follow' : 'world'); e.preventDefault(); return; }
   if (k === 'f') { setCam('follow'); e.preventDefault(); return; }
+  if (k === 'n') { sky.timeMode = darkness() > .5 ? 'day' : 'night'; renderSky(); e.preventDefault(); return; }
+  if (k === 'escape') { select(null); e.preventDefault(); return; }
+  if (/^[0-5]$/.test(k)) { switchRealm(Number(k) - 1); e.preventDefault(); return; }
   if (dirs[k]) { e.preventDefault(); if (camMode !== 'free') setCam('free', { x: cam.x, y: cam.y }); const c = clampCam(cam.tx + dirs[k][0] * step, cam.ty + dirs[k][1] * step, 1); cam.tx = c.x; cam.ty = c.y; }
 });
 
 // ───────────────────────── loop ─────────────────────────
-let last = performance.now();
+let last = performance.now(), panelAcc = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (playing) { for (let i = 0; i < speed; i++) update(dt); }
   updateCamera(dt);
   draw();
+  panelAcc += dt;
+  if (panelAcc > 0.4) { panelAcc = 0; updateRealmCards(); renderQuota(); if (sideDirty) renderSide(); else if (selected) renderInspect(); }
   requestAnimationFrame(frame);
 }
 function start() {
-  paintBackground();
-  actors.set('main', newHero());
-  renderQuests(); loadScenario(0);
-  updateCamera(1);
+  WORLD = paintBackground(1, WORLD_SEASON);
+  REALMS.forEach(r => loadQuest(r, 0));
+  renderRealms(); renderAll(); renderQuota();
+  updateCamera(0, true);
   requestAnimationFrame(frame);
 }
 (document.fonts?.load ? document.fonts.load(FONT).catch(() => {}) : Promise.resolve()).finally(start);

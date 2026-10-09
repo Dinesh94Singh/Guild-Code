@@ -5,8 +5,19 @@
 // out to the Wizard's tower in the forest, the dwarven Armory in the mountains, the
 // Dungeon in the badlands and the Alchemist's hut in the swamp. Everything that does
 // not depend on the party is drawn once and reused.
-import type { GuildDungeon, GuildLocation, GuildMember, GuildQuest } from '../types'
-import { CLASSES, LANGS, LOCATIONS, classOf } from './lore'
+import type { GuildDungeon, GuildLocation, GuildMember, GuildQuest, GuildQuota } from '../types'
+import { CLASSES, LANGS, LOCATIONS, PLACE_INFO, classOf } from './lore'
+
+export type MapOptions = {
+  /** The workspace's name, drawn as the map's title. */
+  realm?: string
+  /** The place being inspected, ringed in gold. */
+  selected?: GuildLocation | ''
+  /** Rate-limit windows, drawn as mana gauges. */
+  quota?: GuildQuota[]
+  /** The local hour: after dark the realm dims and its windows light up. */
+  hour?: number
+}
 
 const W = 640
 const H = 372
@@ -48,8 +59,9 @@ function hash(x: number, y: number): number {
 /** A smooth curve through points (Catmull-Rom, as cubic Béziers). */
 function curve(pts: Pt[], closed = false): string {
   const n = pts.length
-  const at = (i: number) => (closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))])
-  let d = `M${r1(pts[0][0])} ${r1(pts[0][1])}`
+  const at = (i: number): Pt => (closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))])!
+  const first = at(0)
+  let d = `M${r1(first[0])} ${r1(first[1])}`
   for (let i = 0; i < (closed ? n : n - 1); i += 1) {
     const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)]
     const c1: Pt = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6]
@@ -176,7 +188,7 @@ function drawScenery(): string {
     out.push(`<rect x="${x - 0.8}" y="${y - 5}" width="1.6" height="5" fill="#3a3020"/><ellipse cx="${x}" cy="${y - 7}" rx="5" ry="4" fill="#3c5e34" stroke="#16261a" stroke-width="0.8"/><path d="M${x - 3} ${y - 5}v4M${x} ${y - 4}v3M${x + 3} ${y - 5}v4" stroke="#2e4a2a" stroke-width="0.8"/>`)
   }
   const ranges: string[] = []
-  for (const [x, y, w, h] of [[470, 66, 44, 34], [508, 48, 52, 42], [600, 54, 50, 40], [560, 34, 58, 44], [626, 84, 40, 32], [450, 92, 36, 26], [586, 92, 46, 34], [490, 92, 34, 24]]) ranges.push(mountain(x, y, w, h))
+  for (const [x, y, w, h] of [[470, 66, 44, 34], [508, 48, 52, 42], [600, 54, 50, 40], [560, 34, 58, 44], [626, 84, 40, 32], [450, 92, 36, 26], [586, 92, 46, 34], [490, 92, 34, 24]] as const) ranges.push(mountain(x, y, w, h))
   out.push(`</g>`, ranges.join(''), drawLandmarks())
   return out.join('')
 }
@@ -259,7 +271,7 @@ function drawLandmarks(): string {
 
 let scenery: string | undefined
 
-export function drawMap(party: GuildMember[], dungeon: GuildDungeon, quests: GuildQuest[]): string {
+export function drawMap(party: GuildMember[], dungeon: GuildDungeon, quests: GuildQuest[], opts: MapOptions = {}): string {
   scenery ??= drawScenery()
   const out: string[] = []
   out.push(
@@ -276,9 +288,17 @@ export function drawMap(party: GuildMember[], dungeon: GuildDungeon, quests: Gui
     scenery,
   )
 
+  // After dark: the land dims and every window, torch and the forge glows.
+  if (opts.hour !== undefined && (opts.hour >= 19 || opts.hour < 6)) {
+    out.push(`<rect width="${W}" height="${H}" rx="10" fill="#0a0e2c" opacity="0.45"/>`)
+    for (const [x, y, r, c] of [[296, 176, 10, '#ffd27a'], [342, 176, 10, '#ffd27a'], [268, 162, 7, '#ffd27a'], [372, 162, 7, '#ffd27a'], [262, 210, 7, '#ffd27a'], [376, 210, 7, '#ffd27a'], [320, 244, 7, '#ffd27a'], [112, 66, 12, '#a593ff'], [534, 92, 22, '#ff7a2a'], [86, 273, 10, '#ffb347'], [122, 273, 10, '#ffb347'], [552, 267, 10, '#9be89f'], [521, 290, 14, '#ff8c3a']] as const) {
+      out.push(`<g opacity="0.85"><circle cx="${x}" cy="${y}" r="${r * 1.6}" fill="${c}" opacity="0.14"/><circle cx="${x}" cy="${y}" r="${r}" fill="${c}" opacity="0.22"/><circle cx="${x}" cy="${y}" r="${r * 0.45}" fill="${c}" opacity="0.5"/><animate attributeName="opacity" values="0.85;0.6;0.85" dur="${2 + (x % 3)}s" repeatCount="indefinite"/></g>`)
+    }
+  }
+
   // Roads light up and march toward a place while someone works there.
   for (const loc of ['study', 'armory', 'dungeon', 'cauldron'] as const) {
-    if (!party.some(m => m.location === loc && m.isBusy)) continue
+    if (!party.some(m => m.location === loc && m.isBusy && !m.isDim)) continue
     const color = LOCATIONS[loc].color
     out.push(
       `<path d="${curve(ROADS[loc])}" fill="none" stroke="${color}" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round"><animate attributeName="stroke-dashoffset" from="16" to="0" dur="0.8s" repeatCount="indefinite"/></path>`,
@@ -305,11 +325,17 @@ export function drawMap(party: GuildMember[], dungeon: GuildDungeon, quests: Gui
   for (const loc of ['study', 'armory', 'dungeon', 'cauldron', 'tavern'] as const) {
     const p = PLACES[loc]
     const info = LOCATIONS[loc]
-    const here = party.filter(m => m.location === loc)
-    const busy = here.some(m => m.isBusy)
+    // Highlighted members first, so the faint ones are the ones folded into "+N".
+    const here = party.filter(m => m.location === loc).sort((a, b) => Number(!!a.isDim) - Number(!!b.isDim))
+    const busy = here.some(m => m.isBusy && !m.isDim)
     if (busy) {
       out.push(`<circle cx="${p.party[0]}" cy="${p.party[1]}" r="38" fill="url(#glow)"><animate attributeName="opacity" values="1;0.5;1" dur="1.6s" repeatCount="indefinite"/></circle>`)
     }
+    if (opts.selected === loc) {
+      out.push(`<circle cx="${p.at[0]}" cy="${p.at[1] - 16}" r="44" fill="none" stroke="#f2b84b" stroke-width="2.5" stroke-dasharray="7 5"><animate attributeName="stroke-dashoffset" from="0" to="24" dur="1.2s" repeatCount="indefinite"/></circle>`)
+    }
+    // Hovering a place names it and what lands there.
+    out.push(`<circle cx="${p.at[0]}" cy="${p.at[1] - 16}" r="40" fill="#fff" fill-opacity="0"><title>${esc(`${info.name} · ${here.length} here\n${PLACE_INFO[loc].blurb}\n${PLACE_INFO[loc].tools}`)}</title></circle>`)
     const name = `${info.icon} ${info.name}`
     const pw = name.length * 6.6 + 14
     const [tx, ty] = p.tag
@@ -325,10 +351,12 @@ export function drawMap(party: GuildMember[], dungeon: GuildDungeon, quests: Gui
     const count = Math.min(here.length, 3)
     here.slice(0, 3).forEach((m, i) => {
       const cls = classOf(m)
-      const mx = cx + (i - (count - 1) / 2) * 30
+      const mx = cx + (i - (count - 1) / 2) * (here.some(o => o.project) ? 38 : 30)
+      if (m.isDim) out.push(`<g opacity="0.4">`)
       out.push(
         `<ellipse cx="${mx}" cy="${cy + 13}" rx="10" ry="2.5" fill="#000" opacity="0.3"/>`,
-        `<circle cx="${mx}" cy="${cy}" r="12" fill="#fff8e7" stroke="${m.isBusy ? info.color : '#8a7350'}" stroke-width="2.5"/>`,
+        m.team ? `<circle cx="${mx}" cy="${cy}" r="15.5" fill="none" stroke="${m.team.color}" stroke-width="3"/>` : '',
+        `<circle cx="${mx}" cy="${cy}" r="12" fill="#fff8e7" stroke="${m.isBusy ? info.color : '#8a7350'}" stroke-width="2.5"><title>${esc(`${m.fixedClass ? m.label : CLASSES[cls].name}${m.team ? ` · ${m.team.name}` : ''}: ${m.activity}`)}</title></circle>`,
         `<text x="${mx}" y="${cy + 5}" font-size="13" text-anchor="middle">${CLASSES[cls].icon}</text>`,
       )
       if (m.isBusy) {
@@ -340,14 +368,24 @@ export function drawMap(party: GuildMember[], dungeon: GuildDungeon, quests: Gui
           `<text x="${mx + 16}" y="${cy - 10.5}" font-size="8" font-weight="bold" text-anchor="middle" fill="#ffd27a">${esc(LANGS[m.lang].crest)}</text>`,
         )
       }
+      // On the shared map each member carries its project's name in its colour.
+      if (m.project) {
+        const label = clip(m.project.name, 8)
+        const w = Math.min(36, label.length * 4.4 + 6)
+        out.push(
+          `<rect x="${r1(mx - w / 2)}" y="${cy + 11}" width="${r1(w)}" height="9" rx="2" fill="${m.project.color}" stroke="#1b1424" stroke-width="0.8"/>`,
+          `<text x="${mx}" y="${cy + 18}" font-size="7" font-weight="bold" text-anchor="middle" fill="#1b1424">${esc(label)}</text>`,
+        )
+      }
+      if (m.isDim) out.push(`</g>`)
     })
     if (here.length > 3) {
       out.push(`<text x="${cx + 52}" y="${cy + 4}" font-size="11" font-weight="bold" text-anchor="middle" fill="#fff8e7" stroke="#1b1424" stroke-width="2.5" paint-order="stroke">+${here.length - 3}</text>`)
     }
 
     const lines: string[] = []
-    const lead = here.find(m => m.isBusy) ?? here[0]
-    if (lead) lines.push(clip(`${lead.fixedClass ? lead.label : CLASSES[classOf(lead)].name} ${lead.activity}`, 34))
+    const lead = here.find(m => m.isBusy && !m.isDim) ?? here.find(m => !m.isDim)
+    if (lead) lines.push(clip(`${lead.project ? `${lead.project.name}: ` : ''}${lead.fixedClass ? lead.label : CLASSES[classOf(lead)].name} ${lead.activity}`, 38))
     if (loc === 'dungeon') {
       lines.push(!dungeon.hasRun
         ? 'Unexplored'
@@ -369,6 +407,39 @@ export function drawMap(party: GuildMember[], dungeon: GuildDungeon, quests: Gui
       )
     })
   }
+
+  // Teams in the field fly their banners along the south shore.
+  const flying = new Map<string, { color: string; n: number }>()
+  for (const m of party) if (m.team && !m.isDim) flying.set(m.team.name, { color: m.team.color, n: (flying.get(m.team.name)?.n ?? 0) + 1 })
+  let bx = 320 - ([...flying.keys()].reduce((w, n) => w + n.length * 6.2 + 52, 0)) / 2
+  for (const [name, t] of flying) {
+    const w = name.length * 6.2 + 44
+    out.push(
+      `<path d="M${r1(bx)} 366V344" stroke="#3a2414" stroke-width="1.6"/>`,
+      `<path d="M${r1(bx + 1)} 344H${r1(bx + w)}L${r1(bx + w - 6)} 350.5L${r1(bx + w)} 357H${r1(bx + 1)}Z" fill="${t.color}" stroke="#1b1424" stroke-width="1"><animate attributeName="d" values="M${r1(bx + 1)} 344H${r1(bx + w)}L${r1(bx + w - 6)} 350.5L${r1(bx + w)} 357H${r1(bx + 1)}Z;M${r1(bx + 1)} 345H${r1(bx + w)}L${r1(bx + w - 6)} 351.5L${r1(bx + w)} 358H${r1(bx + 1)}Z;M${r1(bx + 1)} 344H${r1(bx + w)}L${r1(bx + w - 6)} 350.5L${r1(bx + w)} 357H${r1(bx + 1)}Z" dur="1.2s" repeatCount="indefinite"/></path>`,
+      `<text x="${r1(bx + 5)}" y="354" font-size="9" font-weight="bold" fill="#1b1424">🚩 ${esc(name)} ×${t.n}</text>`,
+    )
+    bx += w + 8
+  }
+
+  // The workspace's name and its mana: the account's rate-limit windows, as what is left.
+  if (opts.realm) {
+    const t = `🏰 ${opts.realm}`
+    const w = t.length * 7 + 16
+    out.push(`<rect x="${r1(320 - w / 2)}" y="4" width="${r1(w)}" height="18" rx="4" fill="#1b1424" fill-opacity="0.88" stroke="#f2b84b" stroke-width="1.2"/><text x="320" y="17" font-size="11.5" font-weight="bold" text-anchor="middle" fill="#ffd27a">${esc(t)}</text>`)
+  }
+  const mana = (opts.quota ?? []).slice(0, 4)
+  mana.forEach((q, i) => {
+    const y = 26 + i * 15
+    const left = Math.max(0, Math.min(100, q.percentLeft))
+    const color = left < 20 ? '#e8606f' : left < 50 ? '#f2b84b' : '#4fc7b5'
+    out.push(
+      `<rect x="246" y="${y}" width="148" height="13" rx="3" fill="#1b1424" fill-opacity="0.85"/>`,
+      `<text x="251" y="${y + 9.5}" font-size="8.5" fill="#efe6d2">🔮 ${esc(clip(q.label, 16))}</text>`,
+      `<rect x="334" y="${y + 3}" width="40" height="7" rx="2" fill="#3a2f4c"/><rect x="334" y="${y + 3}" width="${r1(left * 0.4)}" height="7" rx="2" fill="${color}"/>`,
+      `<text x="390" y="${y + 9.5}" font-size="8" text-anchor="end" fill="${color}">${Math.round(left)}%</text>`,
+    )
+  })
 
   out.push(`<rect width="${W}" height="${H}" rx="10" fill="url(#vignette)" pointer-events="none"/>`)
   out.push(`</svg>`)

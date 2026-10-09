@@ -39,3 +39,36 @@ export function classOfAgentType(type: string): GuildClass | undefined {
 export function classOf(member: { fixedClass?: GuildClass; location: GuildLocation }): GuildClass {
   return member.fixedClass ?? LOCATIONS[member.location].resident
 }
+
+/** What each place is for, shown when it is inspected. */
+export const PLACE_INFO: Record<GuildLocation, { blurb: string; tools: string }> = {
+  tavern: { blurb: 'Prompts arrive as quests. Subagents are hired at the door and come back with their spoils; the task list hangs on the board.', tools: 'prompts · Agent · TaskCreate · TaskUpdate · TodoWrite' },
+  study: { blurb: 'Reading, searching and research.', tools: 'Read · Grep · Glob · WebFetch · WebSearch · git log · ls' },
+  dungeon: { blurb: 'Test runs. Every failing test is a monster; passing tests are monsters slain.', tools: 'cargo test · pytest · jest · vitest · mvn test · ctest · …' },
+  armory: { blurb: 'Edits are forged here; linters, formatters and type checkers hammer them true.', tools: 'Edit · Write · eslint · ruff · clippy · tsc · git diff · …' },
+  cauldron: { blurb: 'Builds, installs, bundlers, compilers and containers.', tools: 'npm install · cargo build · uv sync · cmake · docker · …' },
+}
+
+/** Each workspace's colour on the shared map: this one first, the others in name order. */
+export const PROJECT_COLORS = ['#ff8a5c', '#5fd3f3', '#f7dd5b', '#c9f27a', '#ff7ad9', '#a593ff']
+
+/** Teams form when two or more subagents are out at once; each takes the next name. */
+export const TEAMS: { name: string; color: string }[] = [
+  { name: 'Vanguard', color: '#e0a030' },
+  { name: 'Lantern Company', color: '#2aa198' },
+  { name: 'Iron Wardens', color: '#d1495b' },
+  { name: 'Night Watch', color: '#6c5ce7' },
+  { name: 'Silver Hand', color: '#7f8c8d' },
+  { name: 'Ember Guard', color: '#e67e22' },
+]
+
+const WINDOWS: Record<string, string> = { five_hour: '5-hour window', seven_day: 'Weekly', spend_limit: 'Spend limit' }
+const MODEL_NAMES: Record<string, string> = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' }
+
+/** A readable name for a rate-limit window: `seven_day_opus` reads "Weekly · Opus". */
+export function windowLabel(kind: string): string {
+  const base = Object.keys(WINDOWS).find(k => kind === k || kind.startsWith(`${k}_`))
+  const model = Object.keys(MODEL_NAMES).find(m => kind.includes(m))
+  const head = base ? (WINDOWS[base] ?? base) : kind.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())
+  return model ? `${head} · ${MODEL_NAMES[model]}` : head
+}

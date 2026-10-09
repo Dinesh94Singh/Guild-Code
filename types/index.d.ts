@@ -13,6 +13,35 @@ export type GuildMember = {
   activity: string
   lang?: GuildLang
   isBusy: boolean
+  /** Set when two or more subagents are out at once: they march as one team. */
+  team?: GuildTeam
+  /** Set while drawing every workspace on one map: whose party this member belongs to. */
+  project?: GuildProject
+  /** Set while drawing: another workspace is highlighted, so this member is drawn faint. */
+  isDim?: boolean
+}
+
+export type GuildProject = { name: string; color: string }
+
+export type GuildTeam = { name: string; color: string }
+
+/** One rate-limit window as the engine reports it, turned into what is left. */
+export type GuildQuota = {
+  kind: string
+  label: string
+  /** 0 to 100: how much of the window is still available. */
+  percentLeft: number
+  resetsAt?: string
+}
+
+/** Another workspace's guild, as its own session last published it to the shared store. */
+export type GuildRealm = {
+  id: string
+  name: string
+  updatedAt: number
+  party: GuildMember[]
+  dungeon: GuildDungeon
+  quests: GuildQuest[]
 }
 
 export type GuildEntry = {
@@ -48,6 +77,13 @@ declare module 'claude-code' {
       dungeon: GuildDungeon
       quests: GuildQuest[]
       xp: GuildXp
+      quota: GuildQuota[]
+      realms: GuildRealm[]
+      /** The workspace highlighted on the shared map: '' for none (all alike), 'self' for this one, else another's id. */
+      viewing: string
+      /** The place the inspector shows, or '' for none. */
+      selected: GuildLocation | ''
+      teams: number
     }
   }
 }
