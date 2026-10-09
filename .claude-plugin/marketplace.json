@@ -1,0 +1,11 @@
+{
+  "name": "guild-code",
+  "owner": { "name": "Guild Code contributors" },
+  "plugins": [
+    {
+      "name": "guild-code",
+      "source": "./",
+      "description": "A medieval guild hall for Claude: your party walks between the Tavern, Wizard's Study, Dungeon, Armory and Alchemist's Cauldron as it works."
+    }
+  ]
+}
