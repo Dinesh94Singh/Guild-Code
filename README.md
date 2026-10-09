@@ -1,10 +1,10 @@
 # 🏰 Guild Code
 
-**A medieval guild hall for Claude Code.** As Claude works, a live map shows your party walking between five rooms: the Tavern Board, the Wizard's Study, the Dungeon, the Armory and the Alchemist's Cauldron. Failing tests become monsters, edits are forged in the Armory, and builds bubble in the Cauldron.
+**A medieval guild hall for Claude Code.** As Claude works, a live world map shows your party travelling an island realm between five places: the Tavern Board in the guild town, the Wizard's Study in its forest tower, the Dungeon in the badlands, the Armory in the mountains and the Alchemist's Cauldron in the swamp. Failing tests become monsters, edits are forged in the Armory, and builds bubble in the Cauldron.
 
 ![The Guild Hall map](docs/guild-hall.png)
 
-**See it first:** open [`demo/guild-hall.html`](demo/guild-hall.html) in a browser for a pixel-art dry run. Five sample sessions (Rust, Python, JS/TS, Java, C++) replay through the mod's real classifier, and you can cast your own commands to see which room they land in. Rebuild it with `node demo/build.mjs`.
+**See it first:** open [`demo/guild-hall.html`](demo/guild-hall.html) in a browser for a pixel-art dry run: a scrolling world map that follows the party, with a minimap and a zoomed-out world view. Five sample sessions (Rust, Python, JS/TS, Java, C++) replay through the mod's real classifier, and you can cast your own commands to see which room they land in. Rebuild it with `node demo/build.mjs`.
 
 It is a **mod** for Claude Code: it runs inside Claude's own engine, draws a native pane, and watches the real work through hooks. Nothing about how Claude works changes, and if Guild Code ever errors, the work carries on without it.
 
@@ -71,7 +71,7 @@ Wrappers are seen through: `npx`, `pnpm exec`, `uv run`, `poetry run`, `env FOO=
 
 ## Surfaces
 
-The terminal draws the hall as five bordered rooms in text. The desktop app, VS Code and mobile draw an illustrated, animated map. All surfaces show the quest board and the chronicle of recent deeds.
+The terminal draws the hall as five bordered rooms in text. The desktop app, VS Code and mobile draw an illustrated, animated map of the realm. All surfaces show the quest board and the chronicle of recent deeds.
 
 ## Project layout
 

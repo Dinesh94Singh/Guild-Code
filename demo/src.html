@@ -1,8 +1,10 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guild Hall Dry Run</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
 <style>
-/* Layout: an arcade cabinet. The pixel map is the screen; the sidebar is the party ledger. */
+/* Layout: an arcade cabinet. The pixel world map is the screen; the sidebar is the party ledger. */
 :root {
   --void: #0f0b14;
   --panel: #1a1422;
@@ -23,24 +25,27 @@
 * { box-sizing: border-box; }
 html, body { background: var(--void); color: var(--text); }
 body { font-family: var(--body); font-size: 20px; line-height: 1.15; padding-inline: 16px; padding-block: 18px 28px; }
-.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 16px; }
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }
 header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
 h1 { font-family: var(--display); font-size: clamp(16px, 3.2vw, 24px); color: var(--gold); margin: 0; letter-spacing: 1px; text-shadow: 3px 3px 0 #5a2a0e; }
 .badge { font-family: var(--display); font-size: 9px; color: var(--void); background: var(--moss); padding: 5px 7px 4px; letter-spacing: 1px; }
-header p { margin: 0; color: var(--muted); flex-basis: 100%; max-width: 70ch; }
+header p { margin: 0; color: var(--muted); flex-basis: 100%; max-width: 76ch; }
 
 .stage { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
-@media (max-width: 900px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 960px) { .stage { grid-template-columns: minmax(0, 1fr); } }
 
 .px { background: var(--panel); border: 2px solid var(--edge); box-shadow: 0 0 0 2px var(--void), 4px 4px 0 2px #000; }
 .screen { padding: 8px; display: grid; gap: 10px; min-width: 0; }
 .crt { position: relative; background: #000; line-height: 0; }
-canvas#map { width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+canvas#map { width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; display: block; cursor: grab; touch-action: none; }
+canvas#map.dragging { cursor: grabbing; }
+canvas#map:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .crt::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.12) 2px 3px); }
+  background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.10) 2px 3px); }
 
 .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .bar .grow { flex: 1 1 auto; }
+.hint { color: var(--muted); font-size: 18px; }
 button, .chip { font-family: var(--display); font-size: 9px; letter-spacing: .5px; color: var(--text); background: var(--panel-2);
   border: 2px solid var(--edge); padding: 8px 9px 7px; cursor: pointer; box-shadow: 2px 2px 0 #000; }
 button:hover { border-color: var(--gold); color: var(--gold); }
@@ -84,7 +89,7 @@ ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; }
 .log li .t { overflow-wrap: anywhere; }
 .log .ok { color: var(--moss); } .log .fail { color: var(--blood); } .log .running { color: var(--gold); }
 .log .who { color: var(--parch); }
-.empty { color: var(--muted); }
+.empty { color: var(--muted); grid-column: 1 / -1; }
 footer { color: var(--muted); font-size: 18px; }
 @media (prefers-reduced-motion: reduce) { .hp i { transition: none; } }
 </style>
@@ -93,16 +98,19 @@ footer { color: var(--muted); font-size: 18px; }
   <header>
     <h1>GUILD CODE</h1>
     <span class="badge">DRY RUN</span>
-    <p>A sample session replayed through the mod's own classifier: every command below lands in the room Guild Code would send it to. Cast your own command to see where it goes.</p>
+    <p>A sample session replayed through the mod's own classifier. The party travels the realm: every command lands in the place Guild Code would send it to. Cast your own command to see where it goes.</p>
   </header>
 
   <div class="stage">
-    <section class="screen px" aria-label="Guild Hall map">
+    <section class="screen px" aria-label="Guild realm map">
       <div class="quests" id="quests" role="group" aria-label="Choose a quest"></div>
-      <div class="crt"><canvas id="map" width="384" height="224" aria-label="Pixel-art map of the guild hall with the party at work"></canvas></div>
+      <div class="crt"><canvas id="map" width="480" height="270" tabindex="0" aria-label="Pixel-art world map of the guild realm with the party at work. Drag or use the arrow keys to explore; press M for the whole map."></canvas></div>
       <div class="bar">
         <button id="play" type="button">PAUSE</button>
         <button id="restart" type="button">RESTART</button>
+        <button class="cam" data-cam="follow" type="button" aria-pressed="true">FOLLOW</button>
+        <button class="cam" data-cam="world" type="button" aria-pressed="false">WORLD MAP</button>
+        <span class="hint">drag to explore</span>
         <span class="grow"></span>
         <button class="spd" data-speed="1" type="button" aria-pressed="true">1X</button>
         <button class="spd" data-speed="2" type="button">2X</button>
@@ -115,7 +123,7 @@ footer { color: var(--muted); font-size: 18px; }
           <button type="submit">CAST</button>
         </form>
         <div class="examples" id="examples"></div>
-        <div class="verdict" id="verdict" aria-live="polite">Type any shell command from your projects and the hero carries it to its room.</div>
+        <div class="verdict" id="verdict" aria-live="polite">Type any shell command from your projects and the hero carries it to its corner of the realm.</div>
       </div>
     </section>
 
@@ -147,7 +155,7 @@ footer { color: var(--muted); font-size: 18px; }
       </div>
     </aside>
   </div>
-  <footer>Rooms, languages and test counts come from the same code the mod runs. The tool output in these quests is sample data.</footer>
+  <footer>Places, languages and test counts come from the same code the mod runs. The tool output in these quests is sample data.</footer>
 </div>
 
 <script>
@@ -159,29 +167,55 @@ footer { color: var(--muted); font-size: 18px; }
 const { classifyTool, readBattle } = GuildClassify;
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// ───────────────────────── world ─────────────────────────
-const W = 384, H = 224, HUB = 192;
+// ───────────────────────── the realm ─────────────────────────
+// The world is twice the screen each way. The camera follows whoever is working,
+// and WORLD MAP pulls back to show the whole island at once.
+const VW = 480, VH = 270, W = 960, H = 540;
+const HUB = { x: 480, y: 300 }, DOORWAY = { x: 480, y: 266 };
 const ROOMS = {
-  study:    { x: 16,  y: 16,  w: 112, h: 80,  a: '#3b2a4a', b: '#352640', wall: '#4b3a5e', label: "WIZARD'S STUDY", color: '#a593ff', resident: 'wizard',
-              spots: [{ x: 62, y: 80 }, { x: 90, y: 84 }, { x: 38, y: 74 }] },
-  armory:   { x: 256, y: 16,  w: 112, h: 80,  a: '#383d48', b: '#323641', wall: '#4a505c', label: 'ARMORY', color: '#a9b6c6', resident: 'dwarf',
-              spots: [{ x: 318, y: 80 }, { x: 290, y: 82 }, { x: 346, y: 84 }] },
-  tavern:   { x: 144, y: 56,  w: 96,  h: 112, a: '#5a3b24', b: '#53361f', wall: '#6b4a2e', label: 'TAVERN', color: '#f2b84b', resident: 'guildmaster',
-              spots: [{ x: 192, y: 98 }, { x: 170, y: 146 }, { x: 214, y: 146 }, { x: 192, y: 130 }] },
-  dungeon:  { x: 16,  y: 128, w: 112, h: 80,  a: '#2b2427', b: '#252022', wall: '#3d3236', label: 'DUNGEON', color: '#e8606f', resident: 'rogue',
-              spots: [{ x: 44, y: 174 }, { x: 58, y: 192 }, { x: 30, y: 192 }] },
-  cauldron: { x: 256, y: 128, w: 112, h: 80,  a: '#24362c', b: '#203027', wall: '#2f4a3a', label: 'CAULDRON', color: '#84d488', resident: 'alchemist',
-              spots: [{ x: 290, y: 176 }, { x: 288, y: 198 }, { x: 350, y: 198 }] },
+  study:    { label: "WIZARD'S STUDY", color: '#a593ff', resident: 'wizard',      at: { x: 168, y: 140 }, tag: { x: 168, y: 24 },
+              spots: [{ x: 186, y: 158 }, { x: 204, y: 166 }, { x: 168, y: 164 }] },
+  armory:   { label: 'ARMORY',         color: '#a9b6c6', resident: 'dwarf',       at: { x: 800, y: 140 }, tag: { x: 800, y: 70 },
+              spots: [{ x: 826, y: 166 }, { x: 800, y: 160 }, { x: 778, y: 168 }] },
+  tavern:   { label: 'TAVERN',         color: '#f2b84b', resident: 'guildmaster', at: { x: 480, y: 262 }, tag: { x: 480, y: 200 },
+              spots: [{ x: 452, y: 310 }, { x: 476, y: 318 }, { x: 502, y: 310 }, { x: 488, y: 328 }] },
+  dungeon:  { label: 'DUNGEON',        color: '#e8606f', resident: 'rogue',       at: { x: 156, y: 414 }, tag: { x: 156, y: 346 },
+              spots: [{ x: 216, y: 434 }, { x: 230, y: 446 }, { x: 212, y: 458 }] },
+  cauldron: { label: 'CAULDRON',       color: '#84d488', resident: 'alchemist',   at: { x: 822, y: 420 }, tag: { x: 822, y: 362 },
+              spots: [{ x: 766, y: 452 }, { x: 788, y: 464 }, { x: 810, y: 458 }] },
 };
-const DOOR = {
-  study:    { din: { x: 118, y: 86 },  tin: { x: 154, y: 86 } },
-  armory:   { din: { x: 266, y: 86 },  tin: { x: 230, y: 86 } },
-  dungeon:  { din: { x: 118, y: 158 }, tin: { x: 154, y: 158 } },
-  cauldron: { din: { x: 266, y: 158 }, tin: { x: 230, y: 158 } },
+// Roads run from the town square out to each place, as rough waypoints smoothed into curves.
+const ROADS_RAW = {
+  study:    [[480, 300], [446, 290], [400, 266], [348, 250], [300, 230], [258, 204], [222, 178], [198, 164]],
+  armory:   [[480, 300], [524, 286], [570, 262], [612, 238], [660, 214], [712, 196], [756, 182], [794, 168]],
+  dungeon:  [[480, 300], [444, 322], [400, 350], [346, 372], [294, 392], [254, 414], [228, 430]],
+  cauldron: [[480, 300], [526, 322], [574, 350], [622, 378], [672, 404], [716, 428], [750, 448]],
 };
-const MONSTER_SLOTS = [{ x: 92, y: 168 }, { x: 112, y: 176 }, { x: 98, y: 190 }, { x: 78, y: 200 }, { x: 116, y: 198 }, { x: 80, y: 160 }];
-const ANVIL = { x: 322, y: 60 }, CAULDRON = { x: 322, y: 176 }, DESK = { x: 72, y: 56 }, BOARD = { x: 176, y: 58 };
+const RIVER_RAW = [[592, -8], [600, 60], [586, 120], [600, 180], [618, 240], [598, 300], [614, 360], [644, 420], [626, 480], [634, 548]];
+const BOARD = { x: 436, y: 276 }, ANVIL = { x: 846, y: 160 }, CAULDRON = { x: 790, y: 446 };
+const MONSTER_SLOTS = [{ x: 186, y: 428 }, { x: 198, y: 442 }, { x: 182, y: 454 }, { x: 170, y: 438 }, { x: 200, y: 420 }, { x: 166, y: 452 }];
+const CHIMNEYS = [], VENTS = [], LAMPS = [], TORCHES = [], GLOWS = [];
+let TOWER = null, WINDMILL = null, SKULL = null, HUT = null, FORGE = null;
 
+function smooth(raw, step) {
+  const out = [];
+  for (let i = 0; i < raw.length - 1; i++) {
+    const p0 = raw[Math.max(0, i - 1)], p1 = raw[i], p2 = raw[i + 1], p3 = raw[Math.min(raw.length - 1, i + 2)];
+    const n = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step));
+    for (let k = 0; k < n; k++) {
+      const t = k / n, t2 = t * t, t3 = t2 * t;
+      const f = (a, b, c, d) => 0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (3 * b - a - 3 * c + d) * t3);
+      out.push({ x: f(p0[0], p1[0], p2[0], p3[0]), y: f(p0[1], p1[1], p2[1], p3[1]) });
+    }
+  }
+  const last = raw[raw.length - 1]; out.push({ x: last[0], y: last[1] });
+  return out;
+}
+const ROADS = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, smooth(r, 2)]));
+const WALK = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, smooth(r, 4)]));
+const RIVER = smooth(RIVER_RAW, 2);
+
+// ───────────────────────── sprites ─────────────────────────
 const CLASSES = {
   guildmaster: { name: 'Guildmaster', color: '#f2b84b' },
   wizard: { name: 'Wizard', color: '#a593ff' },
@@ -237,76 +271,505 @@ const MON = [['#d1495b', '#9e2f3f'], ['#9b59d0', '#6d3a99'], ['#e07a2f', '#a8541
   [0, 1].map(f => { const c = document.createElement('canvas'); c.width = 10; c.height = 8; const x = c.getContext('2d');
     SLIME.forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '.') return; x.fillStyle = { k: '#1b1424', g, G, w: '#fff', m: '#2b1b14' }[ch]; x.fillRect(i, j + (f && j < 2 ? 1 : 0), 1, 1); })); return c; }));
 
-// ───────────────────────── static background ─────────────────────────
-const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
-const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
-function shade(hex, amt) { const n = parseInt(hex.slice(1), 16); const f = c => Math.max(0, Math.min(255, Math.round(c + amt))); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; }
-function paintBackground() {
-  const b = bg.getContext('2d');
-  b.fillStyle = '#0d0912'; b.fillRect(0, 0, W, H);
-  for (let y = 0; y < H; y += 4) for (let x = 0; x < W; x += 4) { const r = hash(x, y); if (r > .93) { b.fillStyle = r > .985 ? '#2a2236' : '#17111f'; b.fillRect(x, y, 2, 2); } }
-  // corridors
-  const corr = (x, y, w, h) => { b.fillStyle = '#120d18'; b.fillRect(x, y - 3, w, h + 6); for (let yy = y; yy < y + h; yy += 8) for (let xx = x; xx < x + w; xx += 8) { b.fillStyle = (xx / 8 + yy / 8) % 2 ? '#3a3036' : '#342b31'; b.fillRect(xx, yy, 8, 8); b.fillStyle = '#2a2228'; b.fillRect(xx, yy, 8, 1); b.fillRect(xx, yy, 1, 8); } };
-  corr(124, 72, 26, 16); corr(236, 72, 26, 16); corr(124, 144, 26, 16); corr(236, 144, 26, 16);
-  for (const [key, r] of Object.entries(ROOMS)) {
-    b.fillStyle = '#120d18'; b.fillRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8);
-    b.fillStyle = '#05030a'; b.fillRect(r.x - 4, r.y + r.h + 4, r.w + 8, 3);
-    const plank = key === 'tavern' || key === 'study';
-    for (let y = r.y; y < r.y + r.h; y += 8) for (let x = r.x; x < r.x + r.w; x += plank ? 16 : 8) {
-      const n = hash(x, y);
-      b.fillStyle = ((x / 8 + y / 8) % 2 ? r.a : r.b); b.fillRect(x, y, plank ? 16 : 8, 8);
-      b.fillStyle = shade(r.a, -14); if (plank) { b.fillRect(x, y + 7, 16, 1); if (n > .5) b.fillRect(x + ((y / 8) % 2 ? 8 : 15), y, 1, 7); } else { b.fillRect(x, y, 8, 1); b.fillRect(x, y, 1, 8); }
-      if (n > .9) { b.fillStyle = shade(r.a, 12); b.fillRect(x + 3, y + 3, 1, 1); }
-    }
-    // back wall with bricks
-    b.fillStyle = r.wall; b.fillRect(r.x, r.y, r.w, 14);
-    for (let y = r.y; y < r.y + 14; y += 4) for (let x = r.x + ((y - r.y) / 4 % 2 ? 4 : 0); x < r.x + r.w; x += 8) { b.fillStyle = shade(r.wall, -18); b.fillRect(x, y, 1, 4); b.fillRect(r.x, y, r.w, 1); }
-    b.fillStyle = shade(r.wall, 26); b.fillRect(r.x, r.y + 14, r.w, 1);
-    b.fillStyle = 'rgba(0,0,0,.35)'; b.fillRect(r.x, r.y + 15, r.w, 3);
-  }
-  // door openings into the corridors
-  const door = (x, y) => { b.fillStyle = '#3a3036'; b.fillRect(x, y, 8, 16); b.fillStyle = '#2a2228'; b.fillRect(x, y, 8, 1); };
-  door(124, 72); door(140, 72); door(236, 72); door(252, 72); door(124, 144); door(140, 144); door(236, 144); door(252, 144);
 
-  // study: bookshelves, desk, rug
-  { const r = ROOMS.study; b.fillStyle = '#3a2316'; b.fillRect(r.x + 4, r.y + 15, 48, 18); b.fillRect(r.x + 60, r.y + 15, 48, 18);
-    const books = ['#b8323f', '#3b5fa8', '#4f9c5a', '#d9a13a', '#7a4fc9', '#c96a3a'];
-    for (const sx of [r.x + 6, r.x + 62]) for (let row = 0; row < 2; row++) for (let i = 0; i < 22; i++) { const hgt = 6 + Math.floor(hash(sx + i, row) * 2); b.fillStyle = books[Math.floor(hash(i, sx + row) * books.length)]; b.fillRect(sx + i * 2, r.y + 16 + row * 8 + (7 - hgt), 2, hgt); }
-    b.fillStyle = '#2a1810'; b.fillRect(r.x + 4, r.y + 24, 48, 1); b.fillRect(r.x + 60, r.y + 24, 48, 1);
-    b.fillStyle = '#4a2f6e'; b.fillRect(r.x + 22, r.y + 50, 70, 26); b.fillStyle = '#6a4fa0'; b.fillRect(r.x + 24, r.y + 52, 66, 22); b.fillStyle = '#4a2f6e';
-    for (let i = 0; i < 6; i++) b.fillRect(r.x + 30 + i * 10, r.y + 62, 4, 2);
-    b.fillStyle = '#5a3720'; b.fillRect(DESK.x - 14, DESK.y - 6, 28, 10); b.fillStyle = '#7a4d2c'; b.fillRect(DESK.x - 14, DESK.y - 6, 28, 2);
-    b.fillStyle = '#efe0b8'; b.fillRect(DESK.x - 10, DESK.y - 4, 9, 6); b.fillStyle = '#c9b48a'; b.fillRect(DESK.x - 6, DESK.y - 4, 1, 6);
+// ───────────────────────── terrain ─────────────────────────
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+const mini = document.createElement('canvas'); mini.width = 120; mini.height = 68;
+const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
+function vnoise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+const fbm = (x, y) => (vnoise(x, y) * 4 + vnoise(x * 2 + 17, y * 2 + 9) * 2 + vnoise(x * 4 + 41, y * 4 + 3)) / 7;
+function shade(hex, amt) { const n = parseInt(hex.slice(1), 16); const f = c => Math.max(0, Math.min(255, Math.round(c + amt))); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; }
+const rgb = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const px = (b, c, x, y, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(x, y, w, h); };
+
+const CELL = 2, GW = W / CELL, GH = H / CELL;
+const SEA = 0, LAND = 1, FRESH = 2;
+const PLAINS = 0, FOREST = 1, PEAKS = 2, BADLANDS = 3, SWAMP = 4, BEACH = 5;
+const KIND = new Uint8Array(GW * GH), BIOME = new Uint8Array(GW * GH), DEPTH = new Float32Array(GW * GH);
+const cellAt = (x, y) => Math.max(0, Math.min(GH - 1, Math.floor(y / CELL))) * GW + Math.max(0, Math.min(GW - 1, Math.floor(x / CELL)));
+const FOAM = [], SPARKS = [];
+let SHIP = null;
+
+const PAL = Object.fromEntries(Object.entries({
+  grassA: '#5c9e3e', grassB: '#529338', grassHi: '#74b54e', grassLo: '#447f30',
+  forestA: '#3f7431', forestB: '#376a2c', forestHi: '#4f8a3c', forestLo: '#2c5824',
+  peakA: '#7c7467', peakB: '#716a5e', peakHi: '#8d857a', peakLo: '#5f584e',
+  badA: '#6e6450', badB: '#655c4a', badHi: '#82775f', badLo: '#544c3d',
+  swampA: '#4d6239', swampB: '#465a34', swampHi: '#5f7646', swampLo: '#3a4c2c',
+  sandA: '#dcc893', sandB: '#d3bd86', sandHi: '#e9d9a8', sandLo: '#bfa873',
+  dirt: '#b8955c', dirtHi: '#c9a86e', dirtLo: '#9f7f4c', dirtEdge: '#7f6440',
+  cobA: '#a39a8c', cobB: '#978e81', mortar: '#6a6258', plazaEdge: '#5a5248',
+  plank: '#9a6a3c', plankLo: '#5a3720', rail: '#3a2414',
+  river: '#3f97c9', riverHi: '#5aaed8', bank: '#8f7c58', pool: '#2f4b3e', poolHi: '#3d6150',
+  shoal: '#62b4d6', sea1: '#4aa3c9', sea2: '#3484b8', sea3: '#2a68a0', sea4: '#22558a', cliffHi: '#8a6a44', cliffLo: '#5a4028',
+}).map(([k, v]) => [k, rgb(v)]));
+const GROUND = {
+  [PLAINS]: ['grassA', 'grassB', 'grassHi', 'grassLo'], [FOREST]: ['forestA', 'forestB', 'forestHi', 'forestLo'],
+  [PEAKS]: ['peakA', 'peakB', 'peakHi', 'peakLo'], [BADLANDS]: ['badA', 'badB', 'badHi', 'badLo'],
+  [SWAMP]: ['swampA', 'swampB', 'swampHi', 'swampLo'], [BEACH]: ['sandA', 'sandB', 'sandHi', 'sandLo'],
+};
+const LANDMARKS = [ROOMS.study.at, ROOMS.armory.at, ROOMS.dungeon.at, ROOMS.cauldron.at, HUB];
+const CLEAR = [{ x: 168, y: 128, r: 34 }, { x: 800, y: 122, r: 66 }, { x: 156, y: 404, r: 58 }, { x: 818, y: 424, r: 50 }, { x: 568, y: 190, r: 20 }];
+const FIELDS = [{ x: 494, y: 172, w: 58, h: 30, crop: 'wheat' }, { x: 356, y: 398, w: 52, h: 26, crop: 'cabbage' }];
+const inTown = (x, y) => ((x - 480) / 126) ** 2 + ((y - 292) / 90) ** 2 < 1;
+const inField = (x, y) => FIELDS.some(f => x > f.x - 5 && x < f.x + f.w + 5 && y > f.y - 3 && y < f.y + f.h + 10);
+const cleared = (x, y) => CLEAR.some(c => Math.hypot(x - c.x, y - c.y) < c.r) || inTown(x, y) || inField(x, y);
+
+function landness(x, y) {
+  const nx = (x - 480) / 470, ny = (y - 270) / 250;
+  let d = 1 - Math.hypot(nx, ny) + (fbm(x / 70, y / 70) - 0.5) * 0.42;
+  for (const p of LANDMARKS) { const dist = Math.hypot(x - p.x, y - p.y); if (dist < 150) d += 0.32 * (1 - dist / 150); }
+  return d;
+}
+function biomeAt(x, y) {
+  const n = fbm(x / 45 + 50, y / 45 + 50) - 0.5;
+  const ell = (cx, cy, rx, ry) => 1 - Math.hypot((x - cx) / rx, (y - cy) / ry) + n * 0.6;
+  const w = [[PEAKS, ell(830, 48, 210, 112)], [FOREST, ell(180, 140, 196, 132)], [BADLANDS, ell(150, 440, 180, 112)], [SWAMP, ell(820, 444, 180, 106)]];
+  let best = PLAINS, top = 0;
+  for (const [b, v] of w) if (v > top) { top = v; best = b; }
+  return best;
+}
+function mask(paint) {
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+  x.fillStyle = x.strokeStyle = '#000'; x.lineCap = x.lineJoin = 'round'; paint(x);
+  const d = x.getImageData(0, 0, W, H).data, m = new Uint8Array(GW * GH);
+  for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) m[j * GW + i] = d[((j * CELL + 1) * W + i * CELL + 1) * 4 + 3] > 110 ? 1 : 0;
+  return m;
+}
+const stroke = (x, pts) => { x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y)); x.stroke(); };
+const roadsMask = w => mask(x => { x.lineWidth = w; Object.values(ROADS).forEach(r => stroke(x, r)); });
+const riverMask = extra => mask(x => { for (let i = 0; i < RIVER.length - 1; i++) { x.lineWidth = 7 + RIVER[i].y / H * 9 + extra; stroke(x, [RIVER[i], RIVER[i + 1]]); } });
+const ovalMask = (cx, cy, rx, ry) => mask(x => { x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); x.fill(); });
+
+function paintTerrain(b) {
+  const ROAD = roadsMask(8), ROAD_EDGE = roadsMask(12), ROAD_NEAR = roadsMask(30);
+  const RIV = riverMask(0), RIV_BANK = riverMask(6), LAKE = ovalMask(318, 118, 34, 18), LAKE_BANK = ovalMask(318, 118, 38, 21);
+  const PLAZA = ovalMask(480, 302, 60, 34), PLAZA_EDGE = ovalMask(480, 302, 63, 37);
+  for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+    const k = j * GW + i, x = i * CELL + 1, y = j * CELL + 1;
+    const d = landness(x, y); DEPTH[k] = d;
+    let kind = d > 0 ? LAND : SEA, biome = PLAINS;
+    if (kind === LAND) {
+      biome = biomeAt(x, y);
+      if (d < 0.035 && (biome === PLAINS || biome === FOREST)) biome = BEACH;
+      if (RIV[k] || LAKE[k]) kind = FRESH;
+      else if (biome === SWAMP && !ROAD_NEAR[k] && fbm(x / 22 + 9, y / 22 + 4) > 0.64 && Math.hypot(x - 818, y - 424) > 42) kind = FRESH;
+    }
+    KIND[k] = kind; BIOME[k] = biome;
   }
-  // armory: weapon racks, shields, anvil
-  { const r = ROOMS.armory; b.fillStyle = '#4a2f1d'; b.fillRect(r.x + 6, r.y + 30, 50, 3);
-    for (let i = 0; i < 7; i++) { const x = r.x + 10 + i * 7; b.fillStyle = '#c9d2dc'; b.fillRect(x, r.y + 16, 2, 14); b.fillStyle = '#6b4426'; b.fillRect(x - 1, r.y + 27, 4, 2); b.fillStyle = '#f2f6fa'; b.fillRect(x, r.y + 16, 1, 10); }
-    for (const [sx, c] of [[r.x + 70, '#b8323f'], [r.x + 88, '#3b5fa8']]) { b.fillStyle = '#1b1424'; b.fillRect(sx - 1, r.y + 15, 12, 15); b.fillStyle = c; b.fillRect(sx, r.y + 16, 10, 12); b.fillStyle = '#f2b84b'; b.fillRect(sx + 4, r.y + 18, 2, 8); b.fillRect(sx + 2, r.y + 21, 6, 2); }
-    b.fillStyle = '#1b1424'; b.fillRect(ANVIL.x - 9, ANVIL.y - 4, 18, 10); b.fillStyle = '#5b6470'; b.fillRect(ANVIL.x - 8, ANVIL.y - 3, 16, 4); b.fillStyle = '#7b8694'; b.fillRect(ANVIL.x - 8, ANVIL.y - 3, 16, 1);
-    b.fillStyle = '#3d444e'; b.fillRect(ANVIL.x - 4, ANVIL.y + 1, 8, 5); b.fillStyle = '#5a3720'; b.fillRect(ANVIL.x - 6, ANVIL.y + 6, 12, 3);
+  const img = b.createImageData(W, H), buf = img.data;
+  const put = (x, y, c) => { const o = (y * W + x) * 4; buf[o] = c[0]; buf[o + 1] = c[1]; buf[o + 2] = c[2]; buf[o + 3] = 255; };
+  for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+    const k = j * GW + i, d = DEPTH[k], kind = KIND[k], biome = BIOME[k];
+    const tone = fbm(i / 13, j / 13);
+    for (let dy = 0; dy < CELL; dy++) for (let dx = 0; dx < CELL; dx++) {
+      const x = i * CELL + dx, y = j * CELL + dy, h = hash(x, y);
+      let c;
+      if (kind === SEA) {
+        c = PAL[d > -0.03 ? 'sea1' : d > -0.09 ? 'sea2' : d > -0.18 ? 'sea3' : 'sea4'];
+        if (h > 0.985) c = PAL.shoal;
+      } else if (kind === FRESH) {
+        if (ROAD[k]) c = x % 4 === 0 ? PAL.plankLo : PAL.plank;               // bridge deck
+        else if (ROAD_EDGE[k]) c = PAL.rail;
+        else if (!RIV[k] && !LAKE[k]) c = h > 0.92 ? PAL.poolHi : PAL.pool;   // swamp pools
+        else c = h > 0.96 ? PAL.riverHi : PAL.river;
+      } else if (PLAZA[k]) {
+        const off = Math.floor(y / 3) % 2 ? 3 : 0;
+        c = y % 3 === 0 || (x + off) % 6 === 0 ? PAL.mortar : hash(Math.floor((x + off) / 6), Math.floor(y / 3)) > 0.5 ? PAL.cobA : PAL.cobB;
+      } else if (ROAD[k]) {
+        c = h > 0.93 ? PAL.dirtHi : h < 0.07 ? PAL.dirtLo : PAL.dirt;
+      } else if (ROAD_EDGE[k]) {
+        c = h > 0.5 ? PAL.dirtLo : PAL.dirtEdge;
+      } else if (PLAZA_EDGE[k]) {
+        c = PAL.plazaEdge;
+      } else if (RIV_BANK[k] || LAKE_BANK[k]) {
+        c = h > 0.9 ? PAL.sandLo : PAL.bank;
+      } else {
+        const g = GROUND[biome];
+        const base = tone > 0.52 || (tone > 0.48 && (x + y) % 2) ? g[0] : g[1];
+        c = PAL[h > 0.94 ? g[2] : h < 0.05 ? g[3] : base];
+      }
+      put(x, y, c);
+    }
   }
-  // tavern: quest board, fireplace, tables, barrels
-  { const r = ROOMS.tavern;
-    b.fillStyle = '#3a2316'; b.fillRect(BOARD.x - 1, BOARD.y + 1, 34, 22); b.fillStyle = '#8a5a34'; b.fillRect(BOARD.x, BOARD.y + 2, 32, 20);
-    b.fillStyle = '#2a1a10'; b.fillRect(r.x + 4, r.y + 2, 18, 18); b.fillStyle = '#6b6b6b'; b.fillRect(r.x + 3, r.y + 1, 20, 3); b.fillRect(r.x + 3, r.y + 1, 3, 19); b.fillRect(r.x + 20, r.y + 1, 3, 19);
-    for (const [tx, ty] of [[166, 118], [210, 118]]) { b.fillStyle = 'rgba(0,0,0,.35)'; b.fillRect(tx - 11, ty + 5, 24, 4); b.fillStyle = '#5a3720'; b.fillRect(tx - 11, ty - 4, 22, 9); b.fillStyle = '#8a5a34'; b.fillRect(tx - 11, ty - 4, 22, 2);
-      b.fillStyle = '#d9c08f'; b.fillRect(tx - 6, ty - 6, 3, 4); b.fillRect(tx + 3, ty - 6, 3, 4); b.fillStyle = '#fff3d0'; b.fillRect(tx - 6, ty - 6, 3, 1); b.fillRect(tx + 3, ty - 6, 3, 1);
-      b.fillStyle = '#3a2316'; b.fillRect(tx - 16, ty - 1, 4, 4); b.fillRect(tx + 12, ty - 1, 4, 4); }
-    for (const [bx, by] of [[r.x + r.w - 12, r.y + 20], [r.x + r.w - 12, r.y + 34]]) { b.fillStyle = '#1b1424'; b.fillRect(bx - 1, by - 1, 12, 13); b.fillStyle = '#7a4a2a'; b.fillRect(bx, by, 10, 11); b.fillStyle = '#4a2f1d'; b.fillRect(bx, by + 2, 10, 1); b.fillRect(bx, by + 8, 10, 1); }
+  // Coastline: a cliff face where land drops into the sea below it, shallows around it, and foam to animate.
+  for (let j = 1; j < GH - 1; j++) for (let i = 1; i < GW - 1; i++) {
+    const k = j * GW + i; if (KIND[k] !== SEA) continue;
+    const x = i * CELL, y = j * CELL;
+    if (KIND[k - GW] !== SEA) { for (let dx = 0; dx < CELL; dx++) { put(x + dx, y, PAL.cliffHi); put(x + dx, y + 1, PAL.cliffLo); } continue; }
+    const near = KIND[k - 1] !== SEA || KIND[k + 1] !== SEA || KIND[k + GW] !== SEA;
+    if (near) { FOAM.push({ x, y, ph: hash(i, j) * 6.28 }); continue; }
+    let close = false;
+    for (let dj = -2; dj <= 2 && !close; dj++) for (let di = -2; di <= 2; di++) { const n = (j + dj) * GW + i + di; if (n >= 0 && n < KIND.length && KIND[n] !== SEA) { close = true; break; } }
+    if (close) for (let dy = 0; dy < CELL; dy++) for (let dx = 0; dx < CELL; dx++) if ((x + dx + y + dy) % 2 === 0 || DEPTH[k] > -0.02) put(x + dx, y + dy, PAL.shoal);
   }
-  // dungeon: chains, bones, cracks
-  { const r = ROOMS.dungeon;
-    for (const cx of [r.x + 20, r.x + 64]) { b.fillStyle = '#5b6470'; for (let i = 0; i < 4; i++) b.fillRect(cx, r.y + 15 + i * 3, 2, 2); }
-    b.fillStyle = '#d6cfc0'; b.fillRect(r.x + 24, r.y + 64, 6, 2); b.fillRect(r.x + 23, r.y + 63, 2, 4); b.fillRect(r.x + 29, r.y + 63, 2, 4);
-    b.fillRect(r.x + 90, r.y + 22, 5, 4); b.fillStyle = '#1b1424'; b.fillRect(r.x + 91, r.y + 23, 1, 1); b.fillRect(r.x + 93, r.y + 23, 1, 1);
-    b.fillStyle = '#1a1416'; for (let i = 0; i < 9; i++) b.fillRect(r.x + 50 + i * 2, r.y + 40 + (i % 3), 2, 1);
+  for (let j = 0; j < GH; j += 3) for (let i = 0; i < GW; i += 3) {
+    const k = j * GW + i;
+    if (KIND[k] !== LAND && hash(i * 3, j * 7) > 0.55 && !ROAD_EDGE[k]) SPARKS.push({ x: i * CELL, y: j * CELL, ph: hash(i, j * 5) * 6.28, fresh: KIND[k] === FRESH });
   }
-  // cauldron room: potion shelves
-  { const r = ROOMS.cauldron; b.fillStyle = '#3a2316'; b.fillRect(r.x + 6, r.y + 15, 44, 3); b.fillRect(r.x + 62, r.y + 15, 44, 3);
-    const pots = ['#e8606f', '#84d488', '#a593ff', '#f2b84b', '#4fc7b5'];
-    for (const sx of [r.x + 8, r.x + 64]) for (let i = 0; i < 6; i++) { const c = pots[Math.floor(hash(sx, i) * pots.length)]; b.fillStyle = '#1b1424'; b.fillRect(sx + i * 7, r.y + 7, 5, 8); b.fillStyle = c; b.fillRect(sx + i * 7 + 1, r.y + 10, 3, 5); b.fillStyle = '#e8e2d6'; b.fillRect(sx + i * 7 + 1, r.y + 8, 3, 2); }
+  b.putImageData(img, 0, 0);
+  // A ship works the longest stretch of open water along the south edge.
+  let bestSpan = null;
+  for (let y = 500; y < 536; y += 4) {
+    let start = -1;
+    for (let x = 0; x <= W; x += 2) {
+      const sea = x < W && KIND[cellAt(x, y)] === SEA && KIND[cellAt(x, y - 14)] === SEA;
+      if (sea && start < 0) start = x;
+      if (!sea && start >= 0) { if (!bestSpan || x - start > bestSpan.to - bestSpan.from) bestSpan = { y, from: start + 12, to: x - 12 }; start = -1; }
+    }
+  }
+  if (bestSpan && bestSpan.to - bestSpan.from > 60) SHIP = bestSpan;
+  return { ROAD_NEAR };
+}
+
+// ───────────────────────── scenery sprites ─────────────────────────
+const shadow = (b, x, y, w) => px(b, 'rgba(0,0,0,.28)', x - (w >> 1), y - 1, w, 3);
+function pine(b, x, y, h) {
+  shadow(b, x + 1, y, 11);
+  px(b, '#3a2414', x - 1, y - 3, 3, 3);
+  const half = i => { let w = Math.max(0, Math.round((h - i) * 0.38)); if (i % 4 === 0 && i > 1) w += 1; return w; };
+  px(b, '#14301c', x, y - 4 - h, 1, 1);
+  for (let i = 0; i < h; i++) { const w = half(i); px(b, '#14301c', x - w - 1, y - 3 - i, w * 2 + 3, 1); }
+  for (let i = 0; i < h; i++) {
+    const w = half(i), yy = y - 3 - i;
+    px(b, '#2e6a3a', x - w, yy, w + 1, 1); if (w) px(b, '#22502c', x + 1, yy, w, 1);
+    if (i % 4 === 1 && w > 1) px(b, '#4a8f4f', x - w, yy, Math.max(1, w >> 1), 1);
   }
 }
+const OAK = ['#1d3b1c', '#2f6a2c', '#43893a', '#62a84c'], DARK_OAK = ['#14301a', '#24552a', '#336f34', '#4a8a42'];
+const WILLOW = ['#16261a', '#2e4a2a', '#3c5e34', '#557a46'];
+function oak(b, x, y, r, pal = OAK, trunk = 5) {
+  shadow(b, x + 1, y, r * 2 + 2);
+  if (trunk) { px(b, '#3a2414', x - 1, y - trunk, 3, trunk); px(b, '#5a3a20', x - 1, y - trunk, 1, trunk); }
+  const cy = y - trunk - r;
+  for (let dy = -r - 1; dy <= r + 1; dy++) for (let dx = -r - 1; dx <= r + 1; dx++) {
+    const d = Math.hypot(dx, dy * 1.1); if (d > r + 0.6) continue;
+    let c = d > r - 0.5 ? pal[0] : dx + dy < -r * 0.6 ? pal[3] : dx + dy > r * 0.5 ? pal[1] : pal[2];
+    if (c !== pal[0] && hash(x + dx, y + dy) > 0.84) c = pal[1];
+    px(b, c, x + dx, cy + dy);
+  }
+}
+function willow(b, x, y) {
+  oak(b, x, y, 6, WILLOW, 6);
+  for (let k = -5; k <= 5; k += 2) { const len = 3 + Math.floor(hash(x + k, y) * 4); px(b, '#2e4a2a', x + k, y - 9, 1, len); }
+}
+function deadTree(b, x, y) {
+  shadow(b, x, y, 8);
+  px(b, '#2a201a', x - 1, y - 12, 3, 12); px(b, '#4a3a2e', x - 1, y - 12, 1, 12);
+  px(b, '#2a201a', x - 5, y - 11, 4, 1); px(b, '#2a201a', x - 6, y - 13, 1, 2);
+  px(b, '#2a201a', x + 2, y - 8, 4, 1); px(b, '#2a201a', x + 5, y - 11, 1, 3); px(b, '#2a201a', x, y - 15, 1, 3);
+}
+function palm(b, x, y) {
+  shadow(b, x + 2, y, 9);
+  for (let i = 0; i < 14; i++) px(b, i % 3 ? '#8a5a34' : '#6b4426', x + Math.round(Math.sin(i / 14 * 1.3) * 3), y - i, 2, 1);
+  const tx = x + 3, ty = y - 15;
+  for (const [dx, dy] of [[-1, 0], [1, 0], [-0.7, 0.5], [0.7, 0.5], [0, -0.6]]) for (let s = 1; s < 6; s++) px(b, s > 3 ? '#2f6a2c' : '#43893a', tx + Math.round(dx * s), ty + Math.round(dy * s + (s > 3 ? 1 : 0)), 2, 1);
+  px(b, '#6b4426', tx, ty + 1, 2, 2);
+}
+function rock(b, x, y, s, light = '#9a938a', dark = '#6e675e') {
+  px(b, '#1b1424', x - s - 1, y - s - 1, s * 2 + 3, s + 2); px(b, dark, x - s, y - s, s * 2 + 1, s + 1);
+  px(b, light, x - s, y - s, s + 1, Math.max(1, s >> 1) + 1); px(b, '#c4bdb2', x - s + 1, y - s, 1, 1);
+}
+function gravestone(b, x, y, cross) {
+  shadow(b, x, y, 8);
+  if (cross) { px(b, '#1b1424', x - 1, y - 10, 3, 10); px(b, '#1b1424', x - 3, y - 8, 7, 3); px(b, '#a8a8b4', x, y - 9, 1, 9); px(b, '#a8a8b4', x - 2, y - 7, 5, 1); return; }
+  px(b, '#1b1424', x - 3, y - 8, 7, 8); px(b, '#1b1424', x - 2, y - 9, 5, 1);
+  px(b, '#8a8a96', x - 2, y - 8, 5, 8); px(b, '#a8a8b4', x - 2, y - 8, 1, 7); px(b, '#5e5e6a', x - 1, y - 6, 3, 1);
+}
+function mushroom(b, x, y, cap = '#c0392b') { px(b, '#efe6d2', x, y - 2, 1, 2); px(b, '#1b1424', x - 2, y - 4, 5, 2); px(b, cap, x - 1, y - 4, 3, 1); px(b, '#fff', x, y - 4, 1, 1); }
+function reeds(b, x, y) { for (let k = 0; k < 4; k++) { const hgt = 4 + Math.floor(hash(x + k, y) * 4); px(b, '#5e7a3a', x + k * 2 - 3, y - hgt, 1, hgt); if (k % 2) px(b, '#6b4426', x + k * 2 - 3, y - hgt - 1, 1, 2); } }
+function tuft(b, x, y, c = '#3f7a2c') { px(b, c, x, y - 2, 1, 2); px(b, c, x + 2, y - 3, 1, 3); px(b, c, x + 1, y - 1, 1, 1); }
+function flowers(b, x, y) { const cs = ['#fff3d0', '#f7dd5b', '#e88aa8', '#8ab4f0']; for (let k = 0; k < 3; k++) px(b, cs[Math.floor(hash(x + k, y) * 4)], x + Math.floor(hash(x, y + k) * 6) - 3, y + Math.floor(hash(x + k * 3, y) * 4) - 2); }
+function mountain(b, x, y, w, h, snow = 0.32) {
+  px(b, '#2f2a26', x, y - h - 1, 1, 1);
+  for (let i = 0; i <= h; i++) { const hw = Math.round(i / h * w / 2); px(b, '#2f2a26', x - hw - 1, y - h + i, hw * 2 + 3, 1); }
+  for (let i = 1; i <= h; i++) {
+    const yy = y - h + i, hw = Math.round(i / h * w / 2), ridge = Math.round(Math.sin(i * 0.7 + x) * 1.2);
+    const cap = i < h * snow + Math.floor(hash(x, i) * 3);
+    px(b, cap ? '#f4f4f8' : '#9a9184', x - hw, yy, Math.max(0, hw + ridge), 1);
+    px(b, cap ? '#b9c0d0' : '#6d665c', x + ridge, yy, Math.max(0, hw - ridge + 1), 1);
+  }
+  for (let k = 0; k < w / 6; k++) { const sx = x - w / 3 + Math.floor(hash(x + k, y) * w * 0.66), sy = y - 2 - Math.floor(hash(k, x) * h * 0.55); px(b, '#5a544b', sx, sy, 1, 3); }
+}
+function wall(b, L, T, w, h, beams) {
+  px(b, '#1b1424', L - 1, T - 1, w + 2, h + 1);
+  px(b, '#e8d8b0', L, T, w, h); px(b, '#cdbb90', L + w - 3, T, 3, h);
+  if (!beams) return;
+  px(b, '#5a3720', L, T, w, 2);
+  for (let bx = L; bx < L + w - 2; bx += 10) px(b, '#5a3720', bx, T, 2, h);
+  px(b, '#5a3720', L + w - 2, T, 2, h);
+  if (h > 14) px(b, '#5a3720', L, T + (h >> 1) - 1, w, 2);
+}
+function roof(b, x, top, w, rows, a, dark) {
+  const L = x - (w >> 1);
+  for (let i = 0; i < rows; i++) {
+    const yy = top - 1 - i, inset = Math.round(i * (w / 2 + 3) / (rows + 2)), l = L - 3 + inset, r = L + w + 3 - inset;
+    px(b, '#1b1424', l - 1, yy, r - l + 2, 1);
+    px(b, i % 3 === 0 ? dark : a, l, yy, r - l, 1);
+    px(b, i % 3 === 0 ? shade(dark, -14) : dark, x + Math.floor((r - x) * 0.45), yy, Math.ceil((r - x) * 0.55), 1);
+  }
+  const inset = Math.round(rows * (w / 2 + 3) / (rows + 2));
+  px(b, '#1b1424', L - 4 + inset, top - 1 - rows, w + 8 - inset * 2, 1);
+  px(b, 'rgba(0,0,0,.28)', L, top, w, 2);
+}
+function window_(b, x, y) { px(b, '#1b1424', x - 1, y - 1, 6, 6); px(b, '#ffd27a', x, y, 4, 4); px(b, '#fff3c0', x, y, 2, 2); px(b, '#5a3720', x + 2, y, 1, 4); }
+function door(b, x, y) { px(b, '#1b1424', x - 4, y - 11, 8, 11); px(b, '#6b4426', x - 3, y - 10, 6, 10); px(b, '#4a2f1d', x, y - 10, 1, 10); px(b, '#f2b84b', x + 1, y - 5, 1, 1); }
+function house(b, x, y, w, wallH, rows, a, dark, chimney) {
+  const L = x - (w >> 1);
+  px(b, 'rgba(0,0,0,.3)', L + 2, y, w, 4);
+  wall(b, L, y - wallH, w, wallH, true);
+  for (let wx = L + 5; wx < L + w - 6; wx += 10) if (Math.abs(wx + 2 - x) > 6) window_(b, wx, y - wallH + 5);
+  door(b, x, y);
+  if (chimney) { const cx = x + Math.round(w / 4), cy = y - wallH - rows + 2; px(b, '#1b1424', cx - 1, cy - 7, 7, 8); px(b, '#8a4a3a', cx, cy - 6, 5, 7); px(b, '#6a3a2a', cx + 3, cy - 6, 2, 7); CHIMNEYS.push({ x: cx + 2, y: cy - 8 }); }
+  roof(b, x, y - wallH, w, rows, a, dark);
+}
+
+// ───────────────────────── landmarks ─────────────────────────
+function tavern(b, x, y) {
+  house(b, x, y, 66, 24, 20, '#b8503a', '#8e3a2a', true);
+  // hanging sign with a mug
+  px(b, '#3a2414', x + 33, y - 20, 8, 2); px(b, '#3a2414', x + 39, y - 20, 1, 4);
+  px(b, '#1b1424', x + 34, y - 17, 11, 9); px(b, '#8a5a34', x + 35, y - 16, 9, 7);
+  px(b, '#f2b84b', x + 37, y - 15, 4, 5); px(b, '#fff3d0', x + 37, y - 15, 4, 1); px(b, '#f2b84b', x + 41, y - 14, 1, 3);
+  // barrels by the door
+  for (const bx of [x - 20, x - 13]) { px(b, '#1b1424', bx - 1, y - 9, 7, 9); px(b, '#7a4a2a', bx, y - 8, 5, 8); px(b, '#4a2f1d', bx, y - 6, 5, 1); px(b, '#4a2f1d', bx, y - 3, 5, 1); }
+}
+function questBoard(b) {
+  const { x, y } = BOARD;
+  shadow(b, x + 16, y + 28, 30);
+  px(b, '#3a2316', x + 3, y + 18, 3, 10); px(b, '#3a2316', x + 26, y + 18, 3, 10);
+  px(b, '#1b1424', x - 1, y + 1, 34, 22); px(b, '#8a5a34', x, y + 2, 32, 20); px(b, '#6b4426', x, y + 20, 32, 2);
+  px(b, '#1b1424', x - 2, y - 1, 36, 3); px(b, '#b8503a', x - 1, y, 34, 1);
+}
+function well(b, x, y) {
+  shadow(b, x, y, 16);
+  px(b, '#1b1424', x - 7, y - 8, 14, 8); px(b, '#9a938a', x - 6, y - 7, 12, 6); px(b, '#7a7266', x - 6, y - 3, 12, 1); px(b, '#2a5f9a', x - 4, y - 7, 8, 2);
+  px(b, '#5a3720', x - 6, y - 17, 2, 10); px(b, '#5a3720', x + 4, y - 17, 2, 10); px(b, '#3a2414', x - 4, y - 14, 8, 1);
+  px(b, '#1b1424', x - 9, y - 20, 18, 4); px(b, '#b8503a', x - 8, y - 19, 16, 2);
+}
+function stall(b, x, y) {
+  shadow(b, x, y, 26);
+  px(b, '#3a2414', x - 11, y - 16, 2, 16); px(b, '#3a2414', x + 9, y - 16, 2, 16);
+  px(b, '#1b1424', x - 12, y - 7, 24, 7); px(b, '#8a5a34', x - 11, y - 6, 22, 5);
+  const goods = ['#e8606f', '#f2b84b', '#84d488', '#e39a4d'];
+  for (let i = 0; i < 5; i++) px(b, goods[i % 4], x - 9 + i * 4, y - 9, 3, 3);
+  for (let i = 0; i < 26; i += 2) { px(b, '#1b1424', x - 13 + i, y - 21, 2, 6); px(b, (i / 2) % 2 ? '#fff3d0' : '#b8323f', x - 13 + i, y - 20, 2, 4); }
+}
+function lamp(b, x, y) { shadow(b, x, y, 5); px(b, '#1b1424', x, y - 12, 1, 12); px(b, '#1b1424', x - 1, y - 15, 3, 4); px(b, '#ffd27a', x, y - 14, 1, 2); LAMPS.push({ x, y: y - 13 }); }
+function windmill(b, x, y) {
+  shadow(b, x, y, 18);
+  for (let i = 0; i < 26; i++) { const hw = 7 - Math.round(i * 3 / 26); px(b, '#1b1424', x - hw - 1, y - i, hw * 2 + 2, 1); px(b, '#e2d6bc', x - hw, y - i, hw, 1); px(b, '#c4b896', x, y - i, hw, 1); }
+  px(b, '#1b1424', x - 6, y - 32, 12, 7); px(b, '#8e3a2a', x - 5, y - 31, 10, 5); px(b, '#b8503a', x - 5, y - 31, 4, 2);
+  px(b, '#5a3720', x - 2, y - 7, 4, 7); px(b, '#1b1424', x - 1, y - 18, 2, 3);
+  WINDMILL = { x, y: y - 27 };
+}
+function field(b, f) {
+  px(b, '#5e4428', f.x, f.y, f.w, f.h);
+  for (let yy = f.y + 2; yy < f.y + f.h - 1; yy += 4) {
+    px(b, '#7f5e36', f.x + 1, yy, f.w - 2, 2);
+    for (let xx = f.x + 2; xx < f.x + f.w - 2; xx += 3) {
+      if (f.crop === 'wheat') { px(b, hash(xx, yy) > 0.25 ? '#e0c050' : '#c9a33a', xx, yy - 2, 2, 3); px(b, '#f2dc7a', xx, yy - 2, 1, 1); }
+      else { px(b, '#2f6a2c', xx, yy - 1, 3, 2); px(b, '#84d488', xx + 1, yy - 1, 1, 1); }
+    }
+  }
+  for (let xx = f.x - 2; xx <= f.x + f.w + 1; xx += 6) { px(b, '#4a2f1d', xx, f.y - 4, 2, 5); px(b, '#4a2f1d', xx, f.y + f.h - 1, 2, 5); }
+  px(b, '#6b4426', f.x - 2, f.y - 3, f.w + 4, 1); px(b, '#6b4426', f.x - 2, f.y + f.h, f.w + 4, 1);
+}
+function wizardTower(b, x, y) {
+  shadow(b, x + 4, y, 34);
+  // a small library annex beside the tower
+  wall(b, x + 10, y - 14, 20, 14, false); px(b, '#9a93a8', x + 10, y - 14, 20, 14); px(b, '#7d768c', x + 26, y - 14, 4, 14);
+  window_(b, x + 16, y - 10); roof(b, x + 20, y - 14, 20, 9, '#3b5fa8', '#2c4a85');
+  const top = y - 60, w = 22, L = x - 11;
+  px(b, '#1b1424', L - 1, top - 1, w + 2, y - top + 1);
+  for (let yy = top; yy < y; yy++) for (let xx = 0; xx < w; xx++) {
+    const row = Math.floor((yy - top) / 5), seam = (yy - top) % 5 === 0 || (xx + (row % 2) * 3) % 7 === 0;
+    px(b, seam ? '#4a4458' : xx < 4 ? '#a59eb2' : xx < 14 ? '#857e94' : '#665f77', L + xx, yy);
+  }
+  px(b, '#1b1424', L - 4, top - 5, w + 8, 6); px(b, '#8a839a', L - 3, top - 4, w + 6, 4); px(b, '#a59eb2', L - 3, top - 4, w + 6, 1);
+  for (let k = 0; k < 7; k++) px(b, '#1b1424', L - 3 + k * 4 + 2, top - 4, 1, 2);
+  for (let i = 0; i < 32; i++) {
+    const yy = top - 5 - i, hw = Math.round((32 - i) / 32 * 16);
+    px(b, '#1b1424', x - hw - 1, yy, hw * 2 + 2, 1); px(b, i % 6 < 1 ? '#7a5fd9' : '#6a4fc9', x - hw, yy, hw, 1); px(b, '#45318c', x, yy, hw, 1);
+  }
+  px(b, '#1b1424', x - 1, top - 41, 3, 5); px(b, '#f7dd5b', x, top - 40, 1, 4);
+  door(b, x, y);
+  TOWER = { x, y, top, windows: [{ x: x - 3, y: y - 30 }, { x: x + 2, y: y - 48 }], tip: { x, y: top - 41 } };
+  for (const wdw of TOWER.windows) { px(b, '#1b1424', wdw.x - 1, wdw.y - 1, 5, 8); px(b, '#2a1d45', wdw.x, wdw.y, 3, 6); }
+}
+function forgeHall(b, x, y) {
+  mountain(b, x - 34, y - 26, 74, 50, 0.3); mountain(b, x + 38, y - 22, 70, 54, 0.3); mountain(b, x + 2, y - 36, 92, 66, 0.34);
+  const L = x - 26, T = y - 44;
+  px(b, '#1b1424', L - 1, T - 1, 54, 46);
+  for (let yy = T; yy < y; yy++) for (let xx = 0; xx < 52; xx++) {
+    const row = Math.floor((yy - T) / 6), seam = (yy - T) % 6 === 0 || (xx + (row % 2) * 6) % 12 === 0;
+    px(b, seam ? '#5e574d' : xx < 4 ? '#b3aa9b' : xx > 46 ? '#7d766a' : '#9a9184', L + xx, yy);
+  }
+  px(b, '#1b1424', L - 5, T - 7, 62, 8); px(b, '#7d766a', L - 4, T - 6, 60, 6); px(b, '#b3aa9b', L - 4, T - 6, 60, 1);
+  for (let i = 0; i < 7; i++) { const rx = L + 3 + i * 7; px(b, '#f2b84b', rx, T - 4, 3, 1); px(b, '#f2b84b', rx + 1, T - 4, 1, 3); }
+  for (let i = 0; i < 30; i++) {
+    const yy = y - 30 + i, hw = i < 8 ? Math.round(Math.sqrt(Math.max(0, 64 - (8 - i) ** 2)) * 11 / 8) : 11;
+    px(b, '#1b1424', x - hw - 1, yy, hw * 2 + 2, 1); px(b, '#120c10', x - hw, yy, hw * 2, 1);
+  }
+  for (let k = -9; k <= 9; k += 3) px(b, '#4a4458', x + k, y - 29 + (Math.abs(k) > 6 ? 3 : 0), 1, 4);
+  for (const bx of [L + 4, L + 44]) { px(b, '#1b1424', bx - 1, T + 3, 6, 18); px(b, '#b8323f', bx, T + 4, 4, 15); px(b, '#f2b84b', bx + 1, T + 9, 2, 4); px(b, '#1b1424', bx, T + 19, 1, 2); px(b, '#1b1424', bx + 3, T + 19, 1, 2); }
+  px(b, '#6d665c', x - 17, y - 2, 34, 3); px(b, '#8a8276', x - 15, y - 2, 30, 1);
+  // anvil and a weapon rack out front
+  const A = ANVIL;
+  shadow(b, A.x, A.y + 8, 18);
+  px(b, '#1b1424', A.x - 9, A.y - 4, 18, 10); px(b, '#5b6470', A.x - 8, A.y - 3, 16, 4); px(b, '#7b8694', A.x - 8, A.y - 3, 16, 1);
+  px(b, '#3d444e', A.x - 4, A.y + 1, 8, 5); px(b, '#5a3720', A.x - 6, A.y + 6, 12, 3);
+  const rx = x - 52, ry = y + 12;
+  px(b, '#4a2f1d', rx - 12, ry - 3, 26, 3);
+  for (let i = 0; i < 4; i++) { const sx = rx - 9 + i * 6; px(b, '#c9d2dc', sx, ry - 16, 2, 13); px(b, '#f2f6fa', sx, ry - 16, 1, 10); px(b, '#6b4426', sx - 1, ry - 5, 4, 2); }
+  px(b, '#4a2f1d', rx - 12, ry - 3, 2, 6); px(b, '#4a2f1d', rx + 12, ry - 3, 2, 6);
+  VENTS.push({ x: x - 34, y: y - 70 }, { x: x + 36, y: y - 70 });
+  for (const v of VENTS) { px(b, '#1b1424', v.x - 3, v.y, 7, 9); px(b, '#4a4458', v.x - 2, v.y + 1, 5, 8); px(b, '#6a6478', v.x - 2, v.y + 1, 1, 8); }
+  FORGE = { x, y: y - 12 };
+}
+function dungeonCave(b, x, y) {
+  for (let i = 0; i < 54; i++) {
+    const yy = y - 54 + i, hw = Math.round(12 + i * 0.95 + Math.sin(i * 0.7) * 2);
+    px(b, '#1b1424', x - hw - 1, yy, hw * 2 + 2, 1); px(b, '#5a534c', x - hw, yy, hw, 1); px(b, '#433d38', x, yy, hw, 1);
+    if (i % 6 === 2) px(b, '#6e665d', x - hw + 2, yy, Math.max(1, hw - 7), 1);
+  }
+  const sy = y - 28;
+  for (let dy = -17; dy <= 17; dy++) for (let dx = -18; dx <= 18; dx++) {
+    const dome = (r) => dy <= 2 && Math.hypot(dx, dy * 1.05) <= r;
+    const jaw = (r) => dy > 0 && dy <= 13 + (r - 16) && Math.abs(dx) <= r - 5 - Math.max(0, dy - 9);
+    if (dome(16.5) || jaw(16.5)) px(b, '#1b1424', x + dx, sy + dy);
+    if (dome(15.4) || jaw(15.4)) px(b, dx < -7 ? '#ece5d5' : dx > 6 ? '#b3a990' : '#d6cfc0', x + dx, sy + dy);
+  }
+  for (const ex of [-7, 7]) { px(b, '#1b1424', x + ex - 4, sy - 5, 8, 7); px(b, '#1b1424', x + ex - 3, sy - 6, 6, 9); }
+  px(b, '#1b1424', x - 1, sy + 4, 3, 3); px(b, '#1b1424', x, sy + 7, 1, 1);
+  px(b, '#120c10', x - 8, sy + 9, 16, y - sy - 9); px(b, '#1b1424', x - 9, sy + 9, 1, y - sy - 9); px(b, '#1b1424', x + 8, sy + 9, 1, y - sy - 9);
+  for (let k = -7; k <= 5; k += 3) { px(b, '#1b1424', x + k - 1, sy + 9, 3, 4); px(b, '#efe6d2', x + k, sy + 9, 2, 3); }
+  for (const [bx, by] of [[x + 16, y + 3], [x - 18, y + 5], [x + 26, y - 4]]) { px(b, '#d6cfc0', bx, by, 6, 2); px(b, '#d6cfc0', bx - 1, by - 1, 2, 4); px(b, '#d6cfc0', bx + 5, by - 1, 2, 4); }
+  SKULL = { x, eyes: [{ x: x - 7, y: sy - 2 }, { x: x + 7, y: sy - 2 }], mouth: { x, y: y - 6 } };
+  TORCHES.push({ x: x - 26, y: y - 10 }, { x: x + 26, y: y - 10 });
+  for (const t of TORCHES) { px(b, '#1b1424', t.x - 1, t.y, 3, 12); px(b, '#4a2f1d', t.x, t.y, 1, 11); }
+}
+function alchemistHut(b, x, y) {
+  for (let dy = -9; dy <= 9; dy++) for (let dx = -32; dx <= 32; dx++) {
+    const e = (dx / 32) ** 2 + (dy / 9) ** 2; if (e > 1) continue;
+    px(b, e > 0.8 ? '#3a4c2c' : hash(x + dx, y + dy) > 0.93 ? '#3d6150' : '#2f4b3e', x + dx, y + 2 + dy);
+  }
+  for (const sx of [-15, -6, 5, 14]) { px(b, '#1b1424', sx + x - 1, y - 11, 3, 15); px(b, '#5a3720', x + sx, y - 10, 1, 13); }
+  px(b, '#1b1424', x - 21, y - 14, 42, 5); px(b, '#8a5a34', x - 20, y - 13, 40, 2); px(b, '#5a3720', x - 20, y - 11, 40, 1);
+  for (let r = 0; r < 4; r++) px(b, '#6b4426', x - 26, y - 10 + r * 3, 5, 1);
+  px(b, '#4a2f1d', x - 26, y - 12, 1, 14); px(b, '#4a2f1d', x - 22, y - 12, 1, 14);
+  px(b, '#1b1424', x - 15, y - 33, 30, 20);
+  for (let xx = 0; xx < 28; xx++) px(b, xx % 4 === 0 ? '#5a3720' : xx > 22 ? '#6b4426' : '#8a5a34', x - 14 + xx, y - 32, 1, 18);
+  door(b, x - 5, y - 14);
+  px(b, '#1b1424', x + 4, y - 28, 7, 7); px(b, '#3a6b3a', x + 5, y - 27, 5, 5);
+  for (let dy = -16; dy <= 0; dy++) for (let dx = -24; dx <= 24; dx++) {
+    const e = (dx / 23) ** 2 + (dy / 16) ** 2; if (e > 1) continue;
+    let c = e > 0.86 ? '#1b1424' : dx < -8 && dy < -7 ? '#e05a48' : dx > 9 ? '#8e2a20' : '#c0392b';
+    for (const [sx, sy, r] of [[-11, -8, 2.2], [3, -12, 2.6], [12, -5, 1.8], [-3, -4, 1.6], [-16, -3, 1.4]]) if (e <= 0.86 && Math.hypot(dx - sx, dy - sy) < r) c = '#fff3d0';
+    px(b, c, x + dx, y - 33 + dy);
+  }
+  px(b, '#1b1424', x - 23, y - 34, 46, 2); px(b, '#e9d6a8', x - 22, y - 34, 44, 1);
+  px(b, '#1b1424', x + 12, y - 58, 5, 12); px(b, '#5b6470', x + 13, y - 57, 3, 11); px(b, '#1b1424', x + 14, y - 61, 6, 4); px(b, '#7b8694', x + 15, y - 60, 4, 2);
+  CHIMNEYS.push({ x: x + 17, y: y - 62, magic: true });
+  for (const [bx, by, c] of [[x + 20, y - 16, '#a593ff'], [x + 24, y - 16, '#84d488'], [x - 18, y - 16, '#e8606f']]) { px(b, '#1b1424', bx - 1, by - 5, 4, 5); px(b, c, bx, by - 3, 2, 3); px(b, '#e8e2d6', bx, by - 4, 2, 1); }
+  HUT = { window: { x: x + 7, y: y - 25 } };
+}
+
+function paintBackground() {
+  const b = bg.getContext('2d');
+  const { ROAD_NEAR } = paintTerrain(b);
+  FIELDS.forEach(f => field(b, f));
+  const items = [];
+  const add = (y, fn) => items.push({ y, fn });
+  // mountain ranges in the north-east
+  for (let y = -6; y < 200; y += 11) for (let x = 560; x < W + 20; x += 17) {
+    const jx = x + Math.floor(hash(x, y + 99) * 12) - 6, jy = y + Math.floor(hash(y + 99, x) * 8);
+    const k = cellAt(jx, jy);
+    if (BIOME[k] !== PEAKS || KIND[k] !== LAND || DEPTH[k] < 0.05 || ROAD_NEAR[k] || Math.hypot(jx - 800, jy - 120) < 72) continue;
+    const w = 24 + Math.floor(hash(jx, jy * 3) * 26), h = Math.floor(w * (0.6 + hash(jy, jx) * 0.3));
+    if (KIND[cellAt(jx - w / 2, jy)] !== LAND || KIND[cellAt(jx + w / 2, jy)] !== LAND) continue;
+    add(jy, () => mountain(b, jx, jy, w, h));
+  }
+  // trees, rocks and the small things, by biome
+  for (let y = 4; y < H; y += 7) for (let x = 3; x < W; x += 7) {
+    const jx = x + Math.floor(hash(x, y * 3) * 6) - 3, jy = y + Math.floor(hash(x * 5, y) * 6) - 3;
+    const k = cellAt(jx, jy), r = hash(jx * 7, jy * 13), biome = BIOME[k];
+    if (KIND[k] === FRESH && biome === SWAMP && r < 0.12) { add(jy, () => { px(b, '#4f8a3c', jx - 1, jy, 3, 2); if (r < 0.04) px(b, '#e88aa8', jx, jy, 1, 1); }); continue; }
+    if (KIND[k] !== LAND || DEPTH[k] < 0.03 || ROAD_NEAR[k] || cleared(jx, jy)) continue;
+    const nearSkull = Math.hypot(jx - 156, jy - 414) < 120;
+    switch (biome) {
+      case FOREST:
+        if (r < 0.6) add(jy, () => pine(b, jx, jy, 12 + Math.floor(hash(jy, jx) * 9)));
+        else if (r < 0.72) add(jy, () => oak(b, jx, jy, 5, DARK_OAK));
+        else if (r < 0.76) add(jy, () => mushroom(b, jx, jy));
+        break;
+      case PLAINS:
+        if (r < 0.045) add(jy, () => oak(b, jx, jy, 5 + Math.floor(hash(jx, 1) * 2)));
+        else if (r < 0.075) add(jy, () => oak(b, jx, jy, 3, OAK, 0));
+        else if (r < 0.2) add(jy, () => flowers(b, jx, jy));
+        else if (r < 0.22) add(jy, () => rock(b, jx, jy, 2));
+        else if (r < 0.32) add(jy, () => tuft(b, jx, jy));
+        break;
+      case PEAKS:
+        if (r < 0.12) add(jy, () => rock(b, jx, jy, 2 + Math.floor(r * 20)));
+        else if (r < 0.2) add(jy, () => pine(b, jx, jy, 9));
+        break;
+      case BADLANDS:
+        if (nearSkull && r < 0.14) add(jy, () => gravestone(b, jx, jy, r < 0.05));
+        else if (r < 0.06) add(jy, () => deadTree(b, jx, jy));
+        else if (r < 0.14) add(jy, () => rock(b, jx, jy, 1 + Math.floor(r * 18), '#8a8070', '#5e5648'));
+        else if (r < 0.2) add(jy, () => tuft(b, jx, jy, '#7a6a48'));
+        break;
+      case SWAMP:
+        if (r < 0.1) add(jy, () => willow(b, jx, jy));
+        else if (r < 0.2) add(jy, () => reeds(b, jx, jy));
+        else if (r < 0.25) add(jy, () => mushroom(b, jx, jy, r < 0.22 ? '#a593ff' : '#c0392b'));
+        break;
+      case BEACH:
+        if (r < 0.03) add(jy, () => palm(b, jx, jy));
+        else if (r < 0.07) add(jy, () => rock(b, jx, jy, 1, '#c4b896', '#9a8a68'));
+        break;
+    }
+  }
+  // the guild town
+  add(262, () => tavern(b, 480, 262));
+  add(246, () => house(b, 404, 246, 30, 14, 12, '#3b5fa8', '#2c4a85', true));
+  add(246, () => house(b, 556, 246, 30, 14, 12, '#3f8f4f', '#2c6b3a', false));
+  add(318, () => house(b, 392, 318, 28, 14, 12, '#b8503a', '#8e3a2a', true));
+  add(318, () => house(b, 562, 318, 28, 14, 12, '#3b5fa8', '#2c4a85', false));
+  add(362, () => house(b, 480, 362, 32, 14, 12, '#7a4fc9', '#5a3a99', true));
+  add(BOARD.y + 28, () => questBoard(b));
+  add(294, () => well(b, 524, 294));
+  add(352, () => stall(b, 456, 352));
+  add(284, () => lamp(b, 514, 284)); add(334, () => lamp(b, 466, 334));
+  add(200, () => windmill(b, 568, 200));
+  // the four far places
+  add(140, () => wizardTower(b, 168, 140));
+  add(140, () => forgeHall(b, 800, 140));
+  add(414, () => dungeonCave(b, 156, 414));
+  add(420, () => alchemistHut(b, 822, 420));
+  items.sort((p, q) => p.y - q.y).forEach(it => it.fn());
+  const m = mini.getContext('2d'); m.imageSmoothingEnabled = true; m.drawImage(bg, 0, 0, mini.width, mini.height);
+}
+
+// Clouds drift over the realm; each has a matching shadow on the ground.
+const CLOUDS = [0, 1, 2, 3].map(seed => {
+  const w = 44 + Math.floor(hash(seed, 1) * 36), h = 20, c = document.createElement('canvas'), s = document.createElement('canvas');
+  c.width = s.width = w; c.height = s.height = h;
+  const blobs = Array.from({ length: 6 }, (_, i) => ({ x: 9 + hash(seed, i + 3) * (w - 18), y: 11 + (hash(seed, i + 9) - 0.5) * 5, r: 5 + hash(seed, i + 20) * 4 }));
+  const inside = (x, y) => blobs.some(bl => Math.hypot(x - bl.x, (y - bl.y) * 1.3) < bl.r);
+  const cx = c.getContext('2d'), sx = s.getContext('2d');
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (inside(x, y)) {
+    cx.fillStyle = !inside(x, y + 2) ? '#c9d4e4' : !inside(x, y - 2) ? '#ffffff' : '#f1f5fb'; cx.fillRect(x, y, 1, 1);
+    sx.fillStyle = '#000'; sx.fillRect(x, y, 1, 1);
+  }
+  return { c, s, x: hash(seed, 7) * W, y: 30 + seed * 120 + hash(seed, 8) * 40, v: 5 + hash(seed, 9) * 4 };
+});
+const FIREFLIES = Array.from({ length: 14 }, (_, i) => ({ x: 720 + hash(i, 51) * 200, y: 380 + hash(i, 52) * 120, ph: hash(i, 53) * 6.28 }));
 
 // ───────────────────────── game state ─────────────────────────
 const state = { chronicle: [], dungeon: { monsters: 0, slain: 0, hasRun: false }, quests: [], xp: { guildmaster: 0, wizard: 0, rogue: 0, dwarf: 0, alchemist: 0 } };
@@ -314,28 +777,31 @@ let actors = new Map(), monsters = [], particles = [], floats = [], banner = nul
 let fogAlpha = 1, speed = 1, playing = true, scenarioIdx = 0, steps = [], stepIdx = 0, current = null, gap = 0, ending = 0;
 const manual = [];
 let seq = 0;
+const WALK_SPEED = 120;
 
 function newHero() {
-  return { id: 'main', label: 'Guildmaster', fixed: null, x: 192, y: 130, room: 'tavern', path: [], busy: false, activity: 'awaits a quest', facing: 1, dist: 0, alpha: 1, bubble: '', lang: undefined };
+  const s = ROOMS.tavern.spots[0];
+  return { id: 'main', label: 'Guildmaster', fixed: null, x: s.x, y: s.y, room: 'tavern', spot: 0, path: [], busy: false, activity: 'awaits a quest', facing: 1, dist: 0, alpha: 1, bubble: '', lang: undefined };
 }
 function classOf(a) { return a.fixed ?? ROOMS[a.room].resident; }
 function spriteOf(a) {
   if (a.fixed) return a.fixed === 'sellsword' ? 'sellsword' : a.fixed;
   if (a.path.length > 0 || a.room === 'tavern') return 'guildmaster';
-  return ROOMS[a.room].resident; // the hero takes up the class of the room
+  return ROOMS[a.room].resident; // the hero takes up the class of the place
 }
 function pickSpot(room, who) {
   const taken = new Set([...actors.values()].filter(a => a !== who && a.room === room).map(a => a.spot));
   const spots = ROOMS[room].spots; const i = spots.findIndex((_, k) => !taken.has(k));
   return i < 0 ? 0 : i;
 }
+// Every journey goes by road: back to the town square, then out along the road to the destination.
 function route(a, to, spot) {
-  const pts = []; const from = a.room;
-  if (from === to) { pts.push({ x: spot.x, y: a.y }, { x: spot.x, y: spot.y }); return pts; }
-  if (from !== 'tavern') { const d = DOOR[from]; pts.push({ x: a.x, y: d.din.y }, { ...d.din }, { ...d.tin }, { x: HUB, y: d.tin.y }); }
-  else pts.push({ x: HUB, y: a.y });
-  if (to !== 'tavern') { const d = DOOR[to]; pts.push({ x: HUB, y: d.tin.y }, { ...d.tin }, { ...d.din }, { x: spot.x, y: d.din.y }, { ...spot }); }
-  else pts.push({ x: HUB, y: spot.y }, { ...spot });
+  const from = a.room;
+  if (from === to) return [{ ...spot }];
+  const pts = [];
+  if (from !== 'tavern') pts.push(...WALK[from].slice().reverse());
+  if (to !== 'tavern') pts.push(...WALK[to]); else pts.push({ ...HUB });
+  pts.push({ ...spot });
   return pts;
 }
 function sendTo(a, room) {
@@ -458,16 +924,17 @@ function startStep(st) {
     renderSide(); return;
   }
   if (st.spawn) {
-    const a = { id: st.spawn, label: CLASSES[st.cls].name, fixed: st.cls, x: 192, y: 128, room: 'tavern', path: [], busy: true, activity: `joins the party: ${st.desc}`, facing: 1, dist: 0, alpha: 0, bubble: 'At your service!', spot: 3 };
-    actors.set(a.id, a); burst(192, 120, CLASSES[st.cls].color, 26);
+    // New party members step out of the tavern door.
+    const a = { id: st.spawn, label: CLASSES[st.cls].name, fixed: st.cls, x: DOORWAY.x, y: DOORWAY.y, room: 'tavern', path: [], busy: true, activity: `joins the party: ${st.desc}`, facing: 1, dist: 0, alpha: 0, bubble: 'At your service!', spot: 3 };
+    actors.set(a.id, a); burst(DOORWAY.x, DOORWAY.y - 8, CLASSES[st.cls].color, 26);
     sendTo(a, 'tavern');
     current = { st, actor: a, dwell: 1.0, entry: log({ who: a.label, cls: st.cls, text: `answers the call: ${st.desc}`, outcome: 'ok' }) };
     return;
   }
   if (st.back) {
     const a = actors.get(st.back); if (!a) return;
-    a.busy = false; a.bubble = 'Quest done!'; a.leaving = true; sendTo(a, 'tavern');
-    current = { st, actor: a, dwell: 0.8, entry: log({ who: a.label, cls: a.fixed, text: 'returns with the spoils', outcome: 'ok' }) };
+    a.busy = false; a.bubble = 'Quest done!'; sendTo(a, 'tavern'); a.path.push({ ...DOORWAY });
+    current = { st, actor: a, dwell: 0.6, entry: log({ who: a.label, cls: a.fixed, text: 'returns with the spoils', outcome: 'ok' }) };
     return;
   }
   const a = actors.get(st.who); if (!a) return;
@@ -519,8 +986,9 @@ function setMonsters(n) {
     for (let i = alive.length; i < Math.min(n, MONSTER_SLOTS.length); i++) {
       const slot = MONSTER_SLOTS.findIndex((_, k) => !monsters.some(m => m.slot === k && !m.dead));
       const s = MONSTER_SLOTS[slot < 0 ? i : slot];
-      monsters.push({ slot, x: s.x, y: s.y, kind: i % 3, t: Math.random() * 6, born: 0 });
-      burst(s.x, s.y - 4, '#e8606f', 8);
+      // Monsters crawl out of the skull's mouth to their posts.
+      monsters.push({ slot, x: SKULL.mouth.x, y: SKULL.mouth.y, tx: s.x, ty: s.y, kind: i % 3, t: Math.random() * 6, born: 0 });
+      burst(SKULL.mouth.x, SKULL.mouth.y - 4, '#e8606f', 8);
     }
   }
 }
@@ -530,20 +998,26 @@ function burst(x, y, color, n) {
   if (reduced) n = Math.ceil(n / 3);
   for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = 20 + Math.random() * 40; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 20, life: .6 + Math.random() * .5, color, g: 60 }); }
 }
-function emit(x, y, color, vy = -18, spread = 6, g = 0) { particles.push({ x: x + (Math.random() - .5) * spread, y, vx: (Math.random() - .5) * 8, vy: vy * (0.6 + Math.random() * .6), life: .8 + Math.random() * .6, color, g }); }
+function emit(x, y, color, vy = -18, spread = 6, g = 0, s = 1, life = 0.8) { particles.push({ x: x + (Math.random() - .5) * spread, y, vx: (Math.random() - .5) * 8, vy: vy * (0.6 + Math.random() * .6), life: life + Math.random() * .6, color, g, s }); }
+function smoke(x, y, color, s = 2) { particles.push({ x: x + (Math.random() - .5) * 2, y, vx: 5 + Math.random() * 4, vy: -9 - Math.random() * 5, life: 1.4 + Math.random(), color, g: 0, s, fade: true }); }
 
 // ───────────────────────── update ─────────────────────────
-let last = performance.now(), clock = 0, emitAcc = 0;
+let clock = 0, emitAcc = 0;
+const roomBusy = key => (current?.place?.location === key && current.actor.path.length === 0) || [...actors.values()].some(a => a.room === key && a.busy && a.path.length === 0 && a.id !== 'main');
 function update(dt) {
   clock += dt;
   for (const a of actors.values()) {
     if (a.alpha < 1 && !a.fading) a.alpha = Math.min(1, a.alpha + dt * 3);
-    if (a.fading) { a.alpha -= dt * 2; }
-    if (a.path.length) {
-      const p = a.path[0]; const dx = p.x - a.x, dy = p.y - a.y; const d = Math.hypot(dx, dy); const step = 54 * dt;
-      if (dx) a.facing = dx < 0 ? -1 : 1;
-      if (d <= step) { a.x = p.x; a.y = p.y; a.path.shift(); a.dist += d; } else { a.x += dx / d * step; a.y += dy / d * step; a.dist += step; }
+    if (a.fading) a.alpha -= dt * 2;
+    let rem = WALK_SPEED * dt;
+    while (rem > 0 && a.path.length) {
+      const p = a.path[0], dx = p.x - a.x, dy = p.y - a.y, d = Math.hypot(dx, dy);
+      if (Math.abs(dx) > 0.3 * d && d > 0.5) a.facing = dx < 0 ? -1 : 1;
+      if (d <= rem) { a.x = p.x; a.y = p.y; a.path.shift(); rem -= d; a.dist += d; } else { a.x += dx / d * rem; a.y += dy / d * rem; a.dist += rem; rem = 0; }
     }
+    if (!a.path.length && a.room === 'dungeon' && monsters.length) a.facing = -1;
+    if (!a.path.length && a.room === 'armory' && a.spot === 0) a.facing = 1;
+    if (!a.path.length && a.room === 'cauldron' && a.spot === 0) a.facing = 1;
   }
   for (const [id, a] of actors) if (a.fading && a.alpha <= 0) actors.delete(id);
 
@@ -556,69 +1030,167 @@ function update(dt) {
   else if (!ending) { const hero = actors.get('main'); sendTo(hero, 'tavern'); hero.busy = false; hero.activity = 'rests at the tavern'; hero.bubble = 'Quest complete!'; ending = 4.5; renderSide(); }
   else { ending -= dt; if (ending <= 0) { actors.get('main').bubble = ''; loadScenario(scenarioIdx + 1); } }
 
-  // room effects
+  // the living world
   emitAcc += dt;
   const working = current && current.place && current.actor.path.length === 0 ? current : null;
   if (emitAcc > 0.05) {
     emitAcc = 0;
     if (Math.random() < .35) emit(CAULDRON.x + (Math.random() - .5) * 14, CAULDRON.y - 8, '#9be89f', -10, 4);
+    for (const c of CHIMNEYS) if (Math.random() < .18) smoke(c.x, c.y, c.magic ? (Math.random() < .5 ? 'rgba(165,147,255,.6)' : 'rgba(132,212,136,.6)') : 'rgba(225,225,230,.55)');
+    const forging = roomBusy('armory');
+    for (const v of VENTS) { if (Math.random() < (forging ? .5 : .2)) smoke(v.x, v.y, 'rgba(90,86,96,.6)', 3); if (forging && Math.random() < .25) emit(v.x, v.y, '#ff9a3a', -30, 4, 10); }
+    if (Math.random() < .25) emit(TOWER.tip.x, TOWER.tip.y, Math.random() < .5 ? '#f7dd5b' : '#e0d7ff', -6, 8);
     if (working) {
       const a = working.actor;
       switch (working.place.location) {
-        case 'study': emit(a.x, a.y - 14, Math.random() < .5 ? '#a593ff' : '#e0d7ff', -22, 14); break;
+        case 'study': emit(a.x, a.y - 14, Math.random() < .5 ? '#a593ff' : '#e0d7ff', -22, 14); emit(TOWER.windows[1].x + 1, TOWER.windows[1].y, '#c8bfff', -14, 6); break;
         case 'armory': if (Math.random() < .7) { const ang = -Math.PI / 2 + (Math.random() - .5) * 2.2, v = 30 + Math.random() * 40; particles.push({ x: ANVIL.x, y: ANVIL.y - 4, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, life: .4, color: Math.random() < .5 ? '#ffd27a' : '#ff8a3a', g: 120 }); } break;
         case 'cauldron': emit(CAULDRON.x + (Math.random() - .5) * 18, CAULDRON.y - 10, Math.random() < .5 ? '#84d488' : '#d6ffd8', -26, 6); if (Math.random() < .2) emit(CAULDRON.x, CAULDRON.y - 18, 'rgba(200,200,210,.5)', -14, 10); break;
         case 'tavern': if (Math.random() < .3) emit(a.x, a.y - 18, '#f2b84b', -12, 8); break;
-        case 'dungeon': break;
+        case 'dungeon': if (Math.random() < .3) emit(SKULL.mouth.x, SKULL.mouth.y - 4, '#5a4a6a', -10, 10); break;
       }
     }
   }
-  if (state.dungeon.hasRun && fogAlpha > 0) fogAlpha = Math.max(0, fogAlpha - dt * 1.2);
+  if (state.dungeon.hasRun && fogAlpha > 0) fogAlpha = Math.max(0, fogAlpha - dt * 0.8);
   for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g ?? 0) * dt; p.life -= dt; }
   particles = particles.filter(p => p.life > 0);
+  if (particles.length > 900) particles.splice(0, particles.length - 900);
   for (const f of floats) { f.y -= 14 * dt; f.life -= dt; }
   floats = floats.filter(f => f.life > 0);
-  for (const m of monsters) { m.t += dt; m.born = Math.min(1, m.born + dt * 3); if (m.dying !== undefined) { m.dying -= dt; if (m.dying <= 0 && !m.dead) { m.dead = true; burst(m.x, m.y - 4, '#ffffff', 10); burst(m.x, m.y - 4, '#e8606f', 8); floats.push({ x: m.x, y: m.y - 12, text: '+5', color: '#84d488', life: 1.1 }); } } }
+  for (const m of monsters) {
+    m.t += dt; m.born = Math.min(1, m.born + dt * 3);
+    const dx = m.tx - m.x, dy = m.ty - m.y, d = Math.hypot(dx, dy), step = 40 * dt;
+    if (d > step) { m.x += dx / d * step; m.y += dy / d * step; } else { m.x = m.tx; m.y = m.ty; }
+    if (m.dying !== undefined) { m.dying -= dt; if (m.dying <= 0 && !m.dead) { m.dead = true; burst(m.x, m.y - 4, '#ffffff', 10); burst(m.x, m.y - 4, '#e8606f', 8); floats.push({ x: m.x, y: m.y - 12, text: '+5', color: '#84d488', life: 1.1 }); } }
+  }
   monsters = monsters.filter(m => !m.dead);
+  for (const c of CLOUDS) { c.x += c.v * dt; if (c.x > W + 60) c.x = -c.c.width - 60; }
   if (banner) { banner.life -= dt; if (banner.life <= 0) banner = null; }
+}
+
+// ───────────────────────── camera ─────────────────────────
+const cam = { x: HUB.x, y: HUB.y - 20, z: 1, tx: HUB.x, ty: HUB.y };
+let camMode = 'follow';
+const view = { ox: 0, oy: 0, z: 1 };
+function focusActor() { const a = current?.actor; return a && actors.has(a.id) ? a : actors.get('main'); }
+function camTarget() {
+  if (camMode === 'world') return { x: W / 2, y: H / 2, z: VW / W };
+  if (camMode === 'free') return { x: cam.tx, y: cam.ty, z: 1 };
+  const a = focusActor(); return { x: a.x, y: a.y - 18, z: 1 };
+}
+function clampCam(x, y, z) { const hw = VW / 2 / z, hh = VH / 2 / z; return { x: Math.max(hw, Math.min(W - hw, x)), y: Math.max(hh, Math.min(H - hh, y)) }; }
+function updateCamera(rdt) {
+  const t = camTarget(), k = reduced ? 1 : 1 - Math.exp(-rdt * (2.4 + speed));
+  cam.z += (t.z - cam.z) * k; if (Math.abs(cam.z - t.z) < 0.002) cam.z = t.z;
+  const c = clampCam(t.x, t.y, cam.z);
+  cam.x += (c.x - cam.x) * k; cam.y += (c.y - cam.y) * k;
+  const cc = clampCam(cam.x, cam.y, cam.z); cam.x = cc.x; cam.y = cc.y;
+  view.z = cam.z; view.ox = VW / 2 - cam.x * cam.z; view.oy = VH / 2 - cam.y * cam.z;
+  if (cam.z === 1) { view.ox = Math.round(view.ox); view.oy = Math.round(view.oy); }
+}
+const toScreen = (x, y) => ({ x: x * view.z + view.ox, y: y * view.z + view.oy });
+const toWorld = (x, y) => ({ x: (x - view.ox) / view.z, y: (y - view.oy) / view.z });
+function setCam(mode, at) {
+  camMode = mode;
+  if (at) { const c = clampCam(at.x, at.y, 1); cam.tx = c.x; cam.ty = c.y; }
+  document.querySelectorAll('.cam').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cam === mode)));
 }
 
 // ───────────────────────── draw ─────────────────────────
 const cv = document.getElementById('map'); const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
 const FONT = '8px "Press Start 2P", ui-monospace, monospace';
 function text(s, x, y, color, align = 'left') { g.font = FONT; g.textAlign = align; g.textBaseline = 'top'; g.fillStyle = '#000'; g.fillText(s, x + 1, y + 1); g.fillStyle = color; g.fillText(s, x, y); }
-function torch(x, y) {
-  const f = reduced ? .5 : (Math.sin(clock * 13 + x) + Math.sin(clock * 7.3 + y)) * .25 + .5;
-  const r = 16 + f * 5; const grd = g.createRadialGradient(x, y, 1, x, y, r); grd.addColorStop(0, 'rgba(255,170,70,.35)'); grd.addColorStop(1, 'rgba(255,170,70,0)');
-  g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2);
-  g.fillStyle = '#4a2f1d'; g.fillRect(x - 1, y, 2, 5); g.fillStyle = f > .5 ? '#ffd27a' : '#ff9a3a'; g.fillRect(x - 1, y - 3, 3, 3); g.fillStyle = '#fff3c0'; g.fillRect(x, y - 2, 1, 1);
+function glow(x, y, r, color, alpha) {
+  const grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, color); grd.addColorStop(1, 'rgba(0,0,0,0)');
+  g.globalAlpha = alpha; g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2); g.globalAlpha = 1;
 }
-function drawRoomGlow() {
+const flick = (x, y) => reduced ? .5 : (Math.sin(clock * 13 + x) + Math.sin(clock * 7.3 + y)) * .25 + .5;
+function torch(x, y) {
+  const f = flick(x, y);
+  glow(x, y, 18 + f * 6, 'rgba(255,170,70,.55)', 1);
+  px(g, f > .5 ? '#ffd27a' : '#ff9a3a', x - 1, y - 3, 3, 3); px(g, '#fff3c0', x, y - 2, 1, 1);
+}
+function drawWater() {
+  const t = reduced ? 0 : clock;
+  g.fillStyle = '#e8f6ff';
+  for (const f of FOAM) { const v = Math.sin(t * 2.2 + f.ph); if (v > .55) g.fillRect(f.x, f.y, 2, 2); }
+  g.globalAlpha = .45;
+  for (const f of FOAM) { const v = Math.sin(t * 2.2 + f.ph); if (v > 0 && v <= .55) g.fillRect(f.x, f.y, 2, 2); }
+  g.globalAlpha = 1;
+  for (const s of SPARKS) { if (Math.sin(t * 1.7 + s.ph) > .95) { g.fillStyle = s.fresh ? '#bfe6f7' : '#d6f0ff'; g.fillRect(s.x, s.y, 2, 1); } }
+  g.fillStyle = '#8fd0ee';
+  const shift = Math.floor(t * 16);
+  for (let i = 0; i < RIVER.length; i += 9) { const p = RIVER[(i + shift) % RIVER.length]; g.fillRect(Math.round(p.x) - 1 + Math.round(Math.sin(i) * 2), Math.round(p.y), 1, 3); }
+}
+function drawPlaceGlow() {
   for (const [key, r] of Object.entries(ROOMS)) {
-    const busy = [...actors.values()].some(a => a.room === key && a.busy && a.path.length === 0) || (current?.place?.location === key && current.actor.path.length === 0);
-    if (!busy) continue;
-    const pulse = reduced ? .1 : .08 + Math.sin(clock * 4) * .04;
-    g.fillStyle = r.color; g.globalAlpha = pulse; g.fillRect(r.x, r.y + 15, r.w, r.h - 15); g.globalAlpha = 1;
-    g.strokeStyle = r.color; g.lineWidth = 2; g.globalAlpha = .6 + Math.sin(clock * 5) * .3; g.strokeRect(r.x - 3, r.y - 3, r.w + 6, r.h + 6); g.globalAlpha = 1;
+    if (!roomBusy(key)) continue;
+    const pulse = reduced ? .35 : .3 + Math.sin(clock * 4) * .12;
+    glow(r.spots[0].x, r.spots[0].y - 6, 46, r.color, pulse);
+  }
+}
+function drawTrails() {
+  for (const a of actors.values()) {
+    if (a.path.length < 3 || a.fading) continue;
+    const col = a.fixed ? CLASSES[a.fixed].color : '#f2b84b';
+    g.fillStyle = col;
+    let prev = a, acc = (clock * 30) % 8;
+    for (let i = 0; i < a.path.length && i < 160; i++) {
+      const p = a.path[i], d = Math.hypot(p.x - prev.x, p.y - prev.y); acc += d; prev = p;
+      if (acc >= 8) { acc -= 8; g.globalAlpha = Math.max(.15, .7 - i / 200); g.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 2, 2); }
+    }
+    g.globalAlpha = 1;
+    const end = a.path[a.path.length - 1];
+    { const s = !reduced && Math.sin(clock * 6) > 0 ? 1 : 0; px(g, '#1b1424', end.x - 4 - s, end.y - 1, 9 + 2 * s, 3); px(g, col, end.x - 3 - s, end.y, 7 + 2 * s, 1); }
   }
 }
 function drawDynamicProps() {
-  // board notes
+  // quest notes on the board
   const qs = state.quests;
   for (let i = 0; i < Math.min(qs.length, 6); i++) { const x = BOARD.x + 3 + (i % 3) * 10, y = BOARD.y + 4 + Math.floor(i / 3) * 9; g.fillStyle = qs[i].isDone ? '#b9a77e' : '#f3e6c0'; g.fillRect(x, y, 8, 7); g.fillStyle = '#b8323f'; g.fillRect(x + 3, y, 2, 1); g.fillStyle = qs[i].isDone ? '#4f9c5a' : '#6b5a3a'; if (qs[i].isDone) { g.fillRect(x + 2, y + 4, 1, 1); g.fillRect(x + 3, y + 5, 1, 1); g.fillRect(x + 4, y + 3, 1, 2); g.fillRect(x + 5, y + 2, 1, 1); } else { g.fillRect(x + 1, y + 3, 6, 1); g.fillRect(x + 1, y + 5, 4, 1); } }
-  // fireplace
-  const fx = ROOMS.tavern.x + 13, fy = ROOMS.tavern.y + 16; const f = reduced ? 1 : Math.sin(clock * 11) > 0 ? 1 : 0;
-  g.fillStyle = '#ff7a2a'; g.fillRect(fx - 5, fy - 6 - f, 10, 6 + f); g.fillStyle = '#ffd27a'; g.fillRect(fx - 3, fy - 4, 6, 4); g.fillStyle = '#fff3c0'; g.fillRect(fx - 1, fy - 3 + f, 2, 2);
-  // candle on the desk
-  g.fillStyle = '#efe6d2'; g.fillRect(DESK.x + 8, DESK.y - 10, 2, 5); g.fillStyle = Math.sin(clock * 15) > 0 ? '#ffd27a' : '#ff9a3a'; g.fillRect(DESK.x + 8, DESK.y - 12, 2, 2);
-  // torches
-  torch(ROOMS.dungeon.x + 36, ROOMS.dungeon.y + 6); torch(ROOMS.dungeon.x + 84, ROOMS.dungeon.y + 6); torch(ROOMS.armory.x + 62, ROOMS.armory.y + 6); torch(ROOMS.study.x + 56, ROOMS.study.y + 6);
-  // cauldron with fire
+  for (const l of LAMPS) glow(l.x, l.y, 10 + flick(l.x, l.y) * 3, 'rgba(255,210,122,.5)', 1);
+  // windmill sails
+  if (WINDMILL) {
+    const ang = reduced ? .4 : clock * 1.4;
+    for (let k = 0; k < 4; k++) {
+      const a = ang + k * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+      for (let r = 2; r <= 14; r++) { const x = Math.round(WINDMILL.x + ca * r), y = Math.round(WINDMILL.y + sa * r); px(g, '#3a2414', x, y); if (r > 4) px(g, '#efe6d2', Math.round(x - sa * 2), Math.round(y + ca * 2), 2, 2); }
+    }
+    px(g, '#1b1424', WINDMILL.x - 1, WINDMILL.y - 1, 3, 3);
+  }
+  // the wizard's tower: lit windows and a circling crystal
+  const study = roomBusy('study');
+  for (const w of TOWER.windows) { const f = .6 + Math.sin(clock * 3 + w.y) * .25; px(g, study ? '#e0d7ff' : '#a593ff', w.x, w.y, 3, 6); glow(w.x + 1, w.y + 3, study ? 14 : 8, 'rgba(165,147,255,.7)', f); }
+  { const a = reduced ? 0 : clock * 1.6, cx = TOWER.x + Math.cos(a) * 20, cy = TOWER.top - 18 + Math.sin(a) * 5;
+    glow(cx, cy, 8, 'rgba(165,230,255,.7)', .8); px(g, '#1b1424', Math.round(cx) - 2, Math.round(cy) - 3, 4, 6); px(g, '#7fe0ff', Math.round(cx) - 1, Math.round(cy) - 2, 2, 4); px(g, '#e6fbff', Math.round(cx) - 1, Math.round(cy) - 2, 1, 2); }
+  glow(TOWER.tip.x, TOWER.tip.y, 7, 'rgba(247,221,91,.8)', .6 + Math.sin(clock * 5) * .3);
+  // the forge glows in its gate
+  { const hot = roomBusy('armory'), f = flick(FORGE.x, FORGE.y);
+    glow(FORGE.x, FORGE.y + 4, hot ? 26 : 16, 'rgba(255,120,40,.85)', .55 + f * .35);
+    px(g, '#ff7a2a', FORGE.x - 6, FORGE.y + 8 - Math.round(f * 2), 12, 3 + Math.round(f * 2)); px(g, '#ffd27a', FORGE.x - 3, FORGE.y + 9, 6, 2); }
+  // the dungeon: torches and the skull's eyes
+  for (const t of TORCHES) torch(t.x, t.y);
+  { const angry = state.dungeon.monsters > 0, f = .5 + Math.sin(clock * (angry ? 6 : 2)) * .5;
+    for (const e of SKULL.eyes) { glow(e.x, e.y, angry ? 10 : 6, 'rgba(232,96,111,.9)', .3 + f * .6); px(g, angry ? '#ff5a6a' : '#8a2a3a', e.x - 1, e.y - 1, 2, 2); } }
+  // the alchemist's hut: a green window, fireflies, and the cauldron
+  glow(HUT.window.x, HUT.window.y, 10, 'rgba(132,212,136,.8)', .6 + Math.sin(clock * 2) * .2); px(g, '#9be89f', HUT.window.x - 1, HUT.window.y - 1, 3, 3);
+  for (const f of FIREFLIES) { const v = Math.sin(clock * 2 + f.ph); if (v < .3) continue; const x = f.x + Math.sin(clock * .7 + f.ph) * 6, y = f.y + Math.cos(clock * .9 + f.ph) * 4; g.globalAlpha = v; px(g, '#e9ff8a', Math.round(x), Math.round(y)); g.globalAlpha = 1; }
   const c = CAULDRON; const fl = reduced ? 0 : Math.sin(clock * 12) > 0 ? 1 : 0;
+  glow(c.x, c.y + 4, 16, 'rgba(255,140,50,.6)', .6);
+  g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(c.x - 13, c.y + 7, 26, 3);
   g.fillStyle = '#ff7a2a'; g.fillRect(c.x - 8, c.y + 4 - fl, 16, 4 + fl); g.fillStyle = '#ffd27a'; g.fillRect(c.x - 5, c.y + 5, 10, 3);
   g.fillStyle = '#1b1424'; g.fillRect(c.x - 13, c.y - 10, 26, 14); g.fillRect(c.x - 11, c.y + 4, 22, 2);
   g.fillStyle = '#2e2a36'; g.fillRect(c.x - 12, c.y - 9, 24, 12); g.fillStyle = '#4a4556'; g.fillRect(c.x - 12, c.y - 9, 24, 2);
   g.fillStyle = '#4fbf5a'; g.fillRect(c.x - 10, c.y - 10, 20, 3); g.fillStyle = '#9be89f'; g.fillRect(c.x - 6 + Math.round(Math.sin(clock * 3) * 3), c.y - 10, 3, 1);
+  // a ship on the southern sea
+  if (SHIP) {
+    const span = SHIP.to - SHIP.from, u = (clock * 10) % (span * 2), dir = u < span ? 1 : -1, x = Math.round(SHIP.from + (u < span ? u : span * 2 - u)), y = SHIP.y + (reduced ? 0 : Math.round(Math.sin(clock * 2)));
+    px(g, 'rgba(255,255,255,.5)', x - dir * 10, y + 1, 4, 1);
+    px(g, '#1b1424', x - 8, y - 4, 16, 5); px(g, '#7a4a2a', x - 7, y - 4, 14, 3); px(g, '#5a3720', x - 6, y - 1, 12, 1);
+    px(g, '#3a2414', x, y - 16, 1, 12);
+    px(g, '#1b1424', x - 5 + (dir > 0 ? 1 : 0), y - 15, 10, 10); px(g, '#fff3d0', x - 4 + (dir > 0 ? 1 : 0), y - 14, 8, 8); px(g, '#b8323f', x - 4 + (dir > 0 ? 1 : 0), y - 11, 8, 2);
+    px(g, '#b8323f', dir > 0 ? x + 1 : x - 3, y - 18, 3, 2);
+  }
 }
 function drawMonster(m) {
   const pop = m.born < 1 ? m.born : 1; const bob = reduced ? 0 : Math.round(Math.sin(m.t * 5) * 1);
@@ -635,44 +1207,126 @@ function drawActor(a) {
   g.globalAlpha = Math.max(0, Math.min(1, a.alpha));
   g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(Math.round(a.x) - 5, Math.round(a.y) - 1, 10, 3);
   g.drawImage(spr, Math.round(a.x) - 6, Math.round(a.y) - 16 - bob);
-  if (a.id === 'main' && spriteOf(a) !== 'guildmaster') { const x = Math.round(a.x) - 3, y = Math.round(a.y) - 20 - bob; g.fillStyle = '#1b1424'; g.fillRect(x - 1, y - 1, 8, 4); g.fillStyle = '#f2b84b'; g.fillRect(x, y + 1, 6, 1); g.fillRect(x, y, 1, 1); g.fillRect(x + 2, y - 1 + 1, 2, 1); g.fillRect(x + 5, y, 1, 1); }
+  if (a.id === 'main' && spriteOf(a) !== 'guildmaster') { const x = Math.round(a.x) - 3, y = Math.round(a.y) - 20 - bob; g.fillStyle = '#1b1424'; g.fillRect(x - 1, y - 1, 8, 4); g.fillStyle = '#f2b84b'; g.fillRect(x, y + 1, 6, 1); g.fillRect(x, y, 1, 1); g.fillRect(x + 2, y, 2, 1); g.fillRect(x + 5, y, 1, 1); }
   if (a.lang && a.alpha > .5) { const crest = LANGS[a.lang]; g.font = '6px "Press Start 2P", monospace'; const w = Math.ceil(g.measureText(crest).width) + 3; const x = Math.round(a.x) + 4, y = Math.round(a.y) - 22 - bob; g.fillStyle = '#3b2a1a'; g.fillRect(x, y, w, 7); g.fillStyle = '#ffd27a'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(crest, x + 2, y + 1); }
-  // dungeon strikes
   if (working && a.room === 'dungeon' && monsters.length && Math.floor(clock * 3) % 2 === 0) {
     const tgt = monsters[0]; g.strokeStyle = '#fff3c0'; g.lineWidth = 1; g.beginPath(); g.arc(tgt.x, tgt.y - 4, 7, -2.4 + (clock * 6) % 1, -0.6 + (clock * 6) % 1); g.stroke();
   }
   g.globalAlpha = 1;
 }
+function drawFog() {
+  if (fogAlpha <= 0) return;
+  const r = ROOMS.dungeon.at;
+  const grd = g.createRadialGradient(r.x + 10, r.y - 10, 20, r.x + 10, r.y - 10, 150);
+  grd.addColorStop(0, `rgba(12,8,20,${.9 * fogAlpha})`); grd.addColorStop(.65, `rgba(12,8,20,${.75 * fogAlpha})`); grd.addColorStop(1, 'rgba(12,8,20,0)');
+  g.fillStyle = grd; g.fillRect(r.x - 150, r.y - 160, 320, 320);
+  g.globalAlpha = .5 * fogAlpha;
+  for (let i = 0; i < 6; i++) { const x = r.x - 60 + i * 26 + Math.sin(clock * .5 + i) * 10, y = r.y - 50 + (i % 3) * 30; g.drawImage(CLOUDS[i % 4].s, Math.round(x), Math.round(y)); }
+  g.globalAlpha = 1;
+}
+function drawClouds(shadows) {
+  for (const c of CLOUDS) {
+    if (shadows) { g.globalAlpha = .13; g.drawImage(c.s, Math.round(c.x + 26), Math.round(c.y + 70)); }
+    else { g.globalAlpha = camMode === 'world' ? .9 : .7; g.drawImage(c.c, Math.round(c.x), Math.round(c.y)); }
+  }
+  g.globalAlpha = 1;
+}
+function drawBirds() {
+  if (reduced) return;
+  const span = W + 400, bx = (clock * 26) % span - 200, by = 210 + Math.sin(clock * .25) * 50;
+  g.fillStyle = '#1b1424';
+  for (let i = 0; i < 5; i++) {
+    const x = Math.round(bx - i * 9), y = Math.round(by + Math.abs(i - 2) * 5 + Math.sin(clock * 2 + i) * 1.5), up = Math.floor(clock * 7 + i) % 2;
+    g.fillRect(x - 2, y - up, 2, 1); g.fillRect(x + 1, y - up, 2, 1); g.fillRect(x, y + 1 - up, 1, 1);
+  }
+}
+// ── screen-space overlays ──
+function drawLabels() {
+  for (const [key, r] of Object.entries(ROOMS)) {
+    const s = toScreen(r.tag.x, r.tag.y);
+    if (s.x < -80 || s.x > VW + 80 || s.y < -20 || s.y > VH + 20) continue;
+    const busy = roomBusy(key);
+    g.font = FONT; const w = Math.ceil(g.measureText(r.label).width) + 10, h = 13;
+    const x = Math.round(Math.max(2, Math.min(VW - w - 2, s.x - w / 2))), y = Math.round(Math.max(2, s.y - h / 2)), edge = busy ? r.color : '#3d2f4c';
+    if (busy) { g.globalAlpha = .45 + Math.sin(clock * 5) * .3; px(g, r.color, x - 2, y - 2, w + 4, h + 4); g.globalAlpha = 1; }
+    px(g, '#000', x - 1, y - 1, w + 2, h + 2); px(g, edge, x, y, w, h); px(g, '#1b1424', x + 1, y + 1, w - 2, h - 2);
+    const tx = Math.round(Math.max(x + 3, Math.min(x + w - 5, s.x - 2)));
+    px(g, edge, tx, y + h, 4, 2); px(g, edge, tx + 1, y + h + 2, 2, 1);
+    text(r.label, x + w / 2, y + 3, r.color, 'center');
+  }
+}
 function drawBubble(a) {
   if (!a.bubble || a.alpha < .5) return;
+  const s = toScreen(a.x, a.y);
   g.font = FONT; const tw = Math.ceil(g.measureText(a.bubble).width); const w = tw + 8, h = 13;
-  let x = Math.round(a.x - w / 2), y = Math.round(a.y) - 42;
-  x = Math.max(2, Math.min(W - w - 2, x)); y = Math.max(2, y);
+  let x = Math.round(s.x - w / 2), y = Math.round(s.y - 18 * view.z) - 24;
+  x = Math.max(2, Math.min(VW - w - 2, x)); y = Math.max(2, y);
   g.fillStyle = '#1b1424'; g.fillRect(x - 1, y - 1, w + 2, h + 2); g.fillStyle = '#f3e6c0'; g.fillRect(x, y, w, h);
-  const tx = Math.max(x + 3, Math.min(x + w - 5, Math.round(a.x) - 2)); g.fillStyle = '#1b1424'; g.fillRect(tx, y + h + 1, 4, 2); g.fillStyle = '#f3e6c0'; g.fillRect(tx + 1, y + h, 2, 2);
+  const tx = Math.max(x + 3, Math.min(x + w - 5, Math.round(s.x) - 2)); g.fillStyle = '#1b1424'; g.fillRect(tx, y + h + 1, 4, 2); g.fillStyle = '#f3e6c0'; g.fillRect(tx + 1, y + h, 2, 2);
   g.textAlign = 'left'; g.textBaseline = 'top'; g.fillStyle = '#2b1b14'; g.fillText(a.bubble, x + 4, y + 3);
 }
+function drawMarkers() {
+  // From far away the party is tiny, so each member gets a pin in their class colour.
+  if (view.z > .8) return;
+  for (const a of actors.values()) {
+    if (a.alpha < .3) continue;
+    const s = toScreen(a.x, a.y), col = CLASSES[a.fixed ?? classOf(a)].color, y = Math.round(s.y - 14 - (Math.sin(clock * 5 + a.x) > 0 ? 1 : 0)), x = Math.round(s.x);
+    px(g, '#1b1424', x - 3, y - 3, 7, 7); px(g, col, x - 2, y - 2, 5, 5); px(g, '#1b1424', x, y + 4, 1, 2);
+  }
+}
+const MM = { x: VW - 126, y: VH - 74, w: 120, h: 68 };
+function drawMinimap() {
+  if (camMode === 'world' && view.z < .6) return;
+  // Step aside to the other corner when the action is underneath.
+  const f = toScreen(focusActor().x, focusActor().y);
+  MM.x = f.x > VW - 150 && f.x < VW && f.y > VH - 100 && f.y < VH + 16 ? 6 : VW - 126;
+  const { x, y, w, h } = MM, sx = w / W, sy = h / H;
+  px(g, '#000', x - 3, y - 3, w + 6, h + 6); px(g, '#3d2f4c', x - 2, y - 2, w + 4, h + 4); px(g, '#1b1424', x - 1, y - 1, w + 2, h + 2);
+  g.drawImage(mini, x, y);
+  if (fogAlpha > 0) { g.globalAlpha = .75 * fogAlpha; px(g, '#0c0814', x + 6, y + 36, 30, 24); g.globalAlpha = 1; }
+  for (const [key, r] of Object.entries(ROOMS)) if (roomBusy(key)) { g.globalAlpha = .5 + Math.sin(clock * 6) * .4; px(g, r.color, Math.round(x + r.at.x * sx) - 3, Math.round(y + r.at.y * sy) - 3, 6, 6); g.globalAlpha = 1; }
+  for (const m of monsters) px(g, '#e8606f', Math.round(x + m.x * sx), Math.round(y + m.y * sy), 1, 1);
+  for (const a of actors.values()) { const col = CLASSES[a.fixed ?? classOf(a)].color; px(g, '#000', Math.round(x + a.x * sx) - 2, Math.round(y + a.y * sy) - 2, 4, 4); px(g, col, Math.round(x + a.x * sx) - 1, Math.round(y + a.y * sy) - 1, 2, 2); }
+  const tl = toWorld(0, 0), br = toWorld(VW, VH);
+  g.strokeStyle = '#f3e6c0'; g.lineWidth = 1; g.strokeRect(Math.round(x + tl.x * sx) + .5, Math.round(y + tl.y * sy) + .5, Math.round((br.x - tl.x) * sx) - 1, Math.round((br.y - tl.y) * sy) - 1);
+}
+let vignette = null;
+function drawVignette() {
+  if (!vignette) { vignette = g.createRadialGradient(VW / 2, VH / 2, VH * .45, VW / 2, VH / 2, VW * .62); vignette.addColorStop(0, 'rgba(0,0,0,0)'); vignette.addColorStop(1, 'rgba(10,6,16,.45)'); }
+  g.fillStyle = vignette; g.fillRect(0, 0, VW, VH);
+}
 function draw() {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#22558a'; g.fillRect(0, 0, VW, VH);
+  g.setTransform(view.z, 0, 0, view.z, view.ox, view.oy);
   g.drawImage(bg, 0, 0);
-  drawRoomGlow();
+  drawWater();
+  drawClouds(true);
+  drawPlaceGlow();
+  drawTrails();
   drawDynamicProps();
-  for (const [key, r] of Object.entries(ROOMS)) text(r.label, r.x + r.w / 2, r.y - 13, r.color, 'center');
-  if (fogAlpha > 0) { const r = ROOMS.dungeon; g.fillStyle = `rgba(8,5,12,${.82 * fogAlpha})`; g.fillRect(r.x, r.y + 15, r.w, r.h - 15); g.globalAlpha = fogAlpha; text('UNEXPLORED', r.x + r.w / 2, r.y + 44, '#7a6a8a', 'center'); g.globalAlpha = 1; }
   const things = [...actors.values()].map(a => ({ y: a.y, d: () => drawActor(a) })).concat(monsters.map(m => ({ y: m.y, d: () => drawMonster(m) })));
   things.sort((p, q) => p.y - q.y).forEach(t => t.d());
-  for (const p of particles) { g.globalAlpha = Math.max(0, Math.min(1, p.life * 2)); g.fillStyle = p.color; g.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
+  for (const p of particles) { g.globalAlpha = Math.max(0, Math.min(1, p.life * (p.fade ? .5 : 2))); g.fillStyle = p.color; const s = p.s ?? 1; g.fillRect(Math.round(p.x), Math.round(p.y), s, s); }
   g.globalAlpha = 1;
-  for (const f of floats) { g.globalAlpha = Math.min(1, f.life * 1.5); text(f.text, Math.round(f.x), Math.round(f.y), f.color, 'center'); }
+  drawFog();
+  drawBirds();
+  drawClouds(false);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  drawVignette();
+  drawLabels();
+  if (fogAlpha > 0) { const s = toScreen(ROOMS.dungeon.at.x + 6, ROOMS.dungeon.at.y - 4); g.globalAlpha = fogAlpha; text('UNEXPLORED', Math.round(s.x), Math.round(s.y), '#a898b6', 'center'); g.globalAlpha = 1; }
+  for (const f of floats) { const s = toScreen(f.x, f.y); g.globalAlpha = Math.min(1, f.life * 1.5); text(f.text, Math.round(s.x), Math.round(s.y), f.color, 'center'); }
   g.globalAlpha = 1;
-  // the active speaker's bubble on top
+  drawMarkers();
   const speaker = current?.actor ?? actors.get('main');
-  for (const a of actors.values()) if (a !== speaker) { if (a.busy && a.path.length === 0 && !reduced && Math.floor(clock * 2 + a.x) % 2) { g.fillStyle = '#f3e6c0'; g.fillRect(Math.round(a.x) - 1, Math.round(a.y) - 26, 3, 3); } }
+  for (const a of actors.values()) if (a !== speaker && a.busy && a.path.length === 0 && !reduced && Math.floor(clock * 2 + a.x) % 2) { const s = toScreen(a.x, a.y); px(g, '#f3e6c0', Math.round(s.x) - 1, Math.round(s.y - 26 * view.z), 3, 3); }
   if (speaker) drawBubble(speaker);
+  drawMinimap();
   if (banner) {
     const alpha = Math.min(1, banner.life * 2, (2.6 - banner.life) * 4 + .2);
     g.globalAlpha = Math.max(0, alpha); g.font = FONT; const w = g.measureText(banner.text).width + 24;
-    g.fillStyle = '#1b1424'; g.fillRect(W / 2 - w / 2 - 2, 96, w + 4, 22); g.fillStyle = banner.gold ? '#f2b84b' : '#3d2f4c'; g.fillRect(W / 2 - w / 2, 98, w, 18);
-    text(banner.text, W / 2, 103, banner.gold ? '#1b1424' : '#f3e6c0', 'center'); g.globalAlpha = 1;
+    g.fillStyle = '#1b1424'; g.fillRect(VW / 2 - w / 2 - 2, 26, w + 4, 22); g.fillStyle = banner.gold ? '#f2b84b' : '#3d2f4c'; g.fillRect(VW / 2 - w / 2, 28, w, 18);
+    text(banner.text, VW / 2, 33, banner.gold ? '#1b1424' : '#f3e6c0', 'center'); g.globalAlpha = 1;
   }
 }
 
@@ -695,7 +1349,7 @@ function renderSide() {
     return `<li><span style="color:${c.color}">${c.name}</span><span class="meter"><i style="width:${pct}%;background:${c.color}"></i></span><small>LV ${lvl}</small></li>`; }).join('');
   const glyph = { ok: '✓', fail: '✗', running: '…' };
   $('log').innerHTML = state.chronicle.length ? state.chronicle.slice().reverse().slice(0, 14).map(e =>
-    `<li><span class="${e.outcome}">${glyph[e.outcome]}</span><span class="t"><span class="who">${esc(e.who)}</span>${e.lang ? ` <span class="crest">${LANGS[e.lang]}</span>` : ''} ${esc(e.text)}</span></li>`).join('') : '<li class="empty">The hall is quiet.</li>';
+    `<li><span class="${e.outcome}">${glyph[e.outcome]}</span><span class="t"><span class="who">${esc(e.who)}</span>${e.lang ? ` <span class="crest">${LANGS[e.lang]}</span>` : ''} ${esc(e.text)}</span></li>`).join('') : '<li class="empty">The realm is quiet.</li>';
   renderQuestsPressed();
 }
 function renderQuestsPressed() { document.querySelectorAll('#quests button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.i) === scenarioIdx))); }
@@ -705,6 +1359,7 @@ $('quests').addEventListener('click', e => { const b = e.target.closest('button'
 $('play').addEventListener('click', () => { playing = !playing; $('play').textContent = playing ? 'PAUSE' : 'PLAY'; });
 $('restart').addEventListener('click', () => loadScenario(scenarioIdx));
 document.querySelectorAll('.spd').forEach(b => b.addEventListener('click', () => { speed = Number(b.dataset.speed); document.querySelectorAll('.spd').forEach(x => x.setAttribute('aria-pressed', String(x === b))); }));
+document.querySelectorAll('.cam').forEach(b => b.addEventListener('click', () => setCam(b.dataset.cam)));
 const EXAMPLES = ['cargo nextest run', 'uv run pytest -x', './gradlew spotlessApply', 'npx playwright test', 'ctest --output-on-failure', 'poetry install', 'clang-tidy src/main.cpp', 'docker compose up -d', 'git log --oneline'];
 $('examples').innerHTML = EXAMPLES.map(c => `<button type="button">${esc(c)}</button>`).join('');
 $('examples').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { $('cmd').value = b.textContent; cast(b.textContent); } });
@@ -718,12 +1373,46 @@ function cast(command) {
   if (p.location === 'dungeon') { const m = state.dungeon.monsters; st.battle = m > 0 ? { failed: m - 1, passed: state.dungeon.slain + 1 } : { failed: 2, passed: 10 + Math.floor(Math.random() * 20) }; }
   manual.push(st);
   if (!playing) { playing = true; $('play').textContent = 'PAUSE'; }
+  if (camMode === 'free') setCam('follow');
 }
 
+// The map: drag to pan, click the minimap or the world map to fly there, arrows and M/F on the keyboard.
+const canvasPoint = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * VW / r.width, y: (e.clientY - r.top) * VH / r.height }; };
+const inMinimap = p => camMode !== 'world' && p.x >= MM.x && p.x < MM.x + MM.w && p.y >= MM.y && p.y < MM.y + MM.h;
+let drag = null;
+cv.addEventListener('pointerdown', e => {
+  const p = canvasPoint(e);
+  if (inMinimap(p)) { setCam('free', { x: (p.x - MM.x) * W / MM.w, y: (p.y - MM.y) * H / MM.h }); return; }
+  drag = { x: p.x, y: p.y, moved: false }; cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const p = canvasPoint(e), dx = p.x - drag.x, dy = p.y - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+  if (camMode === 'world') return;
+  if (!drag.moved) { drag.moved = true; cv.classList.add('dragging'); setCam('free', { x: cam.x, y: cam.y }); }
+  const c = clampCam(cam.tx - dx / view.z, cam.ty - dy / view.z, 1);
+  cam.tx = cam.x = c.x; cam.ty = cam.y = c.y; drag.x = p.x; drag.y = p.y;
+});
+const endDrag = e => {
+  if (!drag) return;
+  if (!drag.moved && camMode === 'world') setCam('free', toWorld(canvasPoint(e).x, canvasPoint(e).y));
+  drag = null; cv.classList.remove('dragging');
+};
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', () => { drag = null; cv.classList.remove('dragging'); });
+cv.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase(), step = 32, dirs = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] };
+  if (k === 'm') { setCam(camMode === 'world' ? 'follow' : 'world'); e.preventDefault(); return; }
+  if (k === 'f') { setCam('follow'); e.preventDefault(); return; }
+  if (dirs[k]) { e.preventDefault(); if (camMode !== 'free') setCam('free', { x: cam.x, y: cam.y }); const c = clampCam(cam.tx + dirs[k][0] * step, cam.ty + dirs[k][1] * step, 1); cam.tx = c.x; cam.ty = c.y; }
+});
+
 // ───────────────────────── loop ─────────────────────────
+let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (playing) { const sub = speed; for (let i = 0; i < sub; i++) update(dt); }
+  if (playing) { for (let i = 0; i < speed; i++) update(dt); }
+  updateCamera(dt);
   draw();
   requestAnimationFrame(frame);
 }
@@ -731,6 +1420,7 @@ function start() {
   paintBackground();
   actors.set('main', newHero());
   renderQuests(); loadScenario(0);
+  updateCamera(1);
   requestAnimationFrame(frame);
 }
 (document.fonts?.load ? document.fonts.load(FONT).catch(() => {}) : Promise.resolve()).finally(start);
