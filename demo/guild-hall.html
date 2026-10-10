@@ -3126,11 +3126,14 @@ const WEATHER_NAMES = { sun: 'SUNNY', cloud: 'CLOUDY', rain: 'RAIN', storm: 'STO
 function drawSkyHud() {
   const hours = Math.floor(sky.tod * 24), mins = Math.floor((sky.tod * 24 % 1) * 60), night = darkness() > .5;
   const label = `${night ? 'NIGHT' : 'DAY'} ${sky.day} · ${String(hours).padStart(2, '0')}:${String(mins - mins % 10).padStart(2, '0')} · ${WEATHER_NAMES[sky.weather]}`;
-  g.font = FONT; const w = Math.ceil(g.measureText(label).width) + 22, x = VW - w - 6;
-  px(g, '#000', x - 1, 5, w + 2, 15); px(g, '#3d2f4c', x, 6, w, 13); px(g, '#1b1424', x + 1, 7, w - 2, 11);
+  // Top-right while exploring; over the sea at the foot of the whole-island view, where it
+  // covers no place's name.
+  const world = camMode === 'world' && view.z < 1.4;
+  g.font = FONT; const w = Math.ceil(g.measureText(label).width) + 22, x = world ? Math.round((VW - w) / 2) : VW - w - 6, y = world ? VH - 25 : 5;
+  px(g, '#000', x - 1, y, w + 2, 15); px(g, '#3d2f4c', x, y + 1, w, 13); px(g, '#1b1424', x + 1, y + 2, w - 2, 11);
   // a little sun or moon
-  if (night) { px(g, '#e6ecff', x + 5, 9, 6, 7); px(g, '#1b1424', x + 8, 9, 4, 5); } else { px(g, '#f7dd5b', x + 5, 10, 6, 5); px(g, '#f7dd5b', x + 6, 9, 4, 7); }
-  text(label, x + 15, 9, night ? '#c8d0ff' : '#f3e6c0');
+  if (night) { px(g, '#e6ecff', x + 5, y + 4, 6, 7); px(g, '#1b1424', x + 8, y + 4, 4, 5); } else { px(g, '#f7dd5b', x + 5, y + 5, 6, 5); px(g, '#f7dd5b', x + 6, y + 4, 4, 7); }
+  text(label, x + 15, y + 4, night ? '#c8d0ff' : '#f3e6c0');
 }
 function drawBirds() {
   if (reduced) return;
