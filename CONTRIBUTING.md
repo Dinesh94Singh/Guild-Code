@@ -19,6 +19,16 @@ claude plugin test .
 
 Both must pass before a pull request.
 
+## Work on the Guild Hall page
+
+The page is `demo/src.html`: the dry run as it stands, and live when `/guild` serves it with `window.GUILD_LIVE` set. Edit it, then rebuild the page the mod serves:
+
+```
+node demo/build.mjs
+```
+
+That inlines the real classifier (`hooks/classify.ts`) and the island (`hooks/world.js`) into `demo/guild-hall.html`, which is committed. Open it straight from disk for the dry run; run `/guild` in a session with the mod loaded for the live page.
+
 ## Add a tool or framework
 
 Everything about where a command goes lives in `hooks/classify.ts`.
