@@ -31,7 +31,7 @@ const GUILDMASTER: GuildMember = {
   id: MAIN,
   label: 'Guildmaster',
   location: 'tavern',
-  activity: 'awaits a quest',
+  activity: 'rests at the tavern',
   isBusy: false,
 }
 
@@ -332,6 +332,8 @@ export const register: Register = on => {
     } catch {
       // No readings yet: the mana panel waits for the first response.
     }
+    // An idle session used to be marked as waiting on the person; it rests now.
+    await update($, party, list => (list.some(m => m.waiting === 'waits for your next quest') ? list.map(m => (m.waiting === 'waits for your next quest' ? { ...m, waiting: undefined, activity: 'rests at the tavern', isBusy: false } : m)) : list))
     ticker?.cancel()
     ticker = $.clock.every(PUBLISH_MS, () => void share($).catch(() => undefined))
     void share($).catch(() => undefined)
@@ -396,9 +398,11 @@ export const register: Register = on => {
     }
     return next(e)
   })
+  // Only a decision raises the call: a permission (above), a question (AskUserQuestion, below)
+  // or a form to fill in. A session that is merely idle rests: it never asks for a quest.
   on('classic.Notification', async ($, e, next) => {
     try {
-      if (/idle/.test(e.notification_type)) await awaitPerson($, e.agent_id ?? MAIN, 'waits for your next quest', false)
+      if (/elicitation/.test(e.notification_type)) await awaitPerson($, e.agent_id ?? MAIN, 'asks you to choose', true)
     } catch {
       // ignore
     }

@@ -93,8 +93,8 @@ When two or more subagents are out at once they march as a **team** (the Vanguar
 - **The Guild Hall page** (`/guild`) is the place to act. It is served from your session on `127.0.0.1` only, by a small `python3` server (`hooks/hall-server.py`), and reads a `live.json` that each session keeps fresh under `~/.claude/guild-code/hall/`. The page carries a token minted by that server, so no other site can post quests to your sessions.
 - **One screen.** The map fills the window's height, the sidebar scrolls beside it, and the whole island is in view, sized to the window.
 - **Mana.** The sidebar's Model Quota card shows the account's rate-limit windows (5-hour, weekly) with what is left and when each resets. A session billed by API key has no such windows; the page uses the freshest reading any open session has.
-- **Waiting on you.** An agent waiting for a permission or a reply raises a red `!` on the map and a card at the top of the sidebar, and the session sends a notification. Answer it in Claude.
-- **Night and weather.** After dark (by your local clock) the realm dims and its windows, torches and forge light up; the weather turns on its own, or set it in SETTINGS.
+- **Waiting on you.** Only a decision raises the call: an agent asking permission for a tool, asking you a question, or showing a form raises a red `!` on the map and a card at the top of the sidebar, and the session sends a notification. Answer it in Claude. A session that is merely idle rests at the Tavern with a sleeping `z`; it never nags you for a quest.
+- **Night and weather.** After dark (by your local clock) the realm dims and its windows, torches and forge light up; the weather turns on its own, or set it in SETTINGS. At night and in rain, storm or snow the realm takes shelter: townsfolk go indoors, workers and travellers head home, the flock huddles in its pen, the deer slip into the woods, birds vanish, and the dragon sinks into the fire mountain, bursting out again when it clears. Your party works on through it all.
 
 ## Supported toolchains (V1)
 
