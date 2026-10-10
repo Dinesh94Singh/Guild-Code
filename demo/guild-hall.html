@@ -2653,6 +2653,7 @@ function updateRealm(r, dt) {
     if (a.alpha < 1 && !a.fading && !(a.delay > 0)) a.alpha = Math.min(1, a.alpha + dt * 3);
     if (a.fading) a.alpha -= dt * 2;
     if (a.delay > 0) { a.delay = Math.max(0, a.delay - dt); continue; }
+    a.idleFor = !a.busy && !a.waiting && !a.path.length ? (a.idleFor ?? 0) + dt : 0;
     let rem = WALK_SPEED * dt;
     while (rem > 0 && a.path.length) {
       const p = a.path[0], dx = p.x - a.x, dy = p.y - a.y, d = Math.hypot(dx, dy);
@@ -2902,6 +2903,16 @@ function drawActor(a) {
   if (isSel || isHover) { g.strokeStyle = isSel ? '#f2b84b' : '#f3e6c0'; g.lineWidth = 1; g.strokeRect(x - 8.5, y - 21.5, 17, 24); }
   g.drawImage(spr, x - 6, y - 16 - bob);
   if (a.team) { px(g, '#3a2414', x - 7, y - 18 - bob, 1, 9); px(g, a.team.color, x - 6, y - 18 - bob, 3, 2); }
+  // Idle a while: it dozes, little z's drifting up over its head.
+  if (!a.waiting && (a.idleFor ?? 0) > 1.5 && a.alpha > .5) {
+    for (let k = 0; k < 3; k++) {
+      const t = reduced ? k / 3 : (clock * 0.5 + k / 3) % 1, zx = Math.round(x + 4 + t * 7 + Math.sin(t * 6 + k) * 1.5), zy = Math.round(y - 22 - t * 12), sz = k === 2 ? 5 : 4;
+      g.globalAlpha = (reduced ? 1 : Math.min(1, (1 - t) * 2)) * a.alpha;
+      const Z = sz > 3 ? ['#####', '...#.', '..#..', '.#...', '#####'] : ['####', '..#.', '.#..', '####'];
+      for (const [c, o] of [['#1b1424', 1], ['#e0d7ff', 0]]) Z.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') px(g, c, zx + i + o, zy + j + o, 1, 1); }));
+    }
+    g.globalAlpha = a.alpha;
+  }
   if (a.waiting && a.alpha > .5) {
     const hop = reduced ? 0 : Math.round(Math.abs(Math.sin(clock * 5)) * 2), ty = y - 30 - hop;
     g.strokeStyle = '#e8606f'; g.lineWidth = 1; g.globalAlpha = .4 + Math.sin(clock * 6) * .3; g.beginPath(); g.arc(x, y - 8, 9 + Math.sin(clock * 4) * 2, 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
