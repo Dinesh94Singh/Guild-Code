@@ -51,6 +51,8 @@ export type GuildRealm = {
   quests: GuildQuest[]
   /** Its latest deeds, for the Guild Hall page's chronicle. */
   chronicle?: GuildEntry[]
+  /** Its last rate-limit reading: none for a session billed by API key. */
+  quota?: GuildQuota[]
 }
 
 /** A quest the Guild Hall page sends to a session: drafted into its prompt box, or sealed and sent. */

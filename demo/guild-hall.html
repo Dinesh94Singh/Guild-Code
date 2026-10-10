@@ -28,7 +28,7 @@ html, body { background: var(--void); color: var(--text); }
 body { font-family: var(--body); font-size: 20px; line-height: 1.15; padding-inline: 16px; padding-block: 18px 28px; }
 .wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }
 body.live .wrap { max-width: none; }
-body.live header p, body.live .sample, body.live footer { display: none; }
+body.live header p, body.live .sample, body.live footer, body.live .quota + .note { display: none; }
 /* Live, on a wide screen: an app that fills the window. The map takes the full height and its
    column is just as wide as the map; the sidebar takes the rest and scrolls inside itself. */
 @media (min-width: 961px) {
@@ -43,7 +43,9 @@ body.live header p, body.live .sample, body.live footer { display: none; }
 header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
 h1 { font-family: var(--display); font-size: clamp(16px, 3.2vw, 24px); color: var(--gold); margin: 0; letter-spacing: 1px; text-shadow: 3px 3px 0 #5a2a0e; }
 body.live .settings .sim, body.live .caster { display: none; }
-.gear { position: absolute; left: 8px; bottom: 8px; z-index: 2; line-height: 1.2; }
+.mapctl { position: absolute; left: 8px; bottom: 8px; z-index: 2; display: flex; gap: 6px; line-height: 1.2; }
+.mapctl #zoomOut, .mapctl #zoomIn { min-width: 30px; font-size: 12px; }
+.mapctl button:disabled { opacity: .45; cursor: default; }
 .settings { position: absolute; left: 8px; bottom: 44px; z-index: 3; display: grid; gap: 8px; padding: 10px; max-width: calc(100% - 16px); background: #1b1424; border: 2px solid #5a4a6e; line-height: 1.2; box-shadow: 0 4px 0 #000; }
 .settings[hidden] { display: none; }
 .settings .srow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -221,7 +223,11 @@ dialog.legend::backdrop { background: rgba(8, 5, 12, .7); }
     <section class="screen px" aria-label="Guild realm map">
       <div class="realms" id="realms" role="group" aria-label="Projects"></div>
       <div class="crt"><canvas id="map" width="512" height="320" tabindex="0" aria-label="Pixel-art world map of the guild realm with the party at work. Drag or use the arrow keys to explore; press M for the whole map."></canvas>
-        <button type="button" class="gear" id="gear" aria-expanded="false" aria-controls="settings">SETTINGS</button>
+        <div class="mapctl">
+          <button type="button" id="gear" aria-expanded="false" aria-controls="settings">SETTINGS</button>
+          <button type="button" id="zoomOut" aria-label="Zoom out">-</button>
+          <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+        </div>
         <div class="settings px" id="settings" hidden role="dialog" aria-label="Map settings">
           <div class="srow"><span class="hint">VIEW</span>
             <button id="legendBtn" type="button">LEGEND</button>
@@ -1874,7 +1880,10 @@ const { W, H, HUB, DOORWAY, BOARD, CAULDRON, CHEST, PLACES, ROADS, WALK, RIVER, 
 // The view is the world's own size: the world map shows the whole island at one pixel to one,
 // following zooms in twice. The page scales the view to fit its window (fitMap).
 // A little taller where the window wants it: the extra rows are the sea south of the island.
-const VW = W, ZOOM = 2;
+const VW = W;
+// How close the camera sits when it is not showing the whole island: − and + step through these.
+const ZOOMS = [1.5, 2, 3, 4];
+let zoom = 2;
 let VH = H;
 const PLACE_STYLE = {
   study: { label: "WIZARD'S STUDY", color: '#a593ff', resident: 'wizard' },
@@ -2789,15 +2798,15 @@ function focusActor() {
 }
 function camTarget() {
   if (camMode === 'world') { const z = Math.min(VW / W, VH / H); return { x: W / 2, y: VH / z / 2, z }; }
-  if (camMode === 'free') return { x: cam.tx, y: cam.ty, z: ZOOM };
+  if (camMode === 'free') return { x: cam.tx, y: cam.ty, z: zoom };
   if (camMode === 'inspect' && selected) {
     if (selected.kind === 'place') { const r = ROOMS[selected.key]; return { x: r.at.x, y: (r.at.y + r.spots[0].y) / 2 - 10, z: 3 }; }
     const a = selected.a; if (alive(a)) return { x: a.x, y: a.y - 12, z: 3 };
   }
   // A raven carrying a sealed quest gets the shot while it flies.
   const rv = RAVENS[RAVENS.length - 1];
-  if (rv && !rv.done && (!focusP || rv.proj === focusP)) { const t = Math.min(1, rv.t), mx = (rv.sx + rv.tx) / 2, my = Math.min(rv.sy, rv.ty) - 40; return { x: (1 - t) ** 2 * rv.sx + 2 * (1 - t) * t * mx + t * t * rv.tx, y: (1 - t) ** 2 * rv.sy + 2 * (1 - t) * t * my + t * t * rv.ty, z: ZOOM }; }
-  const a = focusActor(); return { x: a.x, y: a.y - 12, z: ZOOM };
+  if (rv && !rv.done && (!focusP || rv.proj === focusP)) { const t = Math.min(1, rv.t), mx = (rv.sx + rv.tx) / 2, my = Math.min(rv.sy, rv.ty) - 40; return { x: (1 - t) ** 2 * rv.sx + 2 * (1 - t) * t * mx + t * t * rv.tx, y: (1 - t) ** 2 * rv.sy + 2 * (1 - t) * t * my + t * t * rv.ty, z: zoom }; }
+  const a = focusActor(); return { x: a.x, y: a.y - 12, z: zoom };
 }
 function clampCam(x, y, z) { const hw = VW / 2 / z, hh = VH / 2 / z; return { x: hw * 2 >= W ? W / 2 : Math.max(hw, Math.min(W - hw, x)), y: hh * 2 >= H ? hh : Math.max(hh, Math.min(H - hh, y)) }; }
 function updateCamera(rdt, snap) {
@@ -2814,8 +2823,29 @@ const toWorld = (x, y) => ({ x: (x - view.ox) / view.z, y: (y - view.oy) / view.
 function setCam(mode, at) {
   camMode = mode;
   if (mode !== 'inspect' && selected) { selected = null; renderInspect(); }
-  if (at) { const c = clampCam(at.x, at.y, ZOOM); cam.tx = c.x; cam.ty = c.y; }
+  if (at) { const c = clampCam(at.x, at.y, zoom); cam.tx = c.x; cam.ty = c.y; }
   document.querySelectorAll('.cam').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cam === mode)));
+  if (window.zoomReady) renderZoom();
+}
+// − steps out until the whole island shows; + steps in from there, holding the spot in view.
+function zoomBy(dir) {
+  if (camMode === 'world') {
+    if (dir < 0) return;
+    zoom = ZOOMS[0]; setCam('free', { x: cam.x, y: cam.y });
+  } else {
+    const i = ZOOMS.findIndex(z => z >= zoom - 1e-6);
+    if (dir < 0 && i <= 0) setCam('world');
+    else {
+      zoom = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? ZOOMS.length - 1 : i) + dir))];
+      if (camMode === 'inspect') setCam('free', { x: cam.x, y: cam.y });
+      else { const c = clampCam(cam.tx, cam.ty, zoom); cam.tx = c.x; cam.ty = c.y; }
+    }
+  }
+  renderZoom();
+}
+function renderZoom() {
+  $('zoomOut').disabled = camMode === 'world';
+  $('zoomIn').disabled = camMode !== 'world' && zoom >= ZOOMS[ZOOMS.length - 1];
 }
 function select(what) {
   selected = what;
@@ -3207,19 +3237,17 @@ function drawMinimap() {
   g.strokeStyle = '#f3e6c0'; g.lineWidth = 1; g.strokeRect(Math.round(x + tl.x * sx) + .5, Math.round(y + tl.y * sy) + .5, Math.round((br.x - tl.x) * sx) - 1, Math.round((br.y - tl.y) * sy) - 1);
 }
 function drawHud() {
-  // Whose shot this is: the project of whoever the camera follows, and the mana left in their model.
+  // Whose shot this is: the project of whoever the camera follows. (Mana is in the sidebar.)
   // Top-left while exploring; bottom-right on the world map, where the minimap would be.
-  const a = focusActor(), p = a.proj, m = MODELS[modelOf(a)], rest = left(m.hour);
-  const name = focusP ? p.name : `${p.name}`, tag = focusP ? p.lang : `${REALMS.length} PROJECTS`;
+  const a = focusActor(), p = a.proj;
+  const name = p.name, tag = focusP ? (p.lang || "") : `${REALMS.length} PROJECTS`;
   g.font = FONT; const nameW = Math.ceil(g.measureText(name).width);
-  g.font = '6px "Press Start 2P", monospace'; const modelW = Math.ceil(g.measureText(m.name.toUpperCase()).width), tagW = Math.ceil(g.measureText(tag).width);
-  const w = Math.max(nameW + tagW + 28, modelW + 64), world = camMode === 'world' && view.z < 1.4, x = world ? VW - w - 7 : 6, y = world ? VH - 35 : 6;
-  px(g, '#000', x - 1, y - 1, w + 2, 30); px(g, p.color, x, y, w, 28); px(g, '#1b1424', x + 1, y + 1, w - 2, 26);
-  px(g, '#000', x + 4, y + 6, 6, 6); px(g, p.color, x + 5, y + 7, 4, 4);
-  text(name, x + 13, y + 5, '#f3e6c0'); g.font = '6px "Press Start 2P", monospace'; g.fillStyle = focusP ? '#ffd27a' : '#a898b6'; g.textAlign = 'right'; g.fillText(tag, x + w - 5, y + 6);
-  g.fillStyle = m.color; g.textAlign = 'left'; g.fillText(m.name.toUpperCase(), x + 6, y + 17);
-  const bx = x + modelW + 11, bw = w - modelW - 17;
-  px(g, '#000', bx, y + 16, bw + 2, 7); px(g, '#2a2236', bx + 1, y + 17, bw, 5); px(g, rest < 20 ? '#e8606f' : m.color, bx + 1, y + 17, Math.round(bw * rest / 100), 5);
+  g.font = '6px "Press Start 2P", monospace'; const tagW = Math.ceil(g.measureText(tag).width);
+  const w = nameW + tagW + 28, world = camMode === 'world' && view.z < 1.4, x = world ? VW - w - 7 : 6, y = world ? VH - 25 : 6;
+  px(g, '#000', x - 1, y - 1, w + 2, 19); px(g, p.color, x, y, w, 17); px(g, '#1b1424', x + 1, y + 1, w - 2, 15);
+  px(g, '#000', x + 4, y + 5, 6, 6); px(g, p.color, x + 5, y + 6, 4, 4);
+  text(name, x + 13, y + 4, '#f3e6c0'); g.font = '6px "Press Start 2P", monospace'; g.fillStyle = focusP ? '#ffd27a' : '#a898b6'; g.textAlign = 'right'; g.fillText(tag, x + w - 5, y + 5);
+  g.textAlign = 'left';
 }
 let vignette = null;
 function drawVignette() {
@@ -3368,7 +3396,7 @@ function renderSide() {
 function renderQuota() {
   if (LIVE) {
     $('quota').innerHTML = liveQuota.length ? liveQuota.map(q => { const h = Math.round(q.percentLeft), c = h < 20 ? 'var(--blood)' : h < 50 ? '#f2b84b' : '#84d488';
-      return `<li><div class="qhead"><span>${esc(q.label)}</span><b class="${h < 20 ? 'low' : ''}">${h}%</b></div><div class="qbar"><i style="width:${h}%;background:${c}"></i></div>${q.resetsAt ? `<small>resets in ${esc(untilIso(q.resetsAt))}</small>` : ''}</li>`; }).join('') : '<li class="empty">No reading yet: the mana shows after Claude\'s first reply on a subscription.</li>';
+      return `<li><div class="qhead"><span>${esc(q.label)}</span><b class="${h < 20 ? 'low' : ''}">${h}%</b></div><div class="qbar"><i style="width:${h}%;background:${c}"></i></div>${q.resetsAt ? `<small>resets in ${esc(untilIso(q.resetsAt))}</small>` : ''}</li>`; }).join('') : '<li class="empty">No reading from any open session. A session on a Claude subscription reports its 5-hour and weekly limits after its first reply; one billed by API key has none.</li>';
     return;
   }
   $('quota').innerHTML = Object.entries(MODELS).map(([id, m]) => {
@@ -3660,7 +3688,7 @@ cv.addEventListener('pointermove', e => {
   if (!drag.moved && Math.hypot(dx, dy) < 4) return;
   if (camMode === 'world') return;
   if (!drag.moved) { drag.moved = true; hover = null; cv.classList.add('dragging'); setCam('free', { x: cam.x, y: cam.y }); }
-  const c = clampCam(cam.tx - dx / view.z, cam.ty - dy / view.z, ZOOM);
+  const c = clampCam(cam.tx - dx / view.z, cam.ty - dy / view.z, zoom);
   cam.tx = cam.x = c.x; cam.ty = cam.y = c.y; drag.x = p.x; drag.y = p.y;
 });
 cv.addEventListener('pointerleave', () => { hover = null; });
@@ -3678,11 +3706,13 @@ cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', 
 cv.addEventListener('keydown', e => {
   const k = e.key.toLowerCase(), step = 32, dirs = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] };
   if (k === 'm') { setCam(camMode === 'world' ? 'follow' : 'world'); e.preventDefault(); return; }
+  if (k === '+' || k === '=') { zoomBy(1); e.preventDefault(); return; }
+  if (k === '-' || k === '_') { zoomBy(-1); e.preventDefault(); return; }
   if (k === 'f') { setCam('follow'); e.preventDefault(); return; }
   if (k === 'n') { sky.timeMode = darkness() > .5 ? 'day' : 'night'; renderSky(); e.preventDefault(); return; }
   if (k === 'escape') { select(null); e.preventDefault(); return; }
   if (/^[0-5]$/.test(k)) { switchRealm(Number(k) - 1); e.preventDefault(); return; }
-  if (dirs[k]) { e.preventDefault(); if (camMode !== 'free') setCam('free', { x: cam.x, y: cam.y }); const c = clampCam(cam.tx + dirs[k][0] * step / ZOOM, cam.ty + dirs[k][1] * step / ZOOM, ZOOM); cam.tx = c.x; cam.ty = c.y; }
+  if (dirs[k]) { e.preventDefault(); if (camMode !== 'free') setCam('free', { x: cam.x, y: cam.y }); const c = clampCam(cam.tx + dirs[k][0] * step / zoom, cam.ty + dirs[k][1] * step / zoom, zoom); cam.tx = c.x; cam.ty = c.y; }
 });
 
 // ───────────────────────── live ─────────────────────────
@@ -3815,7 +3845,12 @@ new ResizeObserver(fitMap).observe(document.querySelector('.realms'));
 // The settings: view, weather, time and places to visit, in one panel over the map.
 function openSettings(on) { $('settings').hidden = !on; $('gear').setAttribute('aria-expanded', String(on)); $('gear').setAttribute('aria-pressed', String(on)); }
 $('gear').addEventListener('click', () => openSettings($('settings').hidden));
-document.addEventListener('click', e => { if (!$('settings').hidden && !e.target.closest('#settings, #gear')) openSettings(false); });
+$('zoomIn').addEventListener('click', () => zoomBy(1));
+$('zoomOut').addEventListener('click', () => zoomBy(-1));
+let wheelAt = 0;
+cv.addEventListener('wheel', e => { e.preventDefault(); const now = performance.now(); if (now - wheelAt < 180 || Math.abs(e.deltaY) < 4) return; wheelAt = now; zoomBy(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+window.zoomReady = true; renderZoom();
+document.addEventListener('click', e => { if (!$('settings').hidden && !e.target.closest('#settings, .mapctl')) openSettings(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('settings').hidden) { openSettings(false); $('gear').focus(); } });
 $('settings').addEventListener('click', e => { if (e.target.closest('[data-place], #legendBtn')) openSettings(false); });
 

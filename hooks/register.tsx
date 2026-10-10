@@ -86,7 +86,7 @@ async function share($: EngineInterface) {
   const id = await $.session.id()
   const cwd = await $.session.cwd()
   const at = await $.clock.now()
-  const mine: Omit<GuildRealm, 'updatedAt'> = { id, name: cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests), chronicle: (await read($, chronicle)).slice(-20) }
+  const mine: Omit<GuildRealm, 'updatedAt'> = { id, name: cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests), chronicle: (await read($, chronicle)).slice(-20), quota: await read($, quota) }
   const body = JSON.stringify(mine)
   if (body !== published || at - publishedAt > STALE_MS / 2) {
     await $.store.set(`${REALM_PREFIX}${id}`, { ...mine, updatedAt: at })
@@ -144,7 +144,10 @@ async function hallFolder($: EngineInterface): Promise<string> {
 
 async function writeLive($: EngineInterface, mine: GuildRealm, others: GuildRealm[], at: number) {
   const list = [mine, ...named(mine.name, others)].map((r, i) => ({ ...r, color: PROJECT_COLORS[i % PROJECT_COLORS.length]! }))
-  const live = { at, self: mine.id, realms: list, quota: await read($, quota), xp: await read($, xp) }
+  // Mana is the account's: a session billed by API key has no windows, so the page takes the
+  // freshest reading any open session has.
+  const reading = [mine, ...[...others].sort((a, b) => b.updatedAt - a.updatedAt)].find(r => r.quota?.length)
+  const live = { at, self: mine.id, realms: list, quota: reading?.quota ?? [], xp: await read($, xp) }
   await $.fs.write(`${await hallFolder($)}/live.json`, JSON.stringify(live))
 }
 
