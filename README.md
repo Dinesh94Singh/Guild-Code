@@ -16,7 +16,7 @@ At the prompt of a Claude Code session:
 /plugin install guild-code --marketplace <your-github-user>/guild-code
 ```
 
-Answer `y` to add the marketplace, then pick a scope (user scope loads it in every session). The Guild Hall pane opens when a session starts; `/guild` opens it again any time.
+Answer `y` to add the marketplace, then pick a scope (user scope loads it in every session). The Guild Hall pane opens when a session starts, showing the live map. `/guild` opens the full Guild Hall in your browser: the same pixel-art realm as the dry run, fed live by every session on this machine, with the Guildmaster's Desk and decrees sending quests straight to the session you pick. It is served from your session on `127.0.0.1` only, by a small `python3` server (`hooks/hall-server.py`).
 
 To run it from a local checkout while you work on it:
 

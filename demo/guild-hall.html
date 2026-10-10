@@ -27,17 +27,44 @@
 html, body { background: var(--void); color: var(--text); }
 body { font-family: var(--body); font-size: 20px; line-height: 1.15; padding-inline: 16px; padding-block: 18px 28px; }
 .wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }
+body.live .wrap { max-width: none; }
+body.live header p, body.live .sample, body.live footer { display: none; }
+/* Live, on a wide screen: an app that fills the window. The map takes the full height and its
+   column is just as wide as the map; the sidebar takes the rest and scrolls inside itself. */
+@media (min-width: 961px) {
+  body.live { height: 100vh; overflow: hidden; margin: 0; padding-block: 12px; }
+  body.live .wrap { height: 100%; grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
+  body.live .stage { height: 100%; min-height: 0; align-items: stretch; }
+  body.live .screen { min-height: 0; display: flex; flex-direction: column; }
+  body.live aside { height: 100%; max-height: none; }
+  body.live .under { flex: 1 1 0; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #5a4a6e transparent; }
+  body.live .under > .card { border: 0; box-shadow: none; }
+}
 header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
 h1 { font-family: var(--display); font-size: clamp(16px, 3.2vw, 24px); color: var(--gold); margin: 0; letter-spacing: 1px; text-shadow: 3px 3px 0 #5a2a0e; }
+body.live .settings .sim, body.live .caster { display: none; }
+.gear { position: absolute; left: 8px; bottom: 8px; z-index: 2; line-height: 1.2; }
+.settings { position: absolute; left: 8px; bottom: 44px; z-index: 3; display: grid; gap: 8px; padding: 10px; max-width: calc(100% - 16px); background: #1b1424; border: 2px solid #5a4a6e; line-height: 1.2; box-shadow: 0 4px 0 #000; }
+.settings[hidden] { display: none; }
+.settings .srow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.settings .srow .hint { min-width: 70px; }
+.settings p.hint { margin: 0; }
+.badge.off { background: var(--blood); color: #fff3d0; }
 .badge { font-family: var(--display); font-size: 9px; color: var(--void); background: var(--moss); padding: 5px 7px 4px; letter-spacing: 1px; }
 header p { margin: 0; color: var(--muted); flex-basis: 100%; max-width: 76ch; }
 
 .stage { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
 @media (max-width: 960px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+/* Wide screens: the sidebar scrolls inside its own column, so the page stays one screen tall and the map in view. */
+@media (min-width: 961px) {
+  aside { max-height: calc(100vh - 24px); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-width: thin; scrollbar-color: #5a4a6e transparent; }
+  aside::-webkit-scrollbar { width: 8px; }
+  aside::-webkit-scrollbar-thumb { background: #5a4a6e; }
+}
 
 .px { background: var(--panel); border: 2px solid var(--edge); box-shadow: 0 0 0 2px var(--void), 4px 4px 0 2px #000; }
 .screen { padding: 8px; display: grid; gap: 10px; min-width: 0; }
-.crt { position: relative; background: #000; line-height: 0; }
+.crt { position: relative; background: #000; line-height: 0; margin: 0 auto; }
 canvas#map { width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; display: block; cursor: grab; touch-action: none; }
 canvas#map.dragging { cursor: grabbing; }
 canvas#map:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
@@ -186,48 +213,52 @@ dialog.legend::backdrop { background: rgba(8, 5, 12, .7); }
 <div class="wrap">
   <header>
     <h1>GUILD CODE</h1>
-    <span class="badge">DRY RUN</span>
+    <span class="badge" id="liveBadge">DRY RUN</span>
     <p>Five sample projects share one realm, replayed through the mod's own classifier: every party, subagent and team walks the same roads to the place Guild Code would send its work. Pick a project to follow it; cast your own command to see where it goes.</p>
   </header>
 
   <div class="stage">
     <section class="screen px" aria-label="Guild realm map">
       <div class="realms" id="realms" role="group" aria-label="Projects"></div>
-      <div class="crt"><canvas id="map" width="480" height="270" tabindex="0" aria-label="Pixel-art world map of the guild realm with the party at work. Drag or use the arrow keys to explore; press M for the whole map."></canvas></div>
-      <div class="bar">
-        <button id="play" type="button">PAUSE</button>
-        <button id="restart" type="button">RESTART</button>
-        <button id="legendBtn" type="button">LEGEND</button>
-        <button class="cam" data-cam="follow" type="button" aria-pressed="true">FOLLOW</button>
-        <button class="cam" data-cam="world" type="button" aria-pressed="false">WORLD MAP</button>
-        <span class="hint">click a place or a hero · drag to explore</span>
-        <span class="grow"></span>
-        <button class="spd" data-speed="1" type="button" aria-pressed="true">1X</button>
-        <button class="spd" data-speed="2" type="button">2X</button>
-        <button class="spd" data-speed="4" type="button">4X</button>
+      <div class="crt"><canvas id="map" width="512" height="320" tabindex="0" aria-label="Pixel-art world map of the guild realm with the party at work. Drag or use the arrow keys to explore; press M for the whole map."></canvas>
+        <button type="button" class="gear" id="gear" aria-expanded="false" aria-controls="settings">SETTINGS</button>
+        <div class="settings px" id="settings" hidden role="dialog" aria-label="Map settings">
+          <div class="srow"><span class="hint">VIEW</span>
+            <button id="legendBtn" type="button">LEGEND</button>
+            <button class="cam" data-cam="follow" type="button" aria-pressed="true">FOLLOW</button>
+            <button class="cam" data-cam="world" type="button" aria-pressed="false">WORLD MAP</button>
+          </div>
+          <div class="srow"><span class="hint">WEATHER</span>
+            <button type="button" data-weather="auto" aria-pressed="true">AUTO</button>
+            <button type="button" data-weather="sun" aria-pressed="false">SUN</button>
+            <button type="button" data-weather="cloud" aria-pressed="false">CLOUDS</button>
+            <button type="button" data-weather="rain" aria-pressed="false">RAIN</button>
+            <button type="button" data-weather="storm" aria-pressed="false">STORM</button>
+            <button type="button" data-weather="snow" aria-pressed="false">SNOW</button>
+          </div>
+          <div class="srow"><span class="hint">TIME</span>
+            <button type="button" data-time="auto" aria-pressed="true">AUTO</button>
+            <button type="button" data-time="day" aria-pressed="false">DAY</button>
+            <button type="button" data-time="night" aria-pressed="false">NIGHT</button>
+          </div>
+          <div class="srow"><span class="hint">VISIT</span>
+            <button type="button" data-place="tavern">TAVERN</button>
+            <button type="button" data-place="study">STUDY</button>
+            <button type="button" data-place="dungeon">DUNGEON</button>
+            <button type="button" data-place="armory">ARMORY</button>
+            <button type="button" data-place="cauldron">CAULDRON</button>
+          </div>
+          <div class="srow sim"><span class="hint">REPLAY</span>
+            <button id="play" type="button">PAUSE</button>
+            <button id="restart" type="button">RESTART</button>
+            <button class="spd" data-speed="1" type="button" aria-pressed="true">1X</button>
+            <button class="spd" data-speed="2" type="button">2X</button>
+            <button class="spd" data-speed="4" type="button">4X</button>
+          </div>
+          <p class="hint">Click a place or a hero to inspect it · drag to explore · M world map · N night</p>
+        </div>
       </div>
-      <div class="bar sky" role="group" aria-label="Weather and time of day">
-        <span class="hint">WEATHER</span>
-        <button type="button" data-weather="auto" aria-pressed="true">AUTO</button>
-        <button type="button" data-weather="sun" aria-pressed="false">SUN</button>
-        <button type="button" data-weather="cloud" aria-pressed="false">CLOUDS</button>
-        <button type="button" data-weather="rain" aria-pressed="false">RAIN</button>
-        <button type="button" data-weather="storm" aria-pressed="false">STORM</button>
-        <button type="button" data-weather="snow" aria-pressed="false">SNOW</button>
-        <span class="grow"></span>
-        <span class="hint">TIME</span>
-        <button type="button" data-time="auto" aria-pressed="true">AUTO</button>
-        <button type="button" data-time="day" aria-pressed="false">DAY</button>
-        <button type="button" data-time="night" aria-pressed="false">NIGHT</button>
-      </div>
-      <div class="places" role="group" aria-label="Inspect a place">
-        <span class="hint">VISIT</span>
-        <button type="button" data-place="tavern">TAVERN</button>
-        <button type="button" data-place="study">STUDY</button>
-        <button type="button" data-place="dungeon">DUNGEON</button>
-        <button type="button" data-place="armory">ARMORY</button>
-        <button type="button" data-place="cauldron">CAULDRON</button>
-      </div>
+      <div class="under" id="under"></div>
       <div class="caster">
         <label for="cmd">CAST A COMMAND</label>
         <form id="castForm">
@@ -306,6 +337,7 @@ dialog.legend::backdrop { background: rgba(8, 5, 12, .7); }
 </dialog>
 
 <script>
+"use strict";
 var GuildClassify = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -609,6 +641,7 @@ var GuildClassify = (() => {
   return __toCommonJS(classify_exports);
 })();
 
+"use strict";
 var GuildWorld = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -1838,7 +1871,11 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // and places the Guild Hall pane draws. The camera follows whoever is working, two screen
 // pixels to a world pixel; WORLD MAP pulls back to show the whole of it.
 const { W, H, HUB, DOORWAY, BOARD, CAULDRON, CHEST, PLACES, ROADS, WALK, RIVER, FOLK, MONSTER_SLOTS, hash, px, shade } = GuildWorld;
-const VW = 480, VH = 270, ZOOM = 2;
+// The view is the world's own size: the world map shows the whole island at one pixel to one,
+// following zooms in twice. The page scales the view to fit its window (fitMap).
+// A little taller where the window wants it: the extra rows are the sea south of the island.
+const VW = W, ZOOM = 2;
+let VH = H;
 const PLACE_STYLE = {
   study: { label: "WIZARD'S STUDY", color: '#a593ff', resident: 'wizard' },
   armory: { label: 'ARMORY', color: '#a9b6c6', resident: 'dwarf' },
@@ -2081,12 +2118,16 @@ let speed = 1, playing = true, clock = 0;
 function makeRealm(def, i) {
   return { ...def, index: i, questIdx: 0, questTitle: '', actors: new Map(), monsters: [], state: null, places: {}, threads: [], main: null, focus: null, manual: [], ending: 0, chest: 0, delay: i * 3.1 };
 }
-const REALMS = REALM_DEFS.map(makeRealm);
+// Live: the mod serves this page with window.GUILD_LIVE set, and the realms are your own
+// Claude Code sessions, read from live.json, instead of the sample quests.
+const LIVE = window.GUILD_LIVE ?? null;
+const REALMS = LIVE ? [] : REALM_DEFS.map(makeRealm);
 // Each project's guildmaster wears its colour as a cape.
-for (const r of REALMS) {
+function capeFor(r) {
   const def = BODIES.guildmaster, pal = { ...BASE, ...def.pal, R: r.color };
   SPR[`gm:${r.id}`] = LEGS.map(legs => [makeSprite([...def.rows, ...legs], pal, false), makeSprite([...def.rows, ...legs], pal, true)]);
 }
+REALMS.forEach(capeFor);
 // With every party in one world, each place needs room for a crowd.
 for (const room of Object.values(ROOMS)) {
   const base = room.spots.slice();
@@ -2646,7 +2687,7 @@ function drawDragon() {
 }
 
 let emitAcc = 0;
-const roomBusy = (r, key) => r.threads.some(t => t.task?.place?.location === key && t.task.actor.path.length === 0) || [...r.actors.values()].some(a => a.room === key && a.busy && a.path.length === 0 && a.id !== 'main' && !a.delay);
+const roomBusy = (r, key) => r.threads.some(t => t.task?.place?.location === key && t.task.actor.path.length === 0) || [...r.actors.values()].some(a => a.room === key && a.busy && a.path.length === 0 && (LIVE || a.id !== 'main') && !a.delay);
 const busyAt = key => REALMS.some(r => roomBusy(r, key));
 function updateRealm(r, dt) {
   for (const a of r.actors.values()) {
@@ -2665,12 +2706,14 @@ function updateRealm(r, dt) {
   }
   for (const [id, a] of r.actors) if (a.fading && a.alpha <= 0) { r.actors.delete(id); dirty(); }
 
-  for (const th of [...r.threads]) runThread(r, th, dt);
-  const m = r.main;
-  const idle = m.idx >= m.steps.length && !m.task && !m.wait && m.gap <= 0 && !r.manual.length && r.threads.every(t => t === m || t.done);
-  if (idle && !r.ending) { const hero = r.actors.get('main'); sendTo(r, hero, 'tavern'); hero.busy = false; hero.activity = 'rests at the tavern'; hero.bubble = 'Quest complete!'; r.ending = 4.5 + r.index * 0.7; dirty(); }
-  else if (r.ending && !idle) r.ending = 0;
-  else if (r.ending) { r.ending -= dt; if (r.ending <= 0) { r.actors.get('main').bubble = ''; loadQuest(r, r.questIdx + 1); } }
+  if (!LIVE) {
+    for (const th of [...r.threads]) runThread(r, th, dt);
+    const m = r.main;
+    const idle = m.idx >= m.steps.length && !m.task && !m.wait && m.gap <= 0 && !r.manual.length && r.threads.every(t => t === m || t.done);
+    if (idle && !r.ending) { const hero = r.actors.get('main'); sendTo(r, hero, 'tavern'); hero.busy = false; hero.activity = 'rests at the tavern'; hero.bubble = 'Quest complete!'; r.ending = 4.5 + r.index * 0.7; dirty(); }
+    else if (r.ending && !idle) r.ending = 0;
+    else if (r.ending) { r.ending -= dt; if (r.ending <= 0) { r.actors.get('main').bubble = ''; loadQuest(r, r.questIdx + 1); } }
+  }
 
   for (const mo of r.monsters) {
     mo.t += dt; mo.born = Math.min(1, mo.born + dt * 3);
@@ -2745,7 +2788,7 @@ function focusActor() {
   return alive(director.actor) ? director.actor : REALMS[0].actors.get('main');
 }
 function camTarget() {
-  if (camMode === 'world') return { x: W / 2, y: H / 2, z: Math.max(VW / W, VH / H) };
+  if (camMode === 'world') { const z = Math.min(VW / W, VH / H); return { x: W / 2, y: VH / z / 2, z }; }
   if (camMode === 'free') return { x: cam.tx, y: cam.ty, z: ZOOM };
   if (camMode === 'inspect' && selected) {
     if (selected.kind === 'place') { const r = ROOMS[selected.key]; return { x: r.at.x, y: (r.at.y + r.spots[0].y) / 2 - 10, z: 3 }; }
@@ -2756,7 +2799,7 @@ function camTarget() {
   if (rv && !rv.done && (!focusP || rv.proj === focusP)) { const t = Math.min(1, rv.t), mx = (rv.sx + rv.tx) / 2, my = Math.min(rv.sy, rv.ty) - 40; return { x: (1 - t) ** 2 * rv.sx + 2 * (1 - t) * t * mx + t * t * rv.tx, y: (1 - t) ** 2 * rv.sy + 2 * (1 - t) * t * my + t * t * rv.ty, z: ZOOM }; }
   const a = focusActor(); return { x: a.x, y: a.y - 12, z: ZOOM };
 }
-function clampCam(x, y, z) { const hw = VW / 2 / z, hh = VH / 2 / z; return { x: hw * 2 >= W ? W / 2 : Math.max(hw, Math.min(W - hw, x)), y: hh * 2 >= H ? H / 2 : Math.max(hh, Math.min(H - hh, y)) }; }
+function clampCam(x, y, z) { const hw = VW / 2 / z, hh = VH / 2 / z; return { x: hw * 2 >= W ? W / 2 : Math.max(hw, Math.min(W - hw, x)), y: hh * 2 >= H ? hh : Math.max(hh, Math.min(H - hh, y)) }; }
 function updateCamera(rdt, snap) {
   const t = camTarget(), k = reduced || snap ? 1 : 1 - Math.exp(-rdt * (2.4 + speed));
   cam.z += (t.z - cam.z) * k; if (Math.abs(cam.z - t.z) < 0.002) cam.z = t.z;
@@ -3317,11 +3360,17 @@ function renderSide() {
   // The call for attention: every agent stuck on the person, with the answer to hand.
   const stuck = waitingActors();
   $('awaits').hidden = !stuck.length;
-  $('awaits').innerHTML = stuck.length ? `<h2>! ${stuck.length === 1 ? 'AN AGENT AWAITS YOUR WORD' : `${stuck.length} AGENTS AWAIT YOUR WORD`}</h2><ul>${stuck.map(a => `<li><span><span class="proj" style="--c:${a.proj.color}">${esc(a.proj.name)}</span><b>${esc(a.fixed ? a.label : 'Guildmaster')}</b> at the ${esc(PLACE_INFO[a.room].title.replace(/^The /, ''))}</span><span class="what">${esc(a.waiting)}</span><span class="row"><button type="button" class="allow" data-answer="allow" data-pid="${a.proj.id}" data-actor="${esc(a.id)}">ALLOW</button><button type="button" class="deny" data-answer="deny" data-pid="${a.proj.id}" data-actor="${esc(a.id)}">REFUSE</button><button type="button" data-answer="show" data-pid="${a.proj.id}" data-actor="${esc(a.id)}">SHOW ME</button></span></li>`).join('')}</ul>` : '';
-  document.title = stuck.length ? `(${stuck.length}) ! Guild Hall Dry Run` : 'Guild Hall Dry Run';
+  $('awaits').innerHTML = stuck.length ? `<h2>! ${stuck.length === 1 ? 'AN AGENT AWAITS YOUR WORD' : `${stuck.length} AGENTS AWAIT YOUR WORD`}</h2><ul>${stuck.map(a => `<li><span><span class="proj" style="--c:${a.proj.color}">${esc(a.proj.name)}</span><b>${esc(a.fixed ? a.label : 'Guildmaster')}</b> at the ${esc(PLACE_INFO[a.room].title.replace(/^The /, ''))}</span><span class="what">${esc(a.waiting)}</span><span class="row">${LIVE ? '<span class="hint">ANSWER IN CLAUDE</span>' : `<button type="button" class="allow" data-answer="allow" data-pid="${a.proj.id}" data-actor="${esc(a.id)}">ALLOW</button><button type="button" class="deny" data-answer="deny" data-pid="${a.proj.id}" data-actor="${esc(a.id)}">REFUSE</button>`}<button type="button" data-answer="show" data-pid="${a.proj.id}" data-actor="${esc(a.id)}">SHOW ME</button></span></li>`).join('')}</ul>` : '';
+  const title = LIVE ? 'Guild Hall' : 'Guild Hall Dry Run';
+  document.title = stuck.length ? `(${stuck.length}) ! ${title}` : title;
   if (selected) renderInspect();
 }
 function renderQuota() {
+  if (LIVE) {
+    $('quota').innerHTML = liveQuota.length ? liveQuota.map(q => { const h = Math.round(q.percentLeft), c = h < 20 ? 'var(--blood)' : h < 50 ? '#f2b84b' : '#84d488';
+      return `<li><div class="qhead"><span>${esc(q.label)}</span><b class="${h < 20 ? 'low' : ''}">${h}%</b></div><div class="qbar"><i style="width:${h}%;background:${c}"></i></div>${q.resetsAt ? `<small>resets in ${esc(untilIso(q.resetsAt))}</small>` : ''}</li>`; }).join('') : '<li class="empty">No reading yet: the mana shows after Claude\'s first reply on a subscription.</li>';
+    return;
+  }
   $('quota').innerHTML = Object.entries(MODELS).map(([id, m]) => {
     const h = left(m.hour), w = left(m.week), users = Object.entries(MODEL_OF).filter(([, v]) => v === id && !['sellsword'].includes(v)).map(([k]) => CLASSES[k]?.name).filter(Boolean);
     return `<li><div class="qhead"><span style="color:${m.color}">${esc(m.name)}</span><b class="${h < 20 ? 'low' : ''}">${h}%</b></div>
@@ -3339,7 +3388,7 @@ function updateRealmCards() {
   let working = 0, monsters = 0;
   REALMS.forEach((r, i) => {
     const s = document.querySelector(`[data-stat="${i}"]`); if (!s) return;
-    const n = r.threads.filter(t => t.task?.place).length, team = r.main?.wait?.name, m = r.state?.dungeon.monsters ?? 0;
+    const n = LIVE ? [...r.actors.values()].filter(a => a.busy && !a.fading).length : r.threads.filter(t => t.task?.place).length, team = r.main?.wait?.name, m = r.state?.dungeon.monsters ?? 0;
     working += n; monsters += m;
     s.innerHTML = `${team ? `<span class="team">${esc(team)}</span>` : ''}${n ? `${n} at work` : 'resting'}${m ? ` · <span class="fail">${m} monsters</span>` : ''}`;
   });
@@ -3375,7 +3424,7 @@ function switchRealm(i) {
   }
 }
 const desk = { mode: 'petition', summon: 'guildmaster', to: null, pending: null };
-const deskTarget = () => desk.to ?? focusP ?? REALMS[0];
+const deskTarget = () => (desk.to && REALMS.includes(desk.to) ? desk.to : null) ?? focusP ?? REALMS.find(r => r.self) ?? REALMS[0];
 const SUMMON_HINT = { guildmaster: 'the main loop decides', wizard: 'research and reading', rogue: 'failing tests and bugs', dwarf: 'formatting, linting and types', alchemist: 'builds and dependencies' };
 // What each project's toolchain runs for each kind of work, for the party to act out.
 const KITS = {
@@ -3422,7 +3471,7 @@ function firstPlace(steps) {
 
 // Decrees: one-press prompts for what the guild can see, the same ones the mod offers.
 function decree(key, r, arg) {
-  const k = KITS[r.lang], d = r.state.dungeon;
+  const d = r.state.dungeon, k = LIVE ? { ...(KITS[r.lang] ?? KITS.JS), test: d.lastCommand ?? 'the test suite' } : KITS[r.lang];
   switch (key) {
     case 'slay': return { title: `Slay ${r.name}'s monsters`, text: `Fix the ${d.monsters} failing test${d.monsters === 1 ? '' : 's'}. Run \`${k.test}\`, find each root cause and fix it, then run the tests again to confirm.`, plan: () => questPlan(r, `Slay the ${d.monsters} failing tests`, 'rogue') };
     case 'retrial': return { title: 'Re-run the trial', text: `Run \`${k.test}\` again and report what passes and what still fails.`, plan: () => on('main', B(k.test, d.monsters > 0 ? k.fail : k.pass)) };
@@ -3461,6 +3510,7 @@ function recall(r, a) {
 
 function petition(r, d) {
   if (!d) return;
+  if (LIVE) return sendLive(r, d, desk.mode);
   if (desk.mode === 'seal') return seal(r, d);
   desk.pending = { r, ...d }; renderDesk();
   $('petition').scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
@@ -3527,7 +3577,7 @@ $('deskForm').addEventListener('submit', e => {
   const text = $('scroll').value.trim(); if (!text) { $('scroll').focus(); return; }
   const r = deskTarget(), summon = desk.summon;
   const prompt = summon === 'guildmaster' ? text : `${text}\n\nSend the guild-code:${summon} subagent (the ${CLASSES[summon].name}) on this quest.`;
-  petition(r, { title: `Quest for the ${CLASSES[summon].name}`, text: prompt, plan: () => questPlan(r, text, summon) });
+  petition(r, { title: `Quest for the ${CLASSES[summon].name}`, text: prompt, asUser: summon === 'guildmaster', plan: () => questPlan(r, text, summon) });
   $('scroll').value = '';
 });
 $('scroll').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('deskForm').requestSubmit(); } });
@@ -3635,6 +3685,140 @@ cv.addEventListener('keydown', e => {
   if (dirs[k]) { e.preventDefault(); if (camMode !== 'free') setCam('free', { x: cam.x, y: cam.y }); const c = clampCam(cam.tx + dirs[k][0] * step / ZOOM, cam.ty + dirs[k][1] * step / ZOOM, ZOOM); cam.tx = c.x; cam.ty = c.y; }
 });
 
+// ───────────────────────── live ─────────────────────────
+// The mod writes live.json every few seconds: each session's party, dungeon, quests and
+// deeds, the account's mana and the guild's XP. The page brings its realms in line with it,
+// and the walks, monsters and banners follow from the changes.
+let liveQuota = [], liveUp = true;
+function untilIso(iso) {
+  const mins = Math.max(0, Math.round((Date.parse(iso) - Date.now()) / 60e3)), d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60);
+  return d ? `${d}d ${h}h` : `${h}h ${mins % 60}m`;
+}
+async function pollLive() {
+  try {
+    const res = await fetch(`live.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(String(res.status));
+    applyLive(await res.json());
+    if (!liveUp) { liveUp = true; $('liveBadge').textContent = 'LIVE'; $('liveBadge').classList.remove('off'); }
+  } catch {
+    if (liveUp) { liveUp = false; $('liveBadge').textContent = 'OFFLINE · THE SESSION HAS ENDED?'; $('liveBadge').classList.add('off'); }
+  }
+}
+function applyLive(s) {
+  let changed = false;
+  const seen = new Set();
+  for (const src of s.realms ?? []) {
+    let r = REALMS.find(x => x.id === src.id);
+    if (!r) {
+      r = makeRealm({ id: src.id, name: src.name, lang: '', color: src.color, quests: [] }, REALMS.length);
+      r.delay = 0; r.state = { chronicle: [], dungeon: { monsters: 0, slain: 0, hasRun: false }, quests: [] };
+      r.places = Object.fromEntries(PLACE_KEYS.map(k => [k, { visits: 0, xp: 0 }]));
+      REALMS.push(r); capeFor(r); changed = true;
+    }
+    if (r.color !== src.color || r.name !== src.name) { r.name = src.name; r.color = src.color; capeFor(r); changed = true; }
+    seen.add(r.id);
+    r.self = src.id === s.self;
+    const lang = src.dungeon?.lang ?? src.party.find(m => m.lang)?.lang;
+    r.lang = LANGS[lang] ?? r.lang;
+    // The party: new members come through the tavern door, the gone fade out, the moved walk.
+    const ids = new Set();
+    for (const m of src.party) {
+      ids.add(m.id);
+      let a = r.actors.get(m.id);
+      if (!a || a.fading) {
+        if (m.id === 'main') { a = newHero(r); r.actors.set('main', a); }
+        else a = spawnMember(r, m.id, m.fixedClass ?? ROOMS[m.location].resident, m.activity, null, 0);
+      }
+      if (m.id !== 'main') { a.fixed = m.fixedClass ?? ROOMS[m.location].resident; a.label = m.fixedClass ? CLASSES[m.fixedClass].name : m.label; }
+      if (a.room !== m.location) sendTo(r, a, m.location);
+      const was = a.waiting;
+      a.busy = m.isBusy; a.lang = m.lang; a.waiting = m.waiting ?? null;
+      a.team = m.team ? { name: m.team.name, color: m.team.color } : null;
+      if (a.activity !== m.activity) { a.activity = m.activity; if (m.isBusy) { r.focus = { actor: a }; lastTask = r.focus; } changed = true; }
+      if (a.waiting && !was) noticeWait(r, a);
+    }
+    for (const a of r.actors.values()) if (!ids.has(a.id) && !a.fading) { a.fading = true; burst(r, a.x, a.y - 8, a.team?.color ?? r.color, 16); changed = true; }
+    // The dungeon: failing tests are monsters at the skull; clearing it opens the chest.
+    const d = src.dungeon ?? { monsters: 0, slain: 0, hasRun: false }, before = r.state.dungeon.monsters;
+    if (d.monsters !== r.monsters.filter(mo => !mo.dying).length) setMonsters(r, d.monsters);
+    if (before > 0 && d.monsters === 0 && d.hasRun) { banner(r, 'DUNGEON CLEARED!', true); r.chest = 1; burst(r, CHEST.x, CHEST.y - 6, '#f2b84b', 24); }
+    r.state.dungeon = { ...d };
+    r.state.quests = src.quests.map(q => ({ ...q }));
+    r.questTitle = src.quests.filter(q => !q.isDone).slice(-1)[0]?.title ?? '';
+    const deeds = (src.chronicle ?? []).map((e, i) => ({ id: e.at * 100 + i, proj: r, who: e.who, cls: e.cls, aid: '', loc: e.location, text: e.text, lang: e.lang, outcome: e.outcome }));
+    if (JSON.stringify(deeds.map(e => [e.id, e.outcome, e.text])) !== JSON.stringify(r.state.chronicle.map(e => [e.id, e.outcome, e.text]))) { r.state.chronicle = deeds; changed = true; }
+  }
+  for (let i = REALMS.length - 1; i >= 0; i--) {
+    const r = REALMS[i]; if (seen.has(r.id)) continue;
+    if (focusP === r) focusP = null;
+    if (selected?.kind === 'actor' && selected.a.proj === r) select(null);
+    REALMS.splice(i, 1); changed = true;
+  }
+  REALMS.forEach((r, i) => { r.index = i; });
+  // Mana: the account's windows; the map's HUD reads the 5-hour one.
+  liveQuota = s.quota ?? [];
+  const five = liveQuota.find(q => /^five_hour/.test(q.kind)) ?? liveQuota[0], week = liveQuota.find(q => /^seven_day/.test(q.kind));
+  for (const m of Object.values(MODELS)) { m.hour = 100 - (five?.percentLeft ?? 100); m.week = 100 - (week?.percentLeft ?? 100); }
+  Object.assign(xp, s.xp ?? {});
+  if (changed) { renderRealms(); renderAll(); }
+}
+// A quest or decree from the desk: the session drafts it into its prompt box, or, sealed, sends it.
+async function sendLive(r, d, mode) {
+  desk.pending = null; renderDesk();
+  try {
+    const res = await fetch('petition', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guild-Token': LIVE.token }, body: JSON.stringify({ realm: r.id, title: d.title, text: d.text, mode, asUser: !!d.asUser }) });
+    if (!res.ok) throw new Error(String(res.status));
+    const to = ROOMS.tavern.spots[0];
+    RAVENS.push({ sx: DOORWAY.x, sy: DOORWAY.y - 30, tx: to.x, ty: to.y - 24, t: 0, proj: r });
+    banner(r, mode === 'seal' ? 'A RAVEN CARRIES THE QUEST' : 'THE PETITION WAITS IN CLAUDE', mode === 'seal');
+  } catch {
+    banner(r, 'THE RAVEN COULD NOT FLY: IS THE SESSION OPEN?');
+  }
+}
+
+// ───────────────────────── layout ─────────────────────────
+// The map takes as much of the window as its shape allows. Live on a wide screen the page is
+// one screen: the map fills the height and its column is as wide as the map, the sidebar gets
+// the rest; where the window is too narrow for that, the chronicle fills the room under the map.
+function setViewHeight(vh) {
+  if (vh === VH) return;
+  VH = vh; cv.height = VH; g.imageSmoothingEnabled = false;
+  vignette = null; MM.y = VH - 81;
+}
+const CHRONICLE = $('log').closest('.card'), CHRONICLE_HOME = document.createComment('chronicle');
+CHRONICLE.after(CHRONICLE_HOME);
+function fitMap() {
+  const crt = cv.parentElement, screen = crt.closest('.screen'), stage = screen.parentElement;
+  const above = crt.getBoundingClientRect().top - screen.getBoundingClientRect().top;
+  if (LIVE && innerWidth > 960) {
+    const tall = stage.clientHeight - above - 10, wide = stage.clientWidth - 16 - 320 - 20;
+    const w = Math.max(280, Math.floor(Math.min(wide, tall * VW / VH)));
+    crt.style.width = `${w}px`;
+    stage.style.gridTemplateColumns = `${w + 20}px minmax(320px, 1fr)`;
+    const spare = tall - w * H / VW;
+    if (spare > 140 && CHRONICLE.parentElement !== $('under')) $('under').append(CHRONICLE);
+    else if (spare <= 140 && CHRONICLE.parentElement === $('under')) CHRONICLE_HOME.before(CHRONICLE);
+    // Too little room for the chronicle: the view grows taller to fill it, with more sea.
+    setViewHeight(spare > 140 ? H : Math.min(Math.round(H * 1.25), Math.floor(VW * tall / w)));
+    return;
+  }
+  stage.style.gridTemplateColumns = '';
+  if (CHRONICLE.parentElement === $('under')) CHRONICLE_HOME.before(CHRONICLE);
+  setViewHeight(H);
+  const w = screen.clientWidth - 16;
+  if (w <= 0) return;
+  const room = innerHeight - 24 - above - 12;
+  crt.style.width = `${Math.max(280, Math.min(w, Math.floor(room * VW / VH)))}px`;
+}
+addEventListener('resize', fitMap);
+new ResizeObserver(fitMap).observe(document.querySelector('.realms'));
+// The settings: view, weather, time and places to visit, in one panel over the map.
+function openSettings(on) { $('settings').hidden = !on; $('gear').setAttribute('aria-expanded', String(on)); $('gear').setAttribute('aria-pressed', String(on)); }
+$('gear').addEventListener('click', () => openSettings($('settings').hidden));
+document.addEventListener('click', e => { if (!$('settings').hidden && !e.target.closest('#settings, #gear')) openSettings(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('settings').hidden) { openSettings(false); $('gear').focus(); } });
+$('settings').addEventListener('click', e => { if (e.target.closest('[data-place], #legendBtn')) openSettings(false); });
+
 // ───────────────────────── loop ─────────────────────────
 let last = performance.now(), panelAcc = 0;
 function frame(now) {
@@ -3646,10 +3830,20 @@ function frame(now) {
   if (panelAcc > 0.4) { panelAcc = 0; updateRealmCards(); renderQuota(); if (sideDirty) renderSide(); else if (selected) renderInspect(); }
   requestAnimationFrame(frame);
 }
-function start() {
+async function start() {
   WORLD = paintBackground();
-  REALMS.forEach(r => loadQuest(r, 0));
+  if (LIVE) {
+    document.body.classList.add('live');
+    $('liveBadge').textContent = 'LIVE';
+    document.querySelector('header h1').textContent = 'GUILD HALL';
+    document.querySelector('header p').textContent = 'Your Claude Code sessions, live: every workspace open on this machine shares the realm. Click a place or a hero to see what is going on; quests and decrees from the desk go straight to the session you pick.';
+    document.querySelector('footer').textContent = 'Served by the Guild Code mod from your session. Close it any time: /guild opens it again.';
+    while (!REALMS.length) { await pollLive(); if (!REALMS.length) await new Promise(r => setTimeout(r, 1500)); }
+    setInterval(pollLive, 1500);
+  } else REALMS.forEach(r => loadQuest(r, 0));
   renderRealms(); renderAll(); renderQuota();
+  fitMap();
+  if (LIVE) setCam('world'); // the whole island at once: every place and who is there
   updateCamera(0, true);
   requestAnimationFrame(frame);
 }

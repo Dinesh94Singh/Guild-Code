@@ -49,6 +49,19 @@ export type GuildRealm = {
   party: GuildMember[]
   dungeon: GuildDungeon
   quests: GuildQuest[]
+  /** Its latest deeds, for the Guild Hall page's chronicle. */
+  chronicle?: GuildEntry[]
+}
+
+/** A quest the Guild Hall page sends to a session: drafted into its prompt box, or sealed and sent. */
+export type GuildPetition = {
+  /** The session it goes to: its realm id. */
+  realm: string
+  title: string
+  text: string
+  mode: GuildSendMode
+  /** Sent as the person's own words (a quest scroll), not as a decree. */
+  asUser?: boolean
 }
 
 export type GuildEntry = {
@@ -86,19 +99,9 @@ declare module 'claude-code' {
       xp: GuildXp
       quota: GuildQuota[]
       realms: GuildRealm[]
-      /** The workspace highlighted on the shared map: '' for none (all alike), 'self' for this one, else another's id. */
-      viewing: string
-      /** The place the inspector shows, or '' for none. */
-      selected: GuildLocation | ''
       teams: number
-      /** How the Guildmaster's Desk reaches Claude: a petition drafted into the prompt box, or sealed and sent at once. */
-      sendMode: GuildSendMode
-      /** Who the quest scroll summons: the guildmaster (the main loop decides) or one of the guild's classes. */
-      summon: GuildClass
-      /** The party member whose details show beside the map, or '' for none. */
-      picked: string
-      /** Whether the legend is open. */
-      legend: boolean
+      /** The Guild Hall page this session serves, once its server is up; '' before. */
+      hall: string
     }
   }
 }

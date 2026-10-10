@@ -15,12 +15,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionRateLimit } from 'claude-code'
 
-import type { GuildClass, GuildDungeon, GuildEntry, GuildLocation, GuildMember, GuildOutcome, GuildQuest, GuildQuota, GuildRealm, GuildSendMode, GuildXp } from '../types'
+import type { GuildClass, GuildDungeon, GuildEntry, GuildMember, GuildOutcome, GuildPetition, GuildQuest, GuildQuota, GuildRealm, GuildSendMode, GuildXp } from '../types'
 import { classifyTool, readBattle } from './classify'
 import type { Placement } from './classify'
-import { CLASSES, LANGS, LOCATIONS, ORDER, PLACE_INFO, PROJECT_COLORS, SUMMONS, TEAMS, classOf, classOfAgentType, questText, windowLabel } from './lore'
+import { CLASSES, LANGS, LOCATIONS, ORDER, PROJECT_COLORS, TEAMS, classOf, classOfAgentType, windowLabel } from './lore'
 import { describeMap, drawMap } from './map'
-import { alertArt, deskArt, legendArt, manaArt } from './panels'
 
 const PANE = 'guild-hall'
 const MAIN = 'main'
@@ -43,22 +42,14 @@ const quests = atom({ plugin: 'guild-code', key: 'quests' } as const, [] as Guil
 const xp = atom({ plugin: 'guild-code', key: 'xp' } as const, NO_XP)
 const quota = atom({ plugin: 'guild-code', key: 'quota' } as const, [] as GuildQuota[])
 const realms = atom({ plugin: 'guild-code', key: 'realms' } as const, [] as GuildRealm[])
-const viewing = atom({ plugin: 'guild-code', key: 'viewing' } as const, '')
-const selected = atom({ plugin: 'guild-code', key: 'selected' } as const, '' as GuildLocation | '')
-const picked = atom({ plugin: 'guild-code', key: 'picked' } as const, '')
-const legend = atom({ plugin: 'guild-code', key: 'legend' } as const, false)
 const teams = atom({ plugin: 'guild-code', key: 'teams' } as const, 0)
-const sendMode = atom({ plugin: 'guild-code', key: 'sendMode' } as const, 'petition' as GuildSendMode)
-const summon = atom({ plugin: 'guild-code', key: 'summon' } as const, 'guildmaster' as GuildClass)
-
-type Decree = { key: string; label: string; text: string }
+const hallUrl = atom({ plugin: 'guild-code', key: 'hall' } as const, '')
 
 /**
- * The Guildmaster's Desk: a quest or decree reaches Claude as a petition drafted into the
- * prompt box for the person to send, or, sealed, as a prompt submitted at once.
+ * A quest from the Guild Hall page reaches Claude as a petition drafted into the prompt box
+ * for the person to send, or, sealed, as a prompt submitted at once.
  */
-async function petition($: EngineInterface, text: string, title: string, asUser = false) {
-  const mode = await read($, sendMode)
+async function petition($: EngineInterface, text: string, title: string, mode: GuildSendMode, asUser = false) {
   if (mode === 'seal') {
     await $.prompt.submit(asUser ? { text, asUser: true } : { text })
     $.ui.toast(`🔏 ${title}: sealed and sent.`)
@@ -70,34 +61,8 @@ async function petition($: EngineInterface, text: string, title: string, asUser 
     $.ui.toast(`📜 ${title}: the petition waits in your prompt box. Press Enter to send it.`)
     await log($, { who: 'Guildmaster', cls: 'guildmaster', location: 'tavern', text: `📜 Petition drafted: ${title}`, outcome: 'ok' })
   } else {
-    $.ui.toast(drafted.refusal === 'dialog' ? '📜 Close the open dialog, then press again.' : '📜 No prompt box here to hold the petition.')
+    $.ui.toast(drafted.refusal === 'dialog' ? '📜 Close the open dialog, then send the quest again.' : '📜 No prompt box here to hold the petition.')
   }
-}
-
-/** One-press decrees for what the guild can see right now: each a ready-made prompt. */
-function decrees(d: GuildDungeon, board: GuildQuest[], mana: GuildQuota[], pick: GuildLocation | '', members: GuildMember[], entries: GuildEntry[]): Decree[] {
-  const out: Decree[] = []
-  if (d.hasRun && d.monsters > 0) {
-    const run = d.lastCommand ? ` Run \`${d.lastCommand}\`,` : ' Run the tests,'
-    out.push({ key: 'slay', label: `⚔️ Slay the ${d.monsters} monster${d.monsters === 1 ? '' : 's'}`, text: `Fix the ${d.monsters} failing test${d.monsters === 1 ? '' : 's'}${d.framework ? ` (${d.framework})` : ''}.${run} find each root cause and fix it, then run the tests again to confirm.` })
-  }
-  if (d.hasRun && d.lastCommand) out.push({ key: 'retrial', label: '🔁 Re-run the trial', text: `Run \`${d.lastCommand}\` again and report what passes and what still fails.` })
-  for (const q of board.filter(q => !q.isDone).slice(0, 3)) out.push({ key: `pursue-${q.id}`, label: `🗡️ Pursue: ${q.title.length > 28 ? `${q.title.slice(0, 27)}…` : q.title}`, text: `Work on the task "${q.title}" now, and mark it done when it is.` })
-  for (const q of board.filter(q => q.isDone).slice(-1)) out.push({ key: `verify-${q.id}`, label: `🔍 Verify & seal: ${q.title.length > 22 ? `${q.title.slice(0, 21)}…` : q.title}`, text: `Check that the task "${q.title}" is really done: verify it against the code and tests, and report.` })
-  const place: Record<GuildLocation, Decree> = {
-    tavern: { key: 'board', label: '📜 Read the board', text: 'Summarize the open tasks and what you would do next, in order.' },
-    study: { key: 'archives', label: '📚 Consult the archives', text: 'Explain how this project is laid out: its main modules, how they connect, and where to start reading.' },
-    dungeon: { key: 'scout', label: '🕯️ Scout the dungeon', text: 'Run the test suite and report what passes and what fails, without changing any code yet.' },
-    armory: { key: 'temper', label: '🔨 Temper the blade', text: "Run the project's formatter and linter, fix what they report, and show a summary of the diff." },
-    cauldron: { key: 'rebrew', label: '⚗️ Rebrew', text: 'Rebuild the project (reinstall dependencies if needed), fix any build errors, and report the result.' },
-  }
-  if (pick) out.push(place[pick])
-  const low = mana.filter(q => q.percentLeft < 30).sort((a, b) => a.percentLeft - b.percentLeft)[0]
-  if (low) out.push({ key: 'ration', label: `🧪 Ration mana (${Math.round(low.percentLeft)}% left)`, text: `Our ${low.label.toLowerCase()} rate limit is running low (${Math.round(low.percentLeft)}% left). For the rest of this work, be lean: fewer, more targeted tool calls and shorter replies.` })
-  for (const m of members.filter(m => m.id !== MAIN && !m.project && !m.isDim).slice(0, 2)) out.push({ key: `recall-${m.id}`, label: `🪶 Recall the ${m.label}`, text: `Tell the ${m.label} subagent working on "${m.activity}" to wrap up, report what it has done so far, and return.` })
-  const recent = entries.slice(-3)
-  if (recent.length) out.push({ key: 'scribe', label: '🪶 Ask the scribe', text: `Explain the last few steps you took and why:\n${recent.map(x => `- ${x.who}: ${x.text}`).join('\n')}` })
-  return out
 }
 
 const REALM_PREFIX = 'realm:'
@@ -108,6 +73,10 @@ const FORGET_MS = 24 * 3600_000
 const toQuota = (limits: readonly SessionRateLimit[]): GuildQuota[] =>
   limits.map(l => ({ kind: l.kind, label: windowLabel(l.kind), percentLeft: Math.max(0, Math.round((100 - l.percentUsed) * 10) / 10), resetsAt: l.resetsAt }))
 
+const PETITION_PREFIX = 'petition:'
+const HALL_PREFIX = 'hall:'
+const HALL_PORT = 8790
+
 let ticker: { cancel: () => void } | undefined
 let published = ''
 let publishedAt = 0
@@ -117,7 +86,7 @@ async function share($: EngineInterface) {
   const id = await $.session.id()
   const cwd = await $.session.cwd()
   const at = await $.clock.now()
-  const mine = { id, name: cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests) }
+  const mine: Omit<GuildRealm, 'updatedAt'> = { id, name: cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests), chronicle: (await read($, chronicle)).slice(-20) }
   const body = JSON.stringify(mine)
   if (body !== published || at - publishedAt > STALE_MS / 2) {
     await $.store.set(`${REALM_PREFIX}${id}`, { ...mine, updatedAt: at })
@@ -126,6 +95,13 @@ async function share($: EngineInterface) {
   }
   const others: GuildRealm[] = []
   for (const key of await $.store.keys()) {
+    if (key.startsWith(`${PETITION_PREFIX}${id}:`)) {
+      // A quest the Guild Hall page sent here through another session's server.
+      const p = await $.store.get(key)
+      await $.store.delete(key)
+      if (isPetition(p)) await petition($, p.text, p.title, p.mode, p.asUser)
+      continue
+    }
     if (!key.startsWith(REALM_PREFIX) || key === `${REALM_PREFIX}${id}`) continue
     const realm = (await $.store.get(key)) as GuildRealm | undefined
     if (!realm || typeof realm !== 'object' || typeof realm.updatedAt !== 'number') continue
@@ -135,8 +111,122 @@ async function share($: EngineInterface) {
   }
   others.sort((a, b) => a.name.localeCompare(b.name))
   await update($, realms, cur => (JSON.stringify(cur) === JSON.stringify(others) ? cur : others))
-  const view = await read($, viewing)
-  if (view && view !== 'self' && !others.some(r => r.id === view)) await update($, viewing, () => '')
+  if (hallPort) await writeLive($, { ...mine, updatedAt: at }, others, at)
+}
+
+/** Sessions open in the same folder share its name: number the others so each reads apart. */
+function named<R extends { name: string }>(here: string, others: R[]): R[] {
+  let twin = 1
+  return others.map(r => (r.name === here ? { ...r, name: `${here} #${(twin += 1)}` } : r))
+}
+
+// ───────────── the Guild Hall page ─────────────
+// /guild serves the full pixel-art hall from this session on 127.0.0.1 and opens it in the
+// browser. The page reads live.json, which every session with a server keeps fresh, and
+// posts its quests back; the server prints each one and this session sends it on.
+
+let hallPort = 0
+let hallStarting: Promise<number> | undefined
+let hallDir = ''
+
+const isPetition = (p: unknown): p is GuildPetition => {
+  const o = p as GuildPetition
+  return !!o && typeof o === 'object' && typeof o.realm === 'string' && typeof o.title === 'string' && typeof o.text === 'string' && !!o.text.trim() && (o.mode === 'seal' || o.mode === 'petition')
+}
+
+async function hallFolder($: EngineInterface): Promise<string> {
+  if (!hallDir) {
+    const { stdout } = await $.process.run(['printenv', 'HOME'])
+    hallDir = `${stdout.trim()}/.claude/guild-code/hall`
+  }
+  return hallDir
+}
+
+async function writeLive($: EngineInterface, mine: GuildRealm, others: GuildRealm[], at: number) {
+  const list = [mine, ...named(mine.name, others)].map((r, i) => ({ ...r, color: PROJECT_COLORS[i % PROJECT_COLORS.length]! }))
+  const live = { at, self: mine.id, realms: list, quota: await read($, quota), xp: await read($, xp) }
+  await $.fs.write(`${await hallFolder($)}/live.json`, JSON.stringify(live))
+}
+
+/** A quest from the page: this session's own is sent here, another's waits in the store for it. */
+async function receive($: EngineInterface, p: unknown) {
+  if (!isPetition(p)) return
+  const id = await $.session.id()
+  if (p.realm === id) return petition($, p.text, p.title, p.mode, p.asUser)
+  await $.store.set(`${PETITION_PREFIX}${p.realm}:${(await $.clock.now()).toString(36)}-${(seq += 1)}`, p)
+}
+
+/** Start this session's hall server, once, and resolve its port. */
+function startHall($: EngineInterface, preferred = HALL_PORT): Promise<number> {
+  if (hallStarting) return hallStarting
+  const started = (async () => {
+    const dir = await hallFolder($)
+    const page = await $.fs.read(`${$.plugin.root}/demo/guild-hall.html`)
+    // The flag that turns the dry run live goes first; the server fills in its token.
+    const flag = `<script>window.GUILD_LIVE = { token: '__GUILD_TOKEN__' }</script>\n`
+    const head = page.startsWith('<meta charset="utf-8">\n') ? '<meta charset="utf-8">\n'.length : 0
+    await $.fs.write(`${dir}/index.html`, page.slice(0, head) + flag + page.slice(head))
+    return new Promise<number>((resolve, reject) => {
+      void (async () => {
+        let buf = ''
+        try {
+          // The child lives as long as this loop: the session's, or until the module reloads.
+          for await (const { stream, text } of $.process.spawn({ argv: ['python3', `${$.plugin.root}/hooks/hall-server.py`, dir, String(preferred)] })) {
+            if (stream !== 'stdout') continue
+            buf += text
+            for (let nl = buf.indexOf('\n'); nl >= 0; nl = buf.indexOf('\n')) {
+              const line = buf.slice(0, nl)
+              buf = buf.slice(nl + 1)
+              let msg: { ready?: number; petition?: unknown }
+              try {
+                msg = JSON.parse(line)
+              } catch {
+                continue
+              }
+              if (typeof msg.ready === 'number') {
+                hallPort = msg.ready
+                await $.store.set(`${HALL_PREFIX}${await $.session.id()}`, hallPort)
+                await update($, hallUrl, () => `http://127.0.0.1:${hallPort}/`)
+                await share($)
+                resolve(hallPort)
+              } else if (msg.petition) {
+                await receive($, msg.petition).catch(() => undefined)
+              }
+            }
+          }
+        } catch (err) {
+          reject(err)
+        }
+        hallPort = 0
+        hallStarting = undefined
+        await update($, hallUrl, () => '').catch(() => undefined)
+        reject(new Error('The Guild Hall server stopped. Is python3 installed?'))
+      })()
+    })
+  })()
+  hallStarting = started
+  started.catch(() => {
+    if (hallStarting === started) hallStarting = undefined
+  })
+  return started
+}
+
+const BUILT_IN_BROWSER = 'mcp__Claude_Browser__preview_start'
+
+/** Open the hall in the desktop app's own browser pane, where the session has one. */
+async function openInBuiltInBrowser($: EngineInterface, url: string): Promise<boolean> {
+  const tools = await $.tool.list().catch(() => [])
+  if (!tools.some(t => t.name === BUILT_IN_BROWSER)) return false
+  return $.tool.call({ tool: BUILT_IN_BROWSER, url }).then(r => !r.isError, () => false)
+}
+
+/** Open a page in the person's browser, whichever opener this system has. */
+async function openInBrowser($: EngineInterface, url: string): Promise<boolean> {
+  for (const argv of [['open', url], ['xdg-open', url], ['cmd', '/c', 'start', '', url]]) {
+    const ok = await $.process.run(argv).then(r => r.exitCode === 0, () => false)
+    if (ok) return true
+  }
+  return false
 }
 
 function bar(percent: number, cells = 10): string {
@@ -180,8 +270,8 @@ async function move($: EngineInterface, memberId: string, change: Partial<GuildM
 }
 
 async function gainXp($: EngineInterface, cls: GuildClass, amount: number) {
-  const next = await update($, xp, cur => ({ ...cur, [cls]: (cur[cls] ?? 0) + amount }))
-  void $.store.set('xp', next).catch(() => undefined)
+  const total = await update($, xp, cur => ({ ...cur, [cls]: (cur[cls] ?? 0) + amount }))
+  void $.store.set('xp', total).catch(() => undefined)
 }
 
 /** A member now waits on the person: it raises its hand on the map, and the person is told. */
@@ -234,12 +324,6 @@ export const register: Register = on => {
       // A fresh guild: no XP yet.
     }
     try {
-      const mode = await $.store.get('sendMode')
-      if (mode === 'petition' || mode === 'seal') await update($, sendMode, () => mode)
-    } catch {
-      // Petitions by default.
-    }
-    try {
       const usage = await $.session.usage()
       await update($, quota, () => toQuota(usage.rateLimits))
     } catch {
@@ -248,6 +332,10 @@ export const register: Register = on => {
     ticker?.cancel()
     ticker = $.clock.every(PUBLISH_MS, () => void share($).catch(() => undefined))
     void share($).catch(() => undefined)
+    // A reload ends the hall's server with the old module: start it again on the same port,
+    // so a Guild Hall page left open picks up where it was.
+    const port = await $.store.get(`${HALL_PREFIX}${await $.session.id()}`).catch(() => undefined)
+    if (typeof port === 'number') void startHall($, port).catch(() => undefined)
     void $.ui.open({ id: PANE, title: 'Guild Hall' })
     return next(e)
   })
@@ -266,6 +354,7 @@ export const register: Register = on => {
     ticker?.cancel()
     try {
       await $.store.delete(`${REALM_PREFIX}${await $.session.id()}`)
+      await $.store.delete(`${HALL_PREFIX}${await $.session.id()}`)
     } catch {
       // A stale realm ages out of the others' view by itself.
     }
@@ -273,8 +362,16 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'guild' }, async $ => {
-    const opened = await $.ui.open({ id: PANE, title: 'Guild Hall', focus: true })
-    return { text: opened.isPlaced ? '🏰 The Guild Hall is open.' : '🏰 The Guild Hall will show where this surface seats panes.' }
+    void $.ui.open({ id: PANE, title: 'Guild Hall' })
+    try {
+      const port = await startHall($)
+      const url = `http://127.0.0.1:${port}/`
+      if (await openInBuiltInBrowser($, url)) return { text: `🏰 The Guild Hall is open in the browser pane: ${url}` }
+      const opened = await openInBrowser($, url)
+      return { text: opened ? `🏰 The Guild Hall is open in your browser: ${url}` : `🏰 The Guild Hall is ready: open ${url}` }
+    } catch (err) {
+      return { text: `🏰 The map is in the pane, but the full Guild Hall could not start: ${err instanceof Error ? err.message : String(err)}` }
+    }
   })
 
   on('command.run', { command: 'guild-stats' }, async $ => {
@@ -468,216 +565,48 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // The pane is the map alone: everything to act on lives on the Guild Hall page.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const others = await read($, realms)
-    const view = await read($, viewing)
     const here = (await $.session.cwd().catch(() => '')).split(/[\\/]/).filter(Boolean).pop() ?? 'this workspace'
     // Every workspace shares one map: this one from live state, the others from their last
-    // published snapshots, each party in its project's colour. A highlighted one draws the rest faint.
-    const own = { id: 'self', name: here, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests) }
+    // published snapshots, each party in its project's colour.
+    const others = named(here, await read($, realms))
+    const own = { name: here, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests) }
     const all = [own, ...others]
     const multi = others.length > 0
-    const focus = all.find(r => r.id === view)
     const members: GuildMember[] = all.flatMap((r, i) =>
-      r.party.map(m => ({ ...m, project: multi ? { name: r.name, color: PROJECT_COLORS[i % PROJECT_COLORS.length]! } : undefined, isDim: !!focus && focus !== r })),
+      r.party.map(m => ({ ...m, project: multi ? { name: r.name, color: PROJECT_COLORS[i % PROJECT_COLORS.length]! } : undefined })),
     )
-    const entries = await read($, chronicle) // deeds are this session's own
-    const shownRealms = focus ? [focus] : all
     const d: GuildDungeon = {
-      monsters: shownRealms.reduce((n, r) => n + r.dungeon.monsters, 0),
-      slain: shownRealms.reduce((n, r) => n + r.dungeon.slain, 0),
-      hasRun: shownRealms.some(r => r.dungeon.hasRun),
-      isCleared: shownRealms.every(r => !r.dungeon.hasRun || r.dungeon.isCleared),
-      framework: shownRealms.length === 1 ? shownRealms[0]!.dungeon.framework : undefined,
+      monsters: all.reduce((n, r) => n + r.dungeon.monsters, 0),
+      slain: all.reduce((n, r) => n + r.dungeon.slain, 0),
+      hasRun: all.some(r => r.dungeon.hasRun),
+      isCleared: all.every(r => !r.dungeon.hasRun || r.dungeon.isCleared),
+      framework: all.length === 1 ? all[0]!.dungeon.framework : undefined,
     }
-    const board = shownRealms.flatMap(r => r.quests)
-    const mana = await read($, quota)
-    const pick = await read($, selected)
+    const board = all.flatMap(r => r.quests)
+    const url = await read($, hallUrl)
     const now = await $.clock.now().catch(() => 0)
-    const cols = Math.max(30, e.props.bodyColumns ?? 80)
-    const { Box: B, Text: Tx, Button } = $.ui.resolve(e)
-    const setPlace = (loc: GuildLocation) => () => void update($, selected, cur => (cur === loc ? '' : loc))
-    const setView = (id: string) => () => void update($, viewing, () => id)
-    const mode = await read($, sendMode)
-    const calling = await read($, summon)
-    const ui = $.ui.resolve(e)
-    const Input = 'Input' in ui ? ui.Input : undefined
-    const ownMembers = members.filter(m => !m.project || m.project.name === here)
-    const deeds = decrees(own.dungeon, own.quests, mana, pick, ownMembers.map(m => ({ ...m, project: undefined })), entries)
-    const toggleMode = () => void update($, sendMode, cur => {
-      const next: GuildSendMode = cur === 'petition' ? 'seal' : 'petition'
-      void $.store.set('sendMode', next).catch(() => undefined)
-      return next
-    })
-    // The quest scroll and the decrees reach only this session: ravens to other guilds come later.
-    const desk = () => (
-      <B flexDirection="column" paddingX={1} borderStyle="round" borderColor="warning">
-        <Tx bold>🪶 The Guildmaster's Desk{multi ? ` · quests go to ${here}` : ''}</Tx>
-        {Input ? (
-          <Input
-            key="quest-scroll"
-            label="📜 Quest scroll"
-            placeholder={calling === 'guildmaster' ? 'Write a quest for the guild…' : `Write a quest for the ${CLASSES[calling].name}…`}
-            submitLabel={mode === 'seal' ? 'Seal & send' : 'Draft petition'}
-            onSubmit={value => {
-              if (value.trim()) void petition($, questText(value, calling), `Quest for the ${CLASSES[calling].name}`, calling === 'guildmaster')
-            }}
-          />
-        ) : (
-          <Tx dimColor>The quest scroll needs a surface with text fields; the decrees below still work.</Tx>
-        )}
-        <B flexWrap="wrap" gap={1}>
-          <Tx dimColor>Summon:</Tx>
-          {(Object.keys(CLASSES) as GuildClass[]).map(c => (
-            <Button key={`summon-${c}`} label={`${calling === c ? '▸ ' : ''}${CLASSES[c].icon} ${CLASSES[c].name}`} dimColor={calling !== c} onPress={() => void update($, summon, () => c)} />
-          ))}
-        </B>
-        <Tx dimColor>{CLASSES[calling].icon} {CLASSES[calling].name}: {SUMMONS[calling]}</Tx>
-        {deeds.length > 0 && <Tx bold>Decrees</Tx>}
-        <B flexWrap="wrap" gap={1}>
-          {deeds.map(x => <Button key={`decree-${x.key}`} label={x.label} onPress={() => void petition($, x.text, x.label.replace(/^\S+\s/, ''))} />)}
-        </B>
-        <B gap={1}>
-          <Button key="send-mode" label={mode === 'seal' ? '🔏 Sealed: sends at once' : '📜 Petitions: you approve each'} dimColor onPress={toggleMode} />
-        </B>
-      </B>
-    )
-
-    const glyph = (o: GuildOutcome) => (o === 'running' ? '…' : o === 'ok' ? '✓' : '✗')
-    const realmBar = () =>
-      others.length > 0 && (
-        <B flexDirection="column" paddingX={1}>
-          <Tx bold>🗺️ Workspaces</Tx>
-          <B flexWrap="wrap" gap={1}>
-            <Button key="realm-all" label={`${view === '' ? '▸ ' : ''}All workspaces`} dimColor={view !== ''} onPress={setView('')} />
-            <Button key="realm-here" label={`${view === 'self' ? '▸ ' : ''}${here} (this one)`} dimColor={view !== 'self'} onPress={setView(view === 'self' ? '' : 'self')} />
-            {others.map(r => {
-              const out = r.party.filter(m => m.isBusy).length
-              return <Button key={`realm-${r.id}`} label={`${view === r.id ? '▸ ' : ''}${r.name} · ${out ? `${out} at work` : 'resting'}${r.dungeon.monsters ? ` · 💀${r.dungeon.monsters}` : ''}`} dimColor={view !== r.id} onPress={setView(view === r.id ? '' : r.id)} />
-            })}
-          </B>
-        </B>
-      )
-    const showLegend = await read($, legend)
-    const pickedId = await read($, picked)
-    const placeBar = () => (
-      <B flexWrap="wrap" gap={1} paddingX={1}>
-        {ORDER.map(loc => (
-          <Button key={`place-${loc}`} label={`${LOCATIONS[loc].icon} ${LOCATIONS[loc].name}`} dimColor={pick !== loc} onPress={setPlace(loc)} />
-        ))}
-        <Button key="legend" label={showLegend ? '📖 Close legend' : '📖 Legend'} variant={showLegend ? 'primary' : undefined} onPress={() => void update($, legend, on => !on)} />
-      </B>
-    )
-    // Who waits on the person, across every workspace on the map.
-    const waiting = members.filter(m => m.waiting && !m.isDim).map(m => ({ who: `${m.project ? `${m.project.name}: ` : ''}${m.fixedClass ? m.label : CLASSES[classOf(m)].name}`, where: LOCATIONS[m.location].name, what: m.waiting! }))
-    // A party member picked from the roster: its task in full, which the map leaves unwritten.
-    const pickedKey = (m: GuildMember) => `${m.project?.name ?? ''}/${m.id}`
-    const chosen = members.find(m => pickedKey(m) === pickedId)
-    const memberCard = () => {
-      if (!chosen) return null
-      const cls = classOf(chosen)
-      const name = chosen.fixedClass ? chosen.label : `${CLASSES[cls].name} (main loop)`
-      const theirs = entries.filter(x => x.who === (chosen.fixedClass ? chosen.label : CLASSES[cls].name)).slice(-5).reverse()
-      return (
-        <B flexDirection="column" paddingX={1} borderStyle="round" borderColor={chosen.waiting ? 'error' : LOCATIONS[chosen.location].color}>
-          <B justifyContent="space-between">
-            <Tx bold>{CLASSES[cls].icon} {name}</Tx>
-            <Button key="unpick" label="✕" plain onPress={() => void update($, picked, () => '')} />
-          </B>
-          {chosen.project && <Tx dimColor>Workspace: {chosen.project.name}</Tx>}
-          <Tx>At the {LOCATIONS[chosen.location].icon} {LOCATIONS[chosen.location].name}{chosen.lang ? ` · ${LANGS[chosen.lang].name}` : ''}{chosen.team ? ` · 🚩 ${chosen.team.name}` : ''}</Tx>
-          {chosen.waiting && <Tx color="error" bold>❗ Waits on you: {chosen.waiting}</Tx>}
-          <Tx wrap="wrap">{chosen.isBusy ? '⚒️ ' : '💤 '}{chosen.activity}</Tx>
-          {theirs.length > 0 && <Tx bold>Recent deeds</Tx>}
-          {theirs.map(x => (
-            <Tx wrap="truncate-end">
-              <Tx color={tone(x.outcome)}>{glyph(x.outcome)}</Tx> <Tx dimColor>{x.text}</Tx>
-            </Tx>
-          ))}
-        </B>
-      )
-    }
-    const inspector = () => {
-      if (!pick) return null
-      const info = LOCATIONS[pick]
-      const people = members.filter(m => m.location === pick)
-      const deeds = entries.filter(x => x.location === pick).slice(-6).reverse()
-      return (
-        <B flexDirection="column" paddingX={1} borderStyle="round" borderColor={info.color}>
-          <Tx bold color={info.color}>{info.icon} {info.name}</Tx>
-          <Tx dimColor>{PLACE_INFO[pick].blurb}</Tx>
-          <Tx dimColor>{PLACE_INFO[pick].tools}</Tx>
-          {pick === 'dungeon' && <Tx>{d.hasRun ? `💀 ${d.monsters} lurk · ${d.slain} slain${d.framework ? ` (${d.framework})` : ''}` : '💀 0 lurk · 0 slain · no trials yet'}</Tx>}
-          {pick === 'tavern' && <Tx>📜 {board.filter(q => !q.isDone).length} open · {board.filter(q => q.isDone).length} done</Tx>}
-          <Tx bold>Here now</Tx>
-          {people.length === 0 && <Tx dimColor>Nobody is here.</Tx>}
-          {people.map(m => (
-            <Tx wrap="truncate-end">
-              {m.project ? `[${m.project.name}] ` : ''}{CLASSES[classOf(m)].icon} {m.fixedClass ? m.label : CLASSES[classOf(m)].name}{m.team ? ` 🚩${m.team.name}` : ''} <Tx dimColor>{m.activity}</Tx>
-            </Tx>
-          ))}
-          <Tx bold>Recent deeds{multi ? ` in ${here}` : ''}</Tx>
-          {deeds.length === 0 && <Tx dimColor>Nothing has happened here yet.</Tx>}
-          {deeds.map(x => (
-            <Tx wrap="truncate-end">
-              <Tx color={tone(x.outcome)}>{glyph(x.outcome)}</Tx> {x.who} <Tx dimColor>{x.text}</Tx>
-            </Tx>
-          ))}
-        </B>
-      )
-    }
-    const manaPanel = () => (
-      <B flexDirection="column" paddingX={1}>
-        <Tx bold>🔮 Mana · rate limits left</Tx>
-        {mana.length === 0 && <Tx dimColor>No reading yet: the engine reports windows after the first response on a subscription.</Tx>}
-        {mana.map(q => (
-          <Tx wrap="truncate-end">
-            {q.label.padEnd(18)} <Tx color={q.percentLeft < 20 ? 'error' : q.percentLeft < 50 ? 'warning' : 'success'}>{bar(q.percentLeft)}</Tx> {Math.round(q.percentLeft)}% left<Tx dimColor>{until(q.resetsAt, now)}</Tx>
-          </Tx>
-        ))}
-      </B>
-    )
-    const partyList = () => {
-      const out = members.filter(m => !m.isDim)
-      if (out.length === 0) return null
-      return (
-        <B flexDirection="column" paddingX={1}>
-          <Tx bold>⚔️ The party · pick one for its task</Tx>
-          <B flexWrap="wrap" gap={1}>
-            {out.map(m => (
-              <Button
-                key={`pick-${pickedKey(m)}`}
-                label={`${m.waiting ? '❗' : CLASSES[classOf(m)].icon} ${m.project ? `${m.project.name}: ` : ''}${m.fixedClass ? m.label : CLASSES[classOf(m)].name}`}
-                dimColor={pickedKey(m) !== pickedId && !m.waiting}
-                variant={pickedKey(m) === pickedId ? 'primary' : undefined}
-                onPress={() => void update($, picked, cur => (cur === pickedKey(m) ? '' : pickedKey(m)))}
-              />
-            ))}
-          </B>
-        </B>
-      )
-    }
-    const tone = (o: GuildOutcome) => (o === 'running' ? 'warning' : o === 'ok' ? 'success' : 'error')
-    const recent = entries.slice(-10).reverse()
-    const openQuests = board.filter(q => !q.isDone)
-    const doneQuests = board.filter(q => q.isDone)
 
     if (e.surface === 'terminal') {
       const { Box, Text } = $.ui.resolve(e)
+      const cols = Math.max(30, e.props.bodyColumns ?? 80)
       const half = Math.max(14, Math.floor((cols - 1) / 2))
+      const glyph = (o: GuildOutcome) => (o === 'running' ? '…' : o === 'ok' ? '✓' : '✗')
+      const tone = (o: GuildOutcome) => (o === 'running' ? 'warning' : o === 'ok' ? 'success' : 'error')
       const room = (loc: (typeof ORDER)[number], width: number) => {
         const info = LOCATIONS[loc]
-        const here = members.filter(m => m.location === loc)
-        const busy = here.some(m => m.isBusy)
+        const there = members.filter(m => m.location === loc)
+        const busy = there.some(m => m.isBusy)
         return (
           <Box key={loc} flexDirection="column" width={width} borderStyle="round" borderColor={busy ? info.color : 'inactive'} paddingX={1}>
             <Text bold color={busy ? info.color : undefined}>
               {info.icon} {info.name}
             </Text>
-            {here.length === 0 && <Text dimColor>empty</Text>}
-            {here.map(m => (
-              <Text wrap="truncate-end" dimColor={m.isDim}>
-                {m.project ? `[${m.project.name}] ` : ''}{CLASSES[classOf(m)].icon} {m.fixedClass ? m.label : CLASSES[classOf(m)].name}
+            {there.length === 0 && <Text dimColor>empty</Text>}
+            {there.map(m => (
+              <Text wrap="truncate-end">
+                {m.waiting ? '❗ ' : ''}{m.project ? `[${m.project.name}] ` : ''}{CLASSES[classOf(m)].icon} {m.fixedClass ? m.label : CLASSES[classOf(m)].name}
                 {m.lang ? ` [${LANGS[m.lang].crest}]` : ''} <Text dimColor>{m.activity}</Text>
               </Text>
             ))}
@@ -688,16 +617,15 @@ export const register: Register = on => {
             )}
             {loc === 'tavern' && (
               <Text dimColor>
-                📜 {openQuests.length} open · {doneQuests.length} done
+                📜 {board.filter(q => !q.isDone).length} open · {board.filter(q => q.isDone).length} done
               </Text>
             )}
           </Box>
         )
       }
+      const recent = (await read($, chronicle)).slice(-8).reverse()
       return (
         <Box flexDirection="column">
-          {realmBar()}
-          {focus && multi && <Text bold> 🗺️ Highlighting {focus.name}</Text>}
           <Box>
             {room('study', half)}
             {room('armory', half)}
@@ -707,28 +635,6 @@ export const register: Register = on => {
             {room('dungeon', half)}
             {room('cauldron', half)}
           </Box>
-          {desk()}
-          {placeBar()}
-          {showLegend && (
-            <Box flexDirection="column" paddingX={1} borderStyle="round">
-              <Text bold>📖 Legend</Text>
-              {ORDER.map(loc => <Text>{LOCATIONS[loc].icon} {LOCATIONS[loc].name}: <Text dimColor>{PLACE_INFO[loc].blurb}</Text></Text>)}
-              <Text dimColor>💀 failing tests · ❗ waits on you · 🚩 a team of subagents</Text>
-            </Box>
-          )}
-          {waiting.map(x => <Text color="error" bold>❗ {x.who} at the {x.where} {x.what}</Text>)}
-          {inspector()}
-          {partyList()}
-          {memberCard()}
-          {manaPanel()}
-          {openQuests.length > 0 && (
-            <Box flexDirection="column" paddingX={1}>
-              <Text bold>Quest board</Text>
-              {openQuests.slice(0, 5).map(q => (
-                <Text wrap="truncate-end">☐ {q.title}</Text>
-              ))}
-            </Box>
-          )}
           <Box flexDirection="column" paddingX={1}>
             <Text bold>Chronicle</Text>
             {recent.length === 0 && <Text dimColor>The hall is quiet. Post a quest to begin.</Text>}
@@ -739,75 +645,16 @@ export const register: Register = on => {
               </Text>
             ))}
           </Box>
+          <Text dimColor> {url ? `🏰 The full Guild Hall: ${url}` : '🏰 /guild opens the full Guild Hall in your browser.'}</Text>
         </Box>
       )
     }
 
-    const { Box, Text, Svg } = $.ui.resolve(e)
-    // The map with the desk and the mana beside it when there is room; stacked when narrow.
-    const wide = cols >= 110
-    const deskControls = () => (
-      <Box flexDirection="column" gap={1}>
-        {Input ? (
-          <Input
-            key="quest-scroll"
-            placeholder={calling === 'guildmaster' ? '📜 Write a quest for the guild…' : `📜 Write a quest for the ${CLASSES[calling].name}…`}
-            submitLabel={mode === 'seal' ? '⚜ Seal & send' : '✎ Draft petition'}
-            onSubmit={value => {
-              if (value.trim()) void petition($, questText(value, calling), `Quest for the ${CLASSES[calling].name}`, calling === 'guildmaster')
-            }}
-          />
-        ) : (
-          <Text dimColor>The quest scroll needs a surface with text fields; the decrees still work.</Text>
-        )}
-        <Box flexWrap="wrap" gap={1}>
-          {(Object.keys(CLASSES) as GuildClass[]).map(c => (
-            <Button key={`summon-${c}`} label={CLASSES[c].icon} dimColor={calling !== c} variant={calling === c ? 'primary' : undefined} onPress={() => void update($, summon, () => c)} />
-          ))}
-          <Button key="send-mode" label={mode === 'seal' ? '⚜ Sealed' : '✎ Petitions'} dimColor onPress={toggleMode} />
-        </Box>
-        {deeds.length > 0 && (
-          <Box flexDirection="column" gap={0}>
-            <Text bold color="warning">⚔ Decrees</Text>
-            <Box flexWrap="wrap" gap={1}>
-              {deeds.map(x => <Button key={`decree-${x.key}`} label={x.label} onPress={() => void petition($, x.text, x.label.replace(/^\S+\s/, ''))} />)}
-            </Box>
-          </Box>
-        )}
-      </Box>
-    )
-    const column = (
-      <Box flexDirection="column" gap={1} width={wide ? 46 : undefined}>
-        {waiting.length > 0 && <Svg source={alertArt(waiting)} alt={`Awaiting your word: ${waiting.map(x => `${x.who} at the ${x.where} ${x.what}`).join('; ')}`} />}
-        {partyList()}
-        {memberCard()}
-        <Svg source={deskArt(calling, mode, own.quests.filter(q => !q.isDone).length)} alt={`The Guildmaster's Desk: the quest scroll summons the ${CLASSES[calling].name}; ${mode === 'seal' ? 'quests are sealed and sent at once' : 'quests are drafted as petitions for you to send'}.`} />
-        {deskControls()}
-        <Svg source={manaArt(mana, now)} alt={mana.length ? `Mana: ${mana.map(q => `${q.label} ${Math.round(q.percentLeft)}% left`).join(', ')}.` : 'Mana: no rate-limit reading yet.'} isInteractive />
-      </Box>
-    )
+    const { Box, Text, Svg, Link } = $.ui.resolve(e)
     return (
       <Box flexDirection="column" gap={1}>
-        {realmBar()}
-        <Box flexDirection={wide ? 'row' : 'column'} gap={1}>
-          <Box flexDirection="column" flexGrow={1} gap={1}>
-            <Svg source={drawMap(members, d, board, { selected: pick, hour: new Date(now).getHours(), now })} alt={describeMap(members, d)} isInteractive />
-            {placeBar()}
-            {showLegend && <Svg source={legendArt()} alt="Legend: the Tavern takes prompts and hires subagents; the Wizard's Study is reading and research; the Armory is edits, linting and formatting; the Cauldron is builds and installs; the Dungeon is test runs, where failing tests are monsters. A red ! marks an agent waiting on you; a pennant marks a team; a glowing road marks work under way." />}
-            {inspector()}
-          </Box>
-          {column}
-        </Box>
-        <Box flexDirection="column" paddingX={1}>
-          <Text bold>📖 Chronicle</Text>
-          {recent.length === 0 && <Text dimColor>The hall is quiet. Post a quest to begin.</Text>}
-          {recent.map(entry => (
-            <Text wrap="truncate-end">
-              <Text color={tone(entry.outcome)}>{glyph(entry.outcome)}</Text> {CLASSES[entry.cls].icon} {entry.who}
-              {entry.lang ? ` [${LANGS[entry.lang].crest}]` : ''} <Text dimColor>{entry.text}</Text>
-            </Text>
-          ))}
-        </Box>
+        <Svg source={drawMap(members, d, board, { hour: new Date(now).getHours(), now })} alt={describeMap(members, d)} />
+        {url ? <Link href={url} label="🏰 Open the full Guild Hall ↗" /> : <Text dimColor>🏰 /guild opens the full Guild Hall in your browser.</Text>}
       </Box>
     )
   })
