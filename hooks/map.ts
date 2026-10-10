@@ -1,453 +1,271 @@
-// The guild realm drawn as one SVG, for the surfaces that draw pictures
-// (desktop, VS Code, mobile). The terminal gets a text map instead.
+// The guild realm as one SVG, for the surfaces that draw pictures (desktop, VS Code, mobile).
+// The terminal gets a text map instead.
 //
-// The realm is an island: the guild town and its Tavern Board in the middle, roads
-// out to the Wizard's tower in the forest, the dwarven Armory in the mountains, the
-// Dungeon in the badlands and the Alchemist's hut in the swamp. Everything that does
-// not depend on the party is drawn once and reused.
+// The world itself is painted once (hooks/world.js, the same painter the dry run uses) and
+// embedded as a small pixel-art image; over it go the party, the monsters and the life of
+// the realm as pixel sprites, animated with SMIL since the surface runs no script.
 import type { GuildDungeon, GuildLocation, GuildMember, GuildQuest, GuildQuota } from '../types'
 import { CLASSES, LANGS, LOCATIONS, PLACE_INFO, classOf } from './lore'
+import { Recorder, dragon, member, slime, villager } from './pixelart.js'
+import type { Pen } from './pixelart.js'
+import { BOARD, CAULDRON, CHEST, FOLK, HUB, MONSTER_SLOTS, PLACES, ROADS, VOLCANO, W, H } from './world.js'
+import { WORLD_ART, WORLD_FOAM, WORLD_MARKS } from './world-art'
 
 export type MapOptions = {
-  /** The workspace's name, drawn as the map's title. */
-  realm?: string
   /** The place being inspected, ringed in gold. */
   selected?: GuildLocation | ''
-  /** Rate-limit windows, drawn as mana gauges. */
+  /** Kept for callers that pass them; the pane draws these beside the map. */
+  realm?: string
   quota?: GuildQuota[]
   /** The local hour: after dark the realm dims and its windows light up. */
   hour?: number
+  /** Now, in ms: how far along the road a member who just moved has walked. */
+  now?: number
 }
 
-const W = 640
-const H = 372
+const WALK_SPEED = 70 // world pixels a second
+const NAMES: Record<GuildLocation, string> = { tavern: 'TAVERN', study: "WIZARD'S STUDY", armory: 'ARMORY', cauldron: 'CAULDRON', dungeon: 'DUNGEON' }
+const PLACE_COLOR: Record<GuildLocation, string> = { tavern: '#f2b84b', study: '#a593ff', armory: '#a9b6c6', cauldron: '#84d488', dungeon: '#e8606f' }
 
-type Pt = [number, number]
-
-/** Where each place sits: its landmark, its name plate, where the party stands, and its caption. */
-const PLACES: Record<GuildLocation, { at: Pt; tag: Pt; party: Pt; caption: Pt }> = {
-  study: { at: [112, 100], tag: [112, 20], party: [146, 126], caption: [112, 156] },
-  armory: { at: [534, 98], tag: [534, 36], party: [548, 124], caption: [534, 152] },
-  tavern: { at: [320, 176], tag: [320, 126], party: [320, 214], caption: [320, 240] },
-  dungeon: { at: [104, 282], tag: [104, 222], party: [150, 294], caption: [104, 326] },
-  cauldron: { at: [548, 284], tag: [548, 232], party: [516, 306], caption: [548, 334] },
-}
-
-// The same roads and river as the pixel-art dry run, scaled from its 960×540 world.
-const s = (x: number, y: number): Pt => [x * (2 / 3), y * (2 / 3) + 6]
-const ROADS: Record<Exclude<GuildLocation, 'tavern'>, Pt[]> = {
-  study: [s(480, 300), s(446, 290), s(400, 266), s(348, 250), s(300, 230), s(258, 204), s(222, 178), s(198, 164)],
-  armory: [s(480, 300), s(524, 286), s(570, 262), s(612, 238), s(660, 214), s(712, 196), s(756, 182), s(794, 168)],
-  dungeon: [s(480, 300), s(444, 322), s(400, 350), s(346, 372), s(294, 392), s(254, 414), s(228, 430)],
-  cauldron: [s(480, 300), s(526, 322), s(574, 350), s(622, 378), s(672, 404), s(716, 428), s(750, 448)],
-}
-const RIVER: Pt[] = [s(592, -12), s(600, 60), s(586, 120), s(600, 180), s(618, 240), s(598, 300), s(614, 360), s(644, 420), s(626, 480), s(634, 552)]
-
-const esc = (t: string) =>
-  t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1)}…` : t)
-
 const r1 = (n: number) => Math.round(n * 10) / 10
+const pts = (list: readonly { x: number; y: number }[]) => list.map(p => `${r1(p.x)},${r1(p.y)}`).join(' ')
 
-function hash(x: number, y: number): number {
-  let h = (x * 374761393 + y * 668265263) | 0
-  h = Math.imul(h ^ (h >>> 13), 1274126177)
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967295
+// ── sprites, drawn once into <defs> as needed ──
+const art = new Map<string, string>()
+function sprite(id: string, draw: (b: Pen) => void): string {
+  if (!art.has(id)) { const b = new Recorder(); draw(b); art.set(id, b.toSvg()) }
+  return id
 }
+const memberSprite = (cls: string, frame: number) => sprite(`m-${cls}-${frame}`, b => member(b, cls, frame, -6, -16, false, cls === 'guildmaster' ? 'currentColor' : undefined))
 
-/** A smooth curve through points (Catmull-Rom, as cubic Béziers). */
-function curve(pts: Pt[], closed = false): string {
-  const n = pts.length
-  const at = (i: number): Pt => (closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))])!
-  const first = at(0)
-  let d = `M${r1(first[0])} ${r1(first[1])}`
-  for (let i = 0; i < (closed ? n : n - 1); i += 1) {
-    const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)]
-    const c1: Pt = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6]
-    const c2: Pt = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6]
-    d += `C${r1(c1[0])} ${r1(c1[1])} ${r1(c2[0])} ${r1(c2[1])} ${r1(p2[0])} ${r1(p2[1])}`
+/** The road from one place to another: back to the crossroads, then out. */
+function route(from: GuildLocation, to: GuildLocation, end: { x: number; y: number }) {
+  const back = from === to ? [] : [...ROADS[from]].reverse()
+  const out = from === to ? [] : ROADS[to]
+  return [...back, HUB, ...out, end]
+}
+const length = (list: { x: number; y: number }[]) => list.reduce((n, p, i) => (i ? n + Math.hypot(p.x - list[i - 1]!.x, p.y - list[i - 1]!.y) : 0), 0)
+
+/** The life of the realm that does not depend on the party: smoke, fire, water, folk and the dragon. */
+function ambient(night: boolean): string {
+  const M = WORLD_MARKS
+  const o: string[] = []
+  const smoke = (x: number, y: number, color: string, i: number) =>
+    [0, 1].map(k => `<circle cx="${x}" cy="${y}" r="1.5" fill="${color}"><animate attributeName="cy" values="${y};${y - 16}" dur="3s" begin="${-(i * 0.7 + k * 1.5)}s" repeatCount="indefinite"/><animate attributeName="cx" values="${x};${x + 6}" dur="3s" begin="${-(i * 0.7 + k * 1.5)}s" repeatCount="indefinite"/><animate attributeName="r" values="1.5;3.5" dur="3s" begin="${-(i * 0.7 + k * 1.5)}s" repeatCount="indefinite"/><animate attributeName="opacity" values=".7;0" dur="3s" begin="${-(i * 0.7 + k * 1.5)}s" repeatCount="indefinite"/></circle>`).join('')
+  M.chimneys.forEach((c, i) => o.push(smoke(c.x, c.y, 'magic' in c ? (i % 2 ? '#a593ff' : '#84d488') : '#e1e1e6', i)))
+  M.vents.forEach((v, i) => o.push(smoke(v.x, v.y, '#5a5660', i + 3)))
+  o.push(smoke(FOLK.cookfire.x, FOLK.cookfire.y - 12, '#f0f0f0', 7))
+  // the windmill's sails
+  const wm = M.windmill
+  if (wm) o.push(`<g transform="translate(${wm.x} ${wm.y})"><g><path d="M-1 -14h2v28h-2zM-14 -1h28v2h-28z" fill="#3a2414"/><path d="M1 -14h3v9h-3zM5 1h9v3h-9zM-4 5h3v9h-3zM-14 -4h9v3h-9z" fill="#efe6d2"/><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="7s" repeatCount="indefinite"/></g><rect x="-1" y="-1" width="3" height="3" fill="#1b1424"/></g>`)
+  // fire: torches, the forge, the cauldrons
+  const flame = (x: number, y: number, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})"><rect x="-1" y="-3" width="3" height="3" fill="#ff9a3a"><animate attributeName="fill" values="#ffd27a;#ff9a3a;#ffd27a" dur=".5s" repeatCount="indefinite"/></rect><rect x="0" y="-2" width="1" height="1" fill="#fff3c0"/></g>`
+  M.torches.forEach(t => o.push(flame(t.x, t.y)))
+  if (M.forge) o.push(`<ellipse cx="${M.forge.x}" cy="${M.forge.y + 8}" rx="7" ry="3" fill="#ff7a2a"><animate attributeName="opacity" values="1;.55;1" dur=".8s" repeatCount="indefinite"/></ellipse>`)
+  const pot = (x: number, y: number, liquid: string) => `<rect x="${x - 6}" y="${y + 3}" width="12" height="3" fill="#ff7a2a"><animate attributeName="height" values="3;4;3" dur=".4s" repeatCount="indefinite"/></rect><path d="M${x - 9} ${y - 7}h18v11h-18z" fill="#1b1424"/><path d="M${x - 8} ${y - 6}h16v9h-16z" fill="#2e2a36"/><rect x="${x - 7}" y="${y - 7}" width="14" height="2" fill="${liquid}"/>${[0, 1, 2].map(k => `<circle cx="${x - 3 + k * 3}" cy="${y - 8}" r="1" fill="#d6ffd8"><animate attributeName="cy" values="${y - 8};${y - 18}" dur="${1.4 + k * 0.3}s" begin="${-k * 0.5}s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="${1.4 + k * 0.3}s" begin="${-k * 0.5}s" repeatCount="indefinite"/></circle>`).join('')}`
+  o.push(pot(CAULDRON.x, CAULDRON.y, '#4fbf5a'))
+  o.push(`<g>${flame(FOLK.cookfire.x, FOLK.cookfire.y + 1, 1.4)}<path d="M${FOLK.cookfire.x - 3} ${FOLK.cookfire.y - 10}h7v5h-7z" fill="#3d444e"/></g>`)
+  // eyes, windows and the tower's crystal
+  if (M.skull) for (const e of M.skull.eyes) o.push(`<rect x="${e.x - 1}" y="${e.y - 1}" width="2" height="2" fill="#ff5a6a"><animate attributeName="opacity" values="1;.3;1" dur="2s" repeatCount="indefinite"/></rect>`)
+  if (M.tower) {
+    for (const w of M.tower.windows) o.push(`<rect x="${w.x}" y="${w.y}" width="3" height="6" fill="#c8bfff"><animate attributeName="opacity" values="1;.55;1" dur="2.4s" repeatCount="indefinite"/></rect>`)
+    o.push(`<path d="M0 -3l2 3l-2 3l-2 -3z" fill="#7fe0ff" stroke="#1b1424" stroke-width=".6"><animateMotion dur="5s" repeatCount="indefinite" path="M${M.tower.x + 18} ${M.tower.top - 16}a18 4 0 1 1 -36 0a18 4 0 1 1 36 0"/></path>`)
   }
-  return closed ? `${d}Z` : d
-}
-
-/** An irregular blob around a centre, for coastlines and biome patches. */
-function blob(cx: number, cy: number, rx: number, ry: number, seed: number, wobble = 0.12, n = 40): Pt[] {
-  const pts: Pt[] = []
-  for (let i = 0; i < n; i += 1) {
-    const a = (i / n) * Math.PI * 2
-    const k = 1 + wobble * (Math.sin(a * 3 + seed) * 0.6 + Math.sin(a * 7 + seed * 2.3) * 0.3 + (hash(i, seed) - 0.5) * 0.5)
-    pts.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k])
+  if (M.hut) o.push(`<rect x="${M.hut.window.x - 1}" y="${M.hut.window.y - 1}" width="3" height="3" fill="#9be89f"><animate attributeName="opacity" values="1;.5;1" dur="2s" repeatCount="indefinite"/></rect>`)
+  // the sea: glints on the water, and the ship working the coast
+  WORLD_FOAM.slice(0, 40).forEach((f, i) => { if (i % 2) o.push(`<rect x="${f.x}" y="${f.y + 2}" width="2" height="1" fill="#e8f6ff" opacity="0"><animate attributeName="opacity" values="0;.9;0" dur="2.6s" begin="${-(i * 0.37) % 2.6}s" repeatCount="indefinite"/></rect>`) })
+  o.push(`<g><path d="M-8 -4h16v5h-16z" fill="#1b1424"/><path d="M-7 -4h14v3h-14z" fill="#7a4a2a"/><rect x="0" y="-16" width="1" height="12" fill="#3a2414"/><path d="M-4 -15h9v9h-9z" fill="#1b1424"/><path d="M-3 -14h7v7h-7z" fill="#fff3d0"/><rect x="-3" y="-11" width="7" height="2" fill="#b8323f"/><animateMotion dur="40s" repeatCount="indefinite" path="M${FOLK.ship.from} ${FOLK.ship.y}L${FOLK.ship.to} ${FOLK.ship.y + 2}L${FOLK.ship.from} ${FOLK.ship.y}"/></g>`)
+  // townsfolk at their chores
+  const folk = (id: string, shirt: string, hair: string) => sprite(id, b => villager(b, 0, 0, shirt, hair))
+  const walker = (id: string, path: string, dur: number, begin: number) => `<use href="#${id}"><animateMotion dur="${dur}s" begin="${-begin}s" repeatCount="indefinite" path="${path}"/></use>`
+  const T = FOLK.town
+  o.push(walker(folk('v1', '#b8323f', '#6b4426'), `M${T.x - 30} ${T.y + 4}L${T.x + 26} ${T.y - 4}L${T.x + 10} ${T.y + 18}L${T.x - 30} ${T.y + 4}`, 22, 0))
+  o.push(walker(folk('v2', '#3b5fa8', '#2b1b14'), `M${T.x + 30} ${T.y + 14}L${T.x - 16} ${T.y + 20}L${T.x - 10} ${T.y - 6}L${T.x + 30} ${T.y + 14}`, 26, 9))
+  o.push(walker(folk('v3', '#84d488', '#c9a86e'), `M${HUB.x - 50} ${HUB.y + 8}L${T.x + 50} ${T.y - 2}L${HUB.x - 50} ${HUB.y + 8}`, 30, 4))
+  const swing = (x: number, y: number, id: string, tool: string) => `<g transform="translate(${x} ${y})"><use href="#${id}"/><g><path d="${tool}" fill="#c9d2dc"/><animateTransform attributeName="transform" type="rotate" values="-40 1 -8;30 1 -8;-40 1 -8" dur=".9s" repeatCount="indefinite"/></g></g>`
+  const pick = 'M1 -8h1v-7h-1zM-2 -16h7v1h-7z'
+  o.push(swing(FOLK.mine.x - 16, FOLK.mine.y + 8, folk('miner', '#5b6470', '#f2b84b'), pick))
+  o.push(swing(FOLK.woodyard.x - 8, FOLK.woodyard.y + 1, folk('wood', '#3f8f4f', '#6b4426'), 'M1 -8h1v-7h-1zM2 -16h3v3h-3z'))
+  o.push(`<g transform="translate(${FOLK.cookfire.x + 10} ${FOLK.cookfire.y + 2})"><use href="#${folk('cook', '#f3e6c0', '#efe6d2')}"/></g>`)
+  const cart = `<g><path d="M-5 -7h11v6h-11z" fill="#1b1424"/><path d="M-4 -6h9v4h-9z" fill="#5b6470"/><rect x="-3" y="-8" width="3" height="2" fill="#e39a4d"/><rect x="-4" y="-1" width="2" height="2" fill="#1b1424"/><rect x="3" y="-1" width="2" height="2" fill="#1b1424"/><animateMotion dur="12s" repeatCount="indefinite" keyPoints="0;1;1;0;0" keyTimes="0;.4;.5;.9;1" calcMode="linear" path="M${FOLK.mine.x} ${FOLK.mine.y}l34 14"/></g>`
+  o.push(cart)
+  o.push(walker(folk('farmer', '#a8683a', '#d9c08f'), `M${FOLK.field.x + 4} ${FOLK.field.y + 8}h${FOLK.field.w - 8}v6h${-(FOLK.field.w - 8)}z`, 24, 0))
+  // the fisherman, his float bobbing
+  const fx = FOLK.fishing.x, fy = FOLK.fishing.y
+  o.push(`<use href="#${folk('fisher', '#4f6d8f', '#3b5fa8')}" x="${fx}" y="${fy}"/><path d="M${fx - 1} ${fy - 8}L${fx - 5} ${fy - 22}L${fx - 10} ${fy - 15}" fill="none" stroke="#3a2414" stroke-width=".8"/><rect x="${fx - 11}" y="${fy - 16}" width="2" height="2" fill="#e8606f"><animate attributeName="y" values="${fy - 16};${fy - 15};${fy - 16}" dur="1.6s" repeatCount="indefinite"/></rect>`)
+  // the flock in its pen, and its dog
+  const pen = FOLK.pen
+  o.push(`<ellipse cx="${pen.x}" cy="${pen.y}" rx="${pen.rx + 5}" ry="${pen.ry + 5}" fill="none" stroke="#6b4426" stroke-width="1" stroke-dasharray="2 3"/>`)
+  for (let i = 0; i < 4; i++) {
+    const sx = pen.x - 12 + i * 8, sy = pen.y - 3 + (i % 2) * 5
+    o.push(`<g><path d="M${sx - 4} ${sy - 5}h8v4h-8z" fill="#1b1424"/><path d="M${sx - 3} ${sy - 5}h6v3h-6z" fill="#f4f1e8"/><rect x="${sx + 3}" y="${sy - 5}" width="3" height="3" fill="#2b2433"/><animateTransform attributeName="transform" type="translate" values="0 0;${i % 2 ? 3 : -3} 0;0 0" dur="${7 + i}s" repeatCount="indefinite"/></g>`)
   }
-  return pts
+  o.push(`<g><path d="M-4 -6h9v5h-9z" fill="#1b1424"/><path d="M-3 -5h7v3h-7z" fill="#efe6d2"/><path d="M3 -8h4v4h-4z" fill="#1b1424"/><animateMotion dur="9s" repeatCount="indefinite" path="M${pen.x - pen.rx - 10} ${pen.y}a${pen.rx + 10} ${pen.ry + 9} 0 1 1 ${2 * (pen.rx + 10)} 0a${pen.rx + 10} ${pen.ry + 9} 0 1 1 ${-2 * (pen.rx + 10)} 0"/></g>`)
+  // the fire mountain: a glowing crater, a column of smoke, and now and then an eruption
+  const V = M.volcano ?? { x: VOLCANO.x, y: VOLCANO.y - 75 }
+  o.push(`<ellipse cx="${V.x}" cy="${V.y}" rx="12" ry="5" fill="#ff7a2a" opacity=".6"><animate attributeName="opacity" values=".35;.8;.35" dur="1.4s" repeatCount="indefinite"/></ellipse>`)
+  for (let k = 0; k < 4; k++) o.push(`<circle cx="${V.x}" cy="${V.y - 4}" r="3" fill="#4a3a3a" opacity="0"><animate attributeName="cy" values="${V.y - 4};${V.y - 44}" dur="5s" begin="${-k * 1.25}s" repeatCount="indefinite"/><animate attributeName="cx" values="${V.x};${V.x - 14}" dur="5s" begin="${-k * 1.25}s" repeatCount="indefinite"/><animate attributeName="r" values="3;9" dur="5s" begin="${-k * 1.25}s" repeatCount="indefinite"/><animate attributeName="opacity" values=".7;0" dur="5s" begin="${-k * 1.25}s" repeatCount="indefinite"/></circle>`)
+  // an eruption every 9s: lava bombs arc out of the crater and the mountain flares
+  const bombs: [number, number][] = [[-22, -34], [-12, -46], [4, -52], [16, -40], [26, -30], [-30, -22], [8, -36], [20, -50]]
+  bombs.forEach(([dx, up], k) => {
+    const d = `M${V.x} ${V.y - 2}Q${V.x + dx * 0.6} ${V.y + up} ${V.x + dx} ${V.y + 16 + (k % 3) * 6}`
+    o.push(`<rect x="-1" y="-1" width="${k % 2 ? 2 : 3}" height="${k % 2 ? 2 : 3}" fill="${k % 3 ? '#ff9a3a' : '#ffd27a'}" opacity="0"><animateMotion dur="9s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;.06;.3;1" calcMode="linear" begin="${-(k % 4) * 0.1}s" path="${d}"/><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;.06;.26;.32;1" dur="9s" repeatCount="indefinite"/></rect>`)
+  })
+  o.push(`<circle cx="${V.x}" cy="${V.y}" r="26" fill="url(#lamp-fire)" opacity="0"><animate attributeName="opacity" values="0;1;0;0" keyTimes="0;.08;.3;1" dur="9s" repeatCount="indefinite"/></circle>`)
+
+  // clouds and their shadows, birds, and the dragon over the badlands
+  const cloud = (y: number, dur: number, begin: number, k: number) =>
+    `<g opacity="${night ? 0.35 : 0.8}"><path d="M8 4h20v4h6v6h-34v-6h8z" fill="#fff" transform="scale(${1 + k * 0.4})"/><animateTransform attributeName="transform" type="translate" values="-60 ${y};${W + 20} ${y}" dur="${dur}s" begin="${-begin}s" repeatCount="indefinite"/></g><g opacity=".12"><path d="M8 4h20v4h6v6h-34v-6h8z" fill="#000" transform="scale(${1 + k * 0.4})"/><animateTransform attributeName="transform" type="translate" values="-40 ${y + 40};${W + 40} ${y + 40}" dur="${dur}s" begin="${-begin}s" repeatCount="indefinite"/></g>`
+  o.push(cloud(36, 90, 20, 0), cloud(128, 120, 70, 1), cloud(220, 100, 5, 0.5))
+  o.push(`<g fill="#1b1424"><path d="M0 0h2v1h-2zM3 0h2v1h-2zM2 1h1v1h-1zM-9 4h2v1h-2zM-6 4h2v1h-2zM-7 5h1v1h-1zM-17 1h2v1h-2zM-14 1h2v1h-2zM-15 2h1v1h-1z"/><animateMotion dur="34s" repeatCount="indefinite" path="M-20 150Q${W / 2} 60 ${W + 20} 120"/></g>`)
+  const d0 = sprite('dragon-up', b => dragon(b, 1)), d1 = sprite('dragon-down', b => dragon(b, 0))
+  const C = { x: PLACES.dungeon.at.x - 10, y: PLACES.dungeon.at.y - 46 }
+  const loop = `M${C.x - 80} ${C.y}a80 30 0 1 0 160 0a80 30 0 1 0 -160 0`
+  o.push(`<ellipse rx="14" ry="3" fill="#000" opacity=".22"><animateMotion dur="26s" repeatCount="indefinite" path="M${C.x - 80} ${C.y + 54}a80 30 0 1 0 160 0a80 30 0 1 0 -160 0"/></ellipse>`)
+  const wings = `<use href="#${d0}"><animate attributeName="opacity" values="1;0" dur=".5s" calcMode="discrete" repeatCount="indefinite"/></use><use href="#${d1}"><animate attributeName="opacity" values="0;1" dur=".5s" calcMode="discrete" repeatCount="indefinite"/></use>`
+  // The loop runs along its bottom half to the right, then back along its top half to the left.
+  o.push(`<g><g transform="scale(1.4)">${wings}<animateTransform attributeName="transform" type="scale" values="1.4 1.4;-1.4 1.4" keyTimes="0;.5" dur="26s" calcMode="discrete" repeatCount="indefinite"/></g><animateMotion dur="26s" repeatCount="indefinite" path="${loop}"/></g>`)
+  return o.join('')
 }
 
-const ROAD_SAMPLES: Pt[] = Object.values(ROADS).flat()
-const nearRoad = (x: number, y: number, r: number) => ROAD_SAMPLES.some(([px, py]) => Math.hypot(x - px, y - py) < r)
-const nearPlace = (x: number, y: number, r: number) =>
-  Object.values(PLACES).some(p => Math.hypot(x - p.at[0], y - (p.at[1] - 14)) < r) || Math.hypot(x - 320, y - 196) < 70
-const inEllipse = (x: number, y: number, cx: number, cy: number, rx: number, ry: number) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1
-
-function scatter(step: number, keep: (x: number, y: number, r: number) => boolean): Pt[] {
-  const out: Pt[] = []
-  for (let y = 10; y < H; y += step) {
-    for (let x = 10; x < W; x += step) {
-      const jx = x + (hash(x, y) - 0.5) * step
-      const jy = y + (hash(y, x) - 0.5) * step
-      if (keep(jx, jy, hash(Math.round(jx * 7), Math.round(jy * 13)))) out.push([r1(jx), r1(jy)])
-    }
-  }
-  return out.sort((a, b) => a[1] - b[1])
+/** The lights after dark: every lamp, window, torch and fire glows through the gloom. */
+function nightLights(): string {
+  const M = WORLD_MARKS
+  const glow = (x: number, y: number, r: number, c: string) => `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#lamp-${c})"/>`
+  return [
+    `<rect width="${W}" height="${H}" fill="#0a0e2c" opacity=".5"/>`,
+    ...M.windows.map(w => glow(w.x, w.y, 9, 'warm')),
+    ...M.lamps.map(l => glow(l.x, l.y, 16, 'warm')),
+    ...M.torches.map(t => glow(t.x, t.y, 20, 'fire')),
+    M.forge ? glow(M.forge.x, M.forge.y + 6, 30, 'fire') : '',
+    glow(CAULDRON.x, CAULDRON.y, 22, 'fire'),
+    glow(FOLK.cookfire.x, FOLK.cookfire.y, 20, 'fire'),
+    ...(M.tower ? M.tower.windows.map(w => glow(w.x + 1, w.y + 3, 12, 'arcane')) : []),
+    M.hut ? glow(M.hut.window.x, M.hut.window.y, 12, 'arcane') : '',
+    ...M.windows.map(w => `<rect x="${w.x - 2}" y="${w.y - 2}" width="4" height="4" fill="#ffd27a"/>`),
+  ].join('')
 }
-
-function pines(pts: Pt[]): string {
-  return pts
-    .map(([x, y]) => {
-      const h = 9 + hash(Math.round(x), Math.round(y)) * 6
-      return `<path d="M${x} ${r1(y - h)}L${r1(x + h * 0.42)} ${y}H${r1(x - h * 0.42)}Z" fill="#2e6a3a" stroke="#14301c" stroke-width="0.8"/><path d="M${x} ${r1(y - h)}L${r1(x + h * 0.42)} ${y}H${x}Z" fill="#22502c"/>`
-    })
-    .join('')
-}
-
-function oaks(pts: Pt[]): string {
-  return pts
-    .map(([x, y]) => `<ellipse cx="${x}" cy="${y + 1}" rx="5" ry="1.6" fill="#000" opacity="0.2"/><rect x="${x - 0.8}" y="${y - 4}" width="1.6" height="4" fill="#3a2414"/><circle cx="${x}" cy="${y - 7}" r="4.6" fill="#43893a" stroke="#1d3b1c" stroke-width="0.8"/><circle cx="${x - 1.4}" cy="${y - 8.4}" r="1.8" fill="#62a84c"/>`)
-    .join('')
-}
-
-function mountain(x: number, y: number, w: number, h: number): string {
-  const cap = 0.36
-  const lx = x - (w / 2) * cap
-  const rx = x + (w / 2) * cap
-  const cy = y - h + h * cap
-  return (
-    `<path d="M${x - w / 2} ${y}L${x} ${y - h}L${x + w / 2} ${y}Z" fill="#9a9184" stroke="#2f2a26" stroke-width="1"/>` +
-    `<path d="M${x} ${y - h}L${x + w / 2} ${y}H${x + 3}Z" fill="#6d665c"/>` +
-    `<path d="M${lx} ${cy}L${x} ${y - h}L${rx} ${cy}L${x + 3} ${cy - 3}L${x - 2} ${cy + 1}Z" fill="#f4f4f8"/>`
-  )
-}
-
-/** Everything that never changes: sea, island, biomes, river, scenery and buildings. */
-function drawScenery(): string {
-  const out: string[] = []
-  const island = curve(blob(320, 188, 304, 170, 1.7, 0.1, 56), true)
-  const forest = blob(118, 104, 112, 82, 4.1, 0.16)
-  const badlands = blob(100, 298, 104, 68, 2.2, 0.16)
-  const swamp = blob(552, 300, 102, 62, 5.3, 0.16)
-  const peaks = blob(560, 50, 132, 62, 3.4, 0.14)
-
-  out.push(
-    `<path d="${island}" fill="#62b4d6" stroke="#62b4d6" stroke-width="22" stroke-linejoin="round" opacity="0.55"/>`,
-    `<path d="${island}" fill="none" stroke="#e8f6ff" stroke-width="9" stroke-dasharray="3 7" stroke-linejoin="round" opacity="0.45"><animate attributeName="stroke-dashoffset" from="0" to="20" dur="4s" repeatCount="indefinite"/></path>`,
-    `<path d="${island}" fill="#dcc893" stroke="#8a6a44" stroke-width="2"/>`,
-    `<clipPath id="isle"><path d="${island}" transform="translate(320 188) scale(0.975) translate(-320 -188)"/></clipPath>`,
-    `<g clip-path="url(#isle)">`,
-    `<rect width="${W}" height="${H}" fill="url(#grass)"/>`,
-    `<path d="${curve(peaks, true)}" fill="#7c7467"/>`,
-    `<path d="${curve(forest, true)}" fill="#3f7431"/>`,
-    `<path d="${curve(badlands, true)}" fill="#6e6450"/>`,
-    `<path d="${curve(swamp, true)}" fill="#4d6239"/>`,
-    `<ellipse cx="212" cy="84" rx="23" ry="12" fill="#3f97c9" stroke="#8f7c58" stroke-width="2"/>`,
-  )
-  // swamp pools
-  for (const [x, y, rx, ry] of [[512, 276, 14, 5], [590, 318, 18, 6], [574, 270, 10, 4], [520, 326, 12, 4], [600, 290, 9, 3]]) {
-    out.push(`<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="#2f4b3e"/>`)
-  }
-  out.push(`</g>`)
-  // river, then roads with bridges where they cross it
-  out.push(`<path d="${curve(RIVER)}" fill="none" stroke="#8f7c58" stroke-width="11" stroke-linecap="round"/>`)
-  out.push(`<path d="${curve(RIVER)}" fill="none" stroke="#3f97c9" stroke-width="7" stroke-linecap="round"/>`)
-  out.push(`<path d="${curve(RIVER)}" fill="none" stroke="#8fd0ee" stroke-width="1.2" stroke-dasharray="4 10"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="2s" repeatCount="indefinite"/></path>`)
-  for (const r of Object.values(ROADS)) {
-    out.push(`<path d="${curve(r)}" fill="none" stroke="#7f6440" stroke-width="7" stroke-linecap="round"/>`)
-    out.push(`<path d="${curve(r)}" fill="none" stroke="#c9a86e" stroke-width="4.5" stroke-linecap="round"/>`)
-  }
-  for (const [x, y, a] of [[409, 166, -32], [410, 251, 28]]) {
-    out.push(`<g transform="translate(${x} ${y}) rotate(${a})"><rect x="-8" y="-4" width="16" height="8" fill="#9a6a3c" stroke="#3a2414" stroke-width="1.2"/><path d="M-4 -4V4M0 -4V4M4 -4V4" stroke="#5a3720" stroke-width="0.8"/></g>`)
-  }
-  // town square and fields
-  out.push(
-    `<ellipse cx="320" cy="207" rx="40" ry="23" fill="#a39a8c" stroke="#5a5248" stroke-width="2"/>`,
-    `<ellipse cx="320" cy="207" rx="40" ry="23" fill="url(#cobble)"/>`,
-    `<rect x="226" y="128" width="30" height="16" fill="#e0c050" stroke="#4a2f1d" stroke-width="1.2"/><path d="M226 133H256M226 138H256" stroke="#c9a33a" stroke-width="1.4"/>`,
-    `<rect x="238" y="272" width="34" height="17" fill="#2f6a2c" stroke="#4a2f1d" stroke-width="1.2"/><path d="M238 277H272M238 282H272" stroke="#84d488" stroke-width="1.2" stroke-dasharray="2 2"/>`,
-  )
-  // scenery, back to front
-  const farm = (x: number, y: number) => x > 200 && x < 262 && y > 100 && y < 150
-  const forestPts = scatter(9, (x, y, r) => r < 0.75 && !farm(x, y) && inEllipse(x, y, 118, 104, 104, 74) && !nearRoad(x, y, 10) && !nearPlace(x, y, 26) && !inEllipse(x, y, 212, 84, 28, 16))
-  const oakPts = scatter(16, (x, y, r) => r < 0.32 && !farm(x, y) && inEllipse(x, y, 320, 188, 280, 150) && !inEllipse(x, y, 118, 104, 112, 82) && !inEllipse(x, y, 560, 50, 140, 70) && !inEllipse(x, y, 100, 298, 104, 68) && !inEllipse(x, y, 552, 300, 102, 62) && !nearRoad(x, y, 10) && !nearPlace(x, y, 34) && Math.abs(x - (408 + (y - 186) * 0.06)) > 12)
-  out.push(`<g clip-path="url(#isle)">`, oaks(oakPts), pines(forestPts))
-  // badlands: graves and dead trees
-  for (const [x, y] of scatter(13, (x, y, r) => r < 0.45 && inEllipse(x, y, 100, 298, 94, 60) && !nearRoad(x, y, 9) && !nearPlace(x, y, 30))) {
-    out.push(hash(Math.round(x), Math.round(y)) > 0.75
-      ? `<path d="M${x} ${y}V${y - 9}M${x - 3} ${y - 6}L${x} ${y - 4}L${x + 4} ${y - 8}" stroke="#2a201a" stroke-width="1.4" fill="none"/>`
-      : `<path d="M${x - 2.5} ${y}V${y - 5}A2.5 2.5 0 0 1 ${x + 2.5} ${y - 5}V${y}Z" fill="#8a8a96" stroke="#1b1424" stroke-width="0.8"/>`)
-  }
-  // swamp: willows and mushrooms
-  for (const [x, y] of scatter(14, (x, y, r) => r < 0.4 && inEllipse(x, y, 552, 300, 94, 56) && !nearRoad(x, y, 9) && !nearPlace(x, y, 30))) {
-    out.push(`<rect x="${x - 0.8}" y="${y - 5}" width="1.6" height="5" fill="#3a3020"/><ellipse cx="${x}" cy="${y - 7}" rx="5" ry="4" fill="#3c5e34" stroke="#16261a" stroke-width="0.8"/><path d="M${x - 3} ${y - 5}v4M${x} ${y - 4}v3M${x + 3} ${y - 5}v4" stroke="#2e4a2a" stroke-width="0.8"/>`)
-  }
-  const ranges: string[] = []
-  for (const [x, y, w, h] of [[470, 66, 44, 34], [508, 48, 52, 42], [600, 54, 50, 40], [560, 34, 58, 44], [626, 84, 40, 32], [450, 92, 36, 26], [586, 92, 46, 34], [490, 92, 34, 24]] as const) ranges.push(mountain(x, y, w, h))
-  out.push(`</g>`, ranges.join(''), drawLandmarks())
-  return out.join('')
-}
-
-function house(x: number, y: number, w: number, h: number, roof: string): string {
-  return (
-    `<ellipse cx="${x}" cy="${y + 1}" rx="${w / 2 + 2}" ry="2" fill="#000" opacity="0.25"/>` +
-    `<rect x="${x - w / 2}" y="${y - h}" width="${w}" height="${h}" fill="#e8d8b0" stroke="#1b1424" stroke-width="1"/>` +
-    `<path d="M${x - w / 2} ${y - h / 2}H${x + w / 2}" stroke="#5a3720" stroke-width="1"/>` +
-    `<path d="M${x - w / 2 - 3} ${y - h}L${x - w / 4} ${y - h - h * 0.9}H${x + w / 4}L${x + w / 2 + 3} ${y - h}Z" fill="${roof}" stroke="#1b1424" stroke-width="1"/>` +
-    `<rect x="${x - 2}" y="${y - 6}" width="4" height="6" fill="#6b4426"/>`
-  )
-}
-
-function drawLandmarks(): string {
-  const out: string[] = []
-  // Guild town
-  out.push(house(268, 166, 20, 10, '#3b5fa8'), house(372, 166, 20, 10, '#3f8f4f'), house(262, 214, 18, 10, '#b8503a'), house(376, 214, 18, 10, '#3b5fa8'), house(320, 248, 20, 10, '#7a4fc9'))
-  out.push(
-    house(320, 180, 44, 16, '#b8503a'),
-    `<rect x="330" y="160" width="4" height="7" fill="#8a4a3a" stroke="#1b1424" stroke-width="0.8"/>`,
-    `<rect x="296" y="174" width="5" height="4" fill="#ffd27a"/><rect x="339" y="174" width="5" height="4" fill="#ffd27a"/>`,
-    `<rect x="291" y="190" width="20" height="13" fill="#8a5a34" stroke="#1b1424" stroke-width="1"/><rect x="294" y="193" width="5" height="4" fill="#f3e6c0"/><rect x="302" y="193" width="5" height="4" fill="#f3e6c0"/>`,
-    // windmill
-    `<path d="M209 144L211 124H217L219 144Z" fill="#e2d6bc" stroke="#1b1424" stroke-width="1"/><g transform="translate(214 124)"><g><path d="M0 0L0 -11M0 0L11 0M0 0L0 11M0 0L-11 0" stroke="#efe6d2" stroke-width="3"/><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="8s" repeatCount="indefinite"/></g></g>`,
-  )
-  // Wizard's tower with its library
-  const [tx, ty] = PLACES.study.at
-  out.push(
-    `<ellipse cx="${tx + 4}" cy="${ty + 1}" rx="18" ry="3" fill="#000" opacity="0.3"/>`,
-    house(tx + 14, ty, 14, 9, '#3b5fa8'),
-    `<rect x="${tx - 7}" y="${ty - 42}" width="14" height="42" fill="#857e94" stroke="#1b1424" stroke-width="1"/>`,
-    `<rect x="${tx - 7}" y="${ty - 42}" width="3" height="42" fill="#a59eb2"/><rect x="${tx + 3}" y="${ty - 42}" width="4" height="42" fill="#665f77"/>`,
-    `<path d="M${tx - 7} ${ty - 30}H${tx + 7}M${tx - 7} ${ty - 18}H${tx + 7}" stroke="#4a4458" stroke-width="0.8"/>`,
-    `<rect x="${tx - 9}" y="${ty - 46}" width="18" height="4" fill="#8a839a" stroke="#1b1424" stroke-width="1"/>`,
-    `<path d="M${tx - 11} ${ty - 46}L${tx} ${ty - 70}L${tx + 11} ${ty - 46}Z" fill="#6a4fc9" stroke="#1b1424" stroke-width="1"/><path d="M${tx} ${ty - 70}L${tx + 11} ${ty - 46}H${tx}Z" fill="#45318c"/>`,
-    `<circle cx="${tx}" cy="${ty - 71}" r="1.6" fill="#f7dd5b"/>`,
-    `<rect x="${tx - 2}" y="${ty - 36}" width="3" height="5" rx="1.5" fill="#a593ff"><animate attributeName="opacity" values="1;0.5;1" dur="2.4s" repeatCount="indefinite"/></rect>`,
-    `<rect x="${tx - 2.5}" y="${ty - 7}" width="5" height="7" fill="#6b4426"/>`,
-    `<g><path d="M0 -3L2 0L0 3L-2 0Z" fill="#7fe0ff" stroke="#1b1424" stroke-width="0.6"/><animateMotion dur="5s" repeatCount="indefinite" path="M${tx + 15} ${ty - 56}A15 4 0 1 1 ${tx - 15} ${ty - 56}A15 4 0 1 1 ${tx + 15} ${ty - 56}"/></g>`,
-  )
-  // Dwarven armory carved into the mountain
-  const [ax, ay] = PLACES.armory.at
-  out.push(
-    mountain(ax - 22, ay - 16, 50, 36),
-    mountain(ax + 24, ay - 14, 48, 38),
-    `<rect x="${ax - 18}" y="${ay - 30}" width="36" height="30" fill="#9a9184" stroke="#1b1424" stroke-width="1"/>`,
-    `<path d="M${ax - 18} ${ay - 22}H${ax + 18}M${ax - 18} ${ay - 14}H${ax + 18}M${ax - 18} ${ay - 6}H${ax + 18}" stroke="#5e574d" stroke-width="0.7"/>`,
-    `<rect x="${ax - 21}" y="${ay - 35}" width="42" height="6" fill="#7d766a" stroke="#1b1424" stroke-width="1"/>`,
-    `<path d="M${ax - 8} ${ay}V${ay - 14}A8 8 0 0 1 ${ax + 8} ${ay - 14}V${ay}Z" fill="#120c10" stroke="#1b1424" stroke-width="1"/>`,
-    `<ellipse cx="${ax}" cy="${ay - 4}" rx="6" ry="4" fill="#ff7a2a"><animate attributeName="opacity" values="0.9;0.5;0.9" dur="0.9s" repeatCount="indefinite"/></ellipse>`,
-    `<rect x="${ax - 15}" y="${ay - 28}" width="4" height="12" fill="#b8323f"/><rect x="${ax + 11}" y="${ay - 28}" width="4" height="12" fill="#b8323f"/>`,
-    `<rect x="${ax + 24}" y="${ay + 2}" width="12" height="4" fill="#5b6470" stroke="#1b1424" stroke-width="0.8"/><rect x="${ax + 27}" y="${ay + 6}" width="6" height="4" fill="#3d444e"/>`,
-  )
-  // The dungeon: a skull in a crag
-  const [dx, dy] = PLACES.dungeon.at
-  out.push(
-    `<path d="M${dx - 34} ${dy}L${dx - 16} ${dy - 34}L${dx} ${dy - 38}L${dx + 18} ${dy - 32}L${dx + 34} ${dy}Z" fill="#5a534c" stroke="#1b1424" stroke-width="1"/>`,
-    `<path d="M${dx} ${dy - 38}L${dx + 18} ${dy - 32}L${dx + 34} ${dy}H${dx}Z" fill="#433d38"/>`,
-    `<path d="M${dx - 11} ${dy - 8}V${dy - 20}A11 11 0 0 1 ${dx + 11} ${dy - 20}V${dy - 8}H${dx + 7}V${dy}H${dx - 7}V${dy - 8}Z" fill="#d6cfc0" stroke="#1b1424" stroke-width="1"/>`,
-    `<circle cx="${dx - 5}" cy="${dy - 20}" r="3" fill="#1b1424"/><circle cx="${dx + 5}" cy="${dy - 20}" r="3" fill="#1b1424"/>`,
-    `<rect x="${dx - 5}" y="${dy - 9}" width="10" height="9" fill="#120c10"/><path d="M${dx - 4} ${dy - 9}V${dy - 7}M${dx - 1} ${dy - 9}V${dy - 7}M${dx + 2} ${dy - 9}V${dy - 7}" stroke="#efe6d2" stroke-width="1.4"/>`,
-  )
-  for (const t of [-18, 18]) out.push(`<rect x="${dx + t - 0.8}" y="${dy - 8}" width="1.6" height="8" fill="#4a2f1d"/><circle cx="${dx + t}" cy="${dy - 9}" r="2" fill="#ffb347"><animate attributeName="r" values="2;2.6;2" dur="0.7s" repeatCount="indefinite"/></circle>`)
-  // The alchemist's mushroom hut on stilts
-  const [hx, hy] = PLACES.cauldron.at
-  out.push(
-    `<ellipse cx="${hx}" cy="${hy + 2}" rx="22" ry="6" fill="#2f4b3e" stroke="#3a4c2c" stroke-width="1"/>`,
-    `<path d="M${hx - 10} ${hy + 2}V${hy - 8}M${hx - 3} ${hy + 3}V${hy - 8}M${hx + 4} ${hy + 3}V${hy - 8}M${hx + 10} ${hy + 2}V${hy - 8}" stroke="#3a2414" stroke-width="1.6"/>`,
-    `<rect x="${hx - 14}" y="${hy - 10}" width="28" height="3" fill="#8a5a34" stroke="#1b1424" stroke-width="0.8"/>`,
-    `<rect x="${hx - 10}" y="${hy - 23}" width="20" height="13" fill="#8a5a34" stroke="#1b1424" stroke-width="1"/>`,
-    `<rect x="${hx - 6}" y="${hy - 18}" width="4" height="8" fill="#6b4426"/><circle cx="${hx + 4}" cy="${hy - 17}" r="2.2" fill="#9be89f"/>`,
-    `<path d="M${hx - 17} ${hy - 22}A17 13 0 0 1 ${hx + 17} ${hy - 22}Z" fill="#c0392b" stroke="#1b1424" stroke-width="1"/>`,
-    `<circle cx="${hx - 7}" cy="${hy - 28}" r="2" fill="#fff3d0"/><circle cx="${hx + 3}" cy="${hy - 32}" r="2.3" fill="#fff3d0"/><circle cx="${hx + 10}" cy="${hy - 26}" r="1.6" fill="#fff3d0"/>`,
-    `<path d="M${hx - 34} ${hy + 10}A7 5 0 0 1 ${hx - 20} ${hy + 10}Z" fill="#2e2a36" stroke="#1b1424" stroke-width="1"/><ellipse cx="${hx - 27}" cy="${hy + 6}" rx="6" ry="1.6" fill="#4fbf5a"/>`,
-  )
-  for (let i = 0; i < 3; i += 1) out.push(`<circle cx="${hx - 27 + (i - 1) * 3}" cy="${hy + 4}" r="1.2" fill="#9be89f"><animate attributeName="cy" values="${hy + 4};${hy - 10}" dur="${1.4 + i * 0.3}s" begin="${i * 0.4}s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="${1.4 + i * 0.3}s" begin="${i * 0.4}s" repeatCount="indefinite"/></circle>`)
-  return out.join('')
-}
-
-let scenery: string | undefined
 
 export function drawMap(party: GuildMember[], dungeon: GuildDungeon, quests: GuildQuest[], opts: MapOptions = {}): string {
-  scenery ??= drawScenery()
-  const out: string[] = []
-  out.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="Georgia, 'Times New Roman', serif">`,
-    `<defs>`,
-    `<pattern id="waves" width="28" height="14" patternUnits="userSpaceOnUse"><rect width="28" height="14" fill="#2a68a0"/><path d="M2 9q3 -3 6 0M16 3q3 -3 6 0" stroke="#4a8fc4" stroke-width="1.2" fill="none"/></pattern>`,
-    `<pattern id="grass" width="18" height="18" patternUnits="userSpaceOnUse"><rect width="18" height="18" fill="#5c9e3e"/><path d="M3 5v2M4 4v3M12 13v2M13 12v3" stroke="#447f30" stroke-width="0.8"/><circle cx="9" cy="8" r="0.7" fill="#74b54e"/></pattern>`,
-    `<pattern id="cobble" width="8" height="5" patternUnits="userSpaceOnUse"><path d="M0 0H8M4 0V2.5M0 2.5H8M0 2.5V5M8 2.5V5" stroke="#6a6258" stroke-width="0.7"/></pattern>`,
-    `<radialGradient id="glow" r="0.5"><stop offset="0" stop-color="#ffd27a" stop-opacity="0.55"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/></radialGradient>`,
-    `<radialGradient id="fog" r="0.5"><stop offset="0" stop-color="#0c0814" stop-opacity="0.92"/><stop offset="0.7" stop-color="#0c0814" stop-opacity="0.8"/><stop offset="1" stop-color="#0c0814" stop-opacity="0"/></radialGradient>`,
-    `<radialGradient id="vignette" r="0.75"><stop offset="0.6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></radialGradient>`,
-    `</defs>`,
-    `<rect width="${W}" height="${H}" rx="10" fill="url(#waves)"/>`,
-    scenery,
-  )
+  const now = opts.now ?? 0
+  const night = opts.hour !== undefined && (opts.hour >= 19 || opts.hour < 6)
+  art.clear()
+  const scene: string[] = []
+  const life = ambient(night)
+  scene.push(life)
 
-  // After dark: the land dims and every window, torch and the forge glows.
-  if (opts.hour !== undefined && (opts.hour >= 19 || opts.hour < 6)) {
-    out.push(`<rect width="${W}" height="${H}" rx="10" fill="#0a0e2c" opacity="0.45"/>`)
-    for (const [x, y, r, c] of [[296, 176, 10, '#ffd27a'], [342, 176, 10, '#ffd27a'], [268, 162, 7, '#ffd27a'], [372, 162, 7, '#ffd27a'], [262, 210, 7, '#ffd27a'], [376, 210, 7, '#ffd27a'], [320, 244, 7, '#ffd27a'], [112, 66, 12, '#a593ff'], [534, 92, 22, '#ff7a2a'], [86, 273, 10, '#ffb347'], [122, 273, 10, '#ffb347'], [552, 267, 10, '#9be89f'], [521, 290, 14, '#ff8c3a']] as const) {
-      out.push(`<g opacity="0.85"><circle cx="${x}" cy="${y}" r="${r * 1.6}" fill="${c}" opacity="0.14"/><circle cx="${x}" cy="${y}" r="${r}" fill="${c}" opacity="0.22"/><circle cx="${x}" cy="${y}" r="${r * 0.45}" fill="${c}" opacity="0.5"/><animate attributeName="opacity" values="0.85;0.6;0.85" dur="${2 + (x % 3)}s" repeatCount="indefinite"/></g>`)
-    }
+  // Busy places glow; the road to one lights up and marches toward it.
+  const busyAt = (loc: GuildLocation) => party.some(m => m.location === loc && m.isBusy && !m.isDim)
+  for (const loc of Object.keys(PLACES) as GuildLocation[]) {
+    if (!busyAt(loc)) continue
+    const s = PLACES[loc].spots[0]!
+    scene.push(`<circle cx="${s.x}" cy="${s.y - 6}" r="30" fill="url(#busy-${loc})"><animate attributeName="opacity" values="1;.55;1" dur="1.6s" repeatCount="indefinite"/></circle>`)
+    if (loc !== 'tavern') scene.push(`<polyline points="${pts(ROADS[loc].filter((_, i) => i % 3 === 0))}" fill="none" stroke="${PLACE_COLOR[loc]}" stroke-width="1.5" stroke-dasharray="2 4" stroke-linecap="round" opacity=".9"><animate attributeName="stroke-dashoffset" from="12" to="0" dur=".8s" repeatCount="indefinite"/></polyline>`)
+  }
+  if (opts.selected) {
+    const p = PLACES[opts.selected]
+    scene.push(`<ellipse cx="${p.at.x}" cy="${p.at.y - 12}" rx="44" ry="30" fill="none" stroke="#f2b84b" stroke-width="1.5" stroke-dasharray="5 4"><animate attributeName="stroke-dashoffset" from="0" to="18" dur="1.2s" repeatCount="indefinite"/></ellipse>`)
   }
 
-  // Roads light up and march toward a place while someone works there.
-  for (const loc of ['study', 'armory', 'dungeon', 'cauldron'] as const) {
-    if (!party.some(m => m.location === loc && m.isBusy && !m.isDim)) continue
-    const color = LOCATIONS[loc].color
-    out.push(
-      `<path d="${curve(ROADS[loc])}" fill="none" stroke="${color}" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round"><animate attributeName="stroke-dashoffset" from="16" to="0" dur="0.8s" repeatCount="indefinite"/></path>`,
-    )
-  }
-
-  // The dungeon: fog until the first test run, then the monsters that still stand.
-  const [dx, dy] = PLACES.dungeon.at
-  if (!dungeon.hasRun) {
-    out.push(`<ellipse cx="${dx + 4}" cy="${dy - 6}" rx="96" ry="66" fill="url(#fog)"/>`)
-  } else {
-    const shown = Math.min(dungeon.monsters, 8)
-    for (let i = 0; i < shown; i += 1) {
-      const mx = dx + 22 + (i % 4) * 10
-      const my = dy - 2 + Math.floor(i / 4) * 10 - (i % 2) * 3
-      out.push(
-        `<g><path d="M${mx - 5} ${my}Q${mx - 5} ${my - 7} ${mx} ${my - 7}Q${mx + 5} ${my - 7} ${mx + 5} ${my}Z" fill="${['#d1495b', '#9b59d0', '#e07a2f'][i % 3]}" stroke="#1b1424" stroke-width="1"/><circle cx="${mx - 1.8}" cy="${my - 4}" r="1" fill="#fff"/><circle cx="${mx + 1.8}" cy="${my - 4}" r="1" fill="#fff"/>` +
-          `<animateTransform attributeName="transform" type="translate" values="0 0;0 -1.5;0 0" dur="${0.8 + (i % 3) * 0.15}s" repeatCount="indefinite"/></g>`,
-      )
-    }
-  }
-
-  // Each place: a glow while busy, its name plate, the party standing there, and what they do.
-  for (const loc of ['study', 'armory', 'dungeon', 'cauldron', 'tavern'] as const) {
-    const p = PLACES[loc]
-    const info = LOCATIONS[loc]
-    // Highlighted members first, so the faint ones are the ones folded into "+N".
-    const here = party.filter(m => m.location === loc).sort((a, b) => Number(!!a.isDim) - Number(!!b.isDim))
-    const busy = here.some(m => m.isBusy && !m.isDim)
-    if (busy) {
-      out.push(`<circle cx="${p.party[0]}" cy="${p.party[1]}" r="38" fill="url(#glow)"><animate attributeName="opacity" values="1;0.5;1" dur="1.6s" repeatCount="indefinite"/></circle>`)
-    }
-    if (opts.selected === loc) {
-      out.push(`<circle cx="${p.at[0]}" cy="${p.at[1] - 16}" r="44" fill="none" stroke="#f2b84b" stroke-width="2.5" stroke-dasharray="7 5"><animate attributeName="stroke-dashoffset" from="0" to="24" dur="1.2s" repeatCount="indefinite"/></circle>`)
-    }
-    // Hovering a place names it and what lands there.
-    out.push(`<circle cx="${p.at[0]}" cy="${p.at[1] - 16}" r="40" fill="#fff" fill-opacity="0"><title>${esc(`${info.name} · ${here.length} here\n${PLACE_INFO[loc].blurb}\n${PLACE_INFO[loc].tools}`)}</title></circle>`)
-    const name = `${info.icon} ${info.name}`
-    const pw = name.length * 6.6 + 14
-    const [tx, ty] = p.tag
-    const px = Math.max(4, Math.min(W - pw - 4, tx - pw / 2))
-    out.push(
-      `<rect x="${r1(px)}" y="${ty - 10}" width="${r1(pw)}" height="19" rx="4" fill="#1b1424" fill-opacity="0.88" stroke="${busy ? info.color : '#6b5536'}" stroke-width="${busy ? 2.5 : 1.5}">` +
-        (busy ? `<animate attributeName="stroke-opacity" values="1;0.4;1" dur="1.4s" repeatCount="indefinite"/>` : '') +
-        `</rect>`,
-      `<text x="${r1(px + pw / 2)}" y="${ty + 4}" font-size="12" font-weight="bold" text-anchor="middle" fill="#fff8e7">${esc(name)}</text>`,
-    )
-
-    const [cx, cy] = p.party
-    const count = Math.min(here.length, 3)
-    here.slice(0, 3).forEach((m, i) => {
-      const cls = classOf(m)
-      const mx = cx + (i - (count - 1) / 2) * (here.some(o => o.project) ? 38 : 30)
-      if (m.isDim) out.push(`<g opacity="0.4">`)
-      out.push(
-        `<ellipse cx="${mx}" cy="${cy + 13}" rx="10" ry="2.5" fill="#000" opacity="0.3"/>`,
-        m.team ? `<circle cx="${mx}" cy="${cy}" r="15.5" fill="none" stroke="${m.team.color}" stroke-width="3"/>` : '',
-        `<circle cx="${mx}" cy="${cy}" r="12" fill="#fff8e7" stroke="${m.isBusy ? info.color : '#8a7350'}" stroke-width="2.5"><title>${esc(`${m.fixedClass ? m.label : CLASSES[cls].name}${m.team ? ` · ${m.team.name}` : ''}: ${m.activity}`)}</title></circle>`,
-        `<text x="${mx}" y="${cy + 5}" font-size="13" text-anchor="middle">${CLASSES[cls].icon}</text>`,
-      )
-      if (m.isBusy) {
-        out.push(`<circle cx="${mx}" cy="${cy}" r="12" fill="none" stroke="${info.color}" stroke-width="2"><animate attributeName="r" values="12;18;12" dur="1.4s" repeatCount="indefinite"/><animate attributeName="stroke-opacity" values="0.9;0;0.9" dur="1.4s" repeatCount="indefinite"/></circle>`)
-      }
-      if (m.lang) {
-        out.push(
-          `<rect x="${mx + 5}" y="${cy - 19}" width="22" height="11" rx="2" fill="#3b2a1a"/>`,
-          `<text x="${mx + 16}" y="${cy - 10.5}" font-size="8" font-weight="bold" text-anchor="middle" fill="#ffd27a">${esc(LANGS[m.lang].crest)}</text>`,
-        )
-      }
-      // On the shared map each member carries its project's name in its colour.
-      if (m.project) {
-        const label = clip(m.project.name, 8)
-        const w = Math.min(36, label.length * 4.4 + 6)
-        out.push(
-          `<rect x="${r1(mx - w / 2)}" y="${cy + 11}" width="${r1(w)}" height="9" rx="2" fill="${m.project.color}" stroke="#1b1424" stroke-width="0.8"/>`,
-          `<text x="${mx}" y="${cy + 18}" font-size="7" font-weight="bold" text-anchor="middle" fill="#1b1424">${esc(label)}</text>`,
-        )
-      }
-      if (m.isDim) out.push(`</g>`)
-    })
-    if (here.length > 3) {
-      out.push(`<text x="${cx + 52}" y="${cy + 4}" font-size="11" font-weight="bold" text-anchor="middle" fill="#fff8e7" stroke="#1b1424" stroke-width="2.5" paint-order="stroke">+${here.length - 3}</text>`)
-    }
-
-    const lines: string[] = []
-    const lead = here.find(m => m.isBusy && !m.isDim) ?? here.find(m => !m.isDim)
-    if (lead) lines.push(clip(`${lead.project ? `${lead.project.name}: ` : ''}${lead.fixedClass ? lead.label : CLASSES[classOf(lead)].name} ${lead.activity}`, 38))
-    if (loc === 'dungeon') {
-      lines.push(!dungeon.hasRun
-        ? 'Unexplored'
-        : dungeon.monsters > 0
-          ? `${dungeon.monsters} monster${dungeon.monsters === 1 ? '' : 's'} lurk · ${dungeon.slain} slain`
-          : `Cleared ✨ · ${dungeon.slain} slain`)
-    }
-    if (loc === 'tavern') {
-      const open = quests.filter(q => !q.isDone).length
-      lines.push(`📜 ${open} open · ${quests.length - open} done`)
-    }
-    lines.forEach((line, i) => {
-      const [lx, ly] = p.caption
-      const lw = line.length * 5.4 + 12
-      const bx = Math.max(4, Math.min(W - lw - 4, lx - lw / 2))
-      out.push(
-        `<rect x="${r1(bx)}" y="${ly - 9 + i * 15}" width="${r1(lw)}" height="13" rx="3" fill="#f1e2bd" fill-opacity="0.92" stroke="#6b5536" stroke-width="1"/>`,
-        `<text x="${r1(bx + lw / 2)}" y="${ly + 1 + i * 15}" font-size="10" text-anchor="middle" fill="#3b2a1a">${esc(line)}</text>`,
-      )
-    })
-  }
-
-  // Teams in the field fly their banners along the south shore.
-  const flying = new Map<string, { color: string; n: number }>()
-  for (const m of party) if (m.team && !m.isDim) flying.set(m.team.name, { color: m.team.color, n: (flying.get(m.team.name)?.n ?? 0) + 1 })
-  let bx = 320 - ([...flying.keys()].reduce((w, n) => w + n.length * 6.2 + 52, 0)) / 2
-  for (const [name, t] of flying) {
-    const w = name.length * 6.2 + 44
-    out.push(
-      `<path d="M${r1(bx)} 366V344" stroke="#3a2414" stroke-width="1.6"/>`,
-      `<path d="M${r1(bx + 1)} 344H${r1(bx + w)}L${r1(bx + w - 6)} 350.5L${r1(bx + w)} 357H${r1(bx + 1)}Z" fill="${t.color}" stroke="#1b1424" stroke-width="1"><animate attributeName="d" values="M${r1(bx + 1)} 344H${r1(bx + w)}L${r1(bx + w - 6)} 350.5L${r1(bx + w)} 357H${r1(bx + 1)}Z;M${r1(bx + 1)} 345H${r1(bx + w)}L${r1(bx + w - 6)} 351.5L${r1(bx + w)} 358H${r1(bx + 1)}Z;M${r1(bx + 1)} 344H${r1(bx + w)}L${r1(bx + w - 6)} 350.5L${r1(bx + w)} 357H${r1(bx + 1)}Z" dur="1.2s" repeatCount="indefinite"/></path>`,
-      `<text x="${r1(bx + 5)}" y="354" font-size="9" font-weight="bold" fill="#1b1424">🚩 ${esc(name)} ×${t.n}</text>`,
-    )
-    bx += w + 8
-  }
-
-  // The workspace's name and its mana: the account's rate-limit windows, as what is left.
-  if (opts.realm) {
-    const t = `🏰 ${opts.realm}`
-    const w = t.length * 7 + 16
-    out.push(`<rect x="${r1(320 - w / 2)}" y="4" width="${r1(w)}" height="18" rx="4" fill="#1b1424" fill-opacity="0.88" stroke="#f2b84b" stroke-width="1.2"/><text x="320" y="17" font-size="11.5" font-weight="bold" text-anchor="middle" fill="#ffd27a">${esc(t)}</text>`)
-  }
-  const mana = (opts.quota ?? []).slice(0, 4)
-  mana.forEach((q, i) => {
-    const y = 26 + i * 15
-    const left = Math.max(0, Math.min(100, q.percentLeft))
-    const color = left < 20 ? '#e8606f' : left < 50 ? '#f2b84b' : '#4fc7b5'
-    out.push(
-      `<rect x="246" y="${y}" width="148" height="13" rx="3" fill="#1b1424" fill-opacity="0.85"/>`,
-      `<text x="251" y="${y + 9.5}" font-size="8.5" fill="#efe6d2">🔮 ${esc(clip(q.label, 16))}</text>`,
-      `<rect x="334" y="${y + 3}" width="40" height="7" rx="2" fill="#3a2f4c"/><rect x="334" y="${y + 3}" width="${r1(left * 0.4)}" height="7" rx="2" fill="${color}"/>`,
-      `<text x="390" y="${y + 9.5}" font-size="8" text-anchor="end" fill="${color}">${Math.round(left)}%</text>`,
-    )
+  // Quest notes on the board.
+  quests.slice(0, 6).forEach((q, i) => {
+    const x = BOARD.x + 3 + (i % 3) * 10, y = BOARD.y + 4 + Math.floor(i / 3) * 9
+    scene.push(`<path d="M${x} ${y}h8v7h-8z" fill="${q.isDone ? '#b9a77e' : '#f3e6c0'}"/><rect x="${x + 3}" y="${y}" width="2" height="1" fill="#b8323f"/><path d="${q.isDone ? `M${x + 2} ${y + 4}h1v1h-1zM${x + 3} ${y + 5}h1v1h-1zM${x + 4} ${y + 3}h1v2h-1zM${x + 5} ${y + 2}h1v1h-1z` : `M${x + 1} ${y + 3}h6v1h-6zM${x + 1} ${y + 5}h4v1h-4z`}" fill="${q.isDone ? '#4f9c5a' : '#6b5a3a'}"/>`)
   })
 
-  out.push(`<rect width="${W}" height="${H}" rx="10" fill="url(#vignette)" pointer-events="none"/>`)
-  out.push(`</svg>`)
-  return out.join('')
+  // The Dungeon: its monsters, and its treasure once they are all slain.
+  const cleared = dungeon.hasRun && dungeon.monsters === 0 && dungeon.slain > 0
+  scene.push(`<path d="M${CHEST.x - 6} ${CHEST.y - 7}h13v8h-13z" fill="#1b1424"/><path d="M${CHEST.x - 5} ${CHEST.y - 6}h11v6h-11z" fill="#8a5a34"/><rect x="${CHEST.x - 5}" y="${CHEST.y - 4}" width="11" height="1" fill="#f2b84b"/>`)
+  scene.push(cleared
+    ? `<path d="M${CHEST.x - 6} ${CHEST.y - 12}h13v5h-13z" fill="#1b1424"/><path d="M${CHEST.x - 4} ${CHEST.y - 7}h9v2h-9z" fill="#ffd27a"><animate attributeName="fill" values="#ffd27a;#fff3c0;#ffd27a" dur="1s" repeatCount="indefinite"/></path>`
+    : `<path d="M${CHEST.x - 6} ${CHEST.y - 10}h13v4h-13z" fill="#1b1424"/><path d="M${CHEST.x - 5} ${CHEST.y - 9}h11v2h-11z" fill="#7a4a2a"/>`)
+  const foes: { y: number; svg: string }[] = []
+  for (let i = 0; i < Math.min(dungeon.monsters, MONSTER_SLOTS.length); i++) {
+    const s = MONSTER_SLOTS[i]!
+    const a = sprite(`slime-${i % 3}-0`, b => slime(b, i % 3, 0, -5, -8)), b2 = sprite(`slime-${i % 3}-1`, b => slime(b, i % 3, 1, -5, -8))
+    foes.push({ y: s.y, svg: `<g transform="translate(${s.x} ${s.y})"><ellipse cx="0" cy="0" rx="5" ry="1.5" fill="#000" opacity=".35"/><use href="#${a}"><animate attributeName="href" values="#${a};#${b2}" dur="${0.6 + (i % 3) * 0.1}s" calcMode="discrete" repeatCount="indefinite"/></use></g>` })
+  }
+
+  // The party: each member at a spot of its place, walking there along the roads if it just moved.
+  const crowd = new Map<GuildLocation, number>()
+  const people: { y: number; svg: string }[] = [...foes]
+  for (const m of party) {
+    const here = PLACES[m.location]
+    const n = crowd.get(m.location) ?? 0
+    crowd.set(m.location, n + 1)
+    const base = here.spots[n % here.spots.length]!
+    const spot = n < here.spots.length ? base : { x: base.x + ((n * 7) % 13) - 6, y: base.y + ((n * 5) % 9) - 4 }
+    const cls = m.fixedClass ?? (m.id === 'main' && m.location === 'tavern' ? 'guildmaster' : classOf(m))
+    const look = m.fixedClass ?? (m.label === 'Sellsword' ? 'sellsword' : cls)
+    const project = m.project?.color ?? '#f2b84b'
+    const crest = m.lang ? LANGS[m.lang].crest : ''
+    const ring = `<path d="M-6 -1h13v1h-13zM-5 0h11v1h-11z" fill="${m.team?.color ?? project}"/>`
+    // Nothing written over the folk: what each is doing shows on hover, and in full when picked beside the map.
+    // One that waits on the person raises a pulsing call for attention.
+    const tag = m.waiting ? `<g><path d="M-5 -34h10v12h-3l-2 3l-2 -3h-3z" fill="#e8606f" stroke="#1b1424" stroke-width=".8"/><text x="0" y="-25" font-size="9" font-family="monospace" font-weight="bold" text-anchor="middle" fill="#fff3d0">!</text><animateTransform attributeName="transform" type="translate" values="0 0;0 -2;0 0" dur=".7s" repeatCount="indefinite"/></g><circle cx="0" cy="-8" r="10" fill="none" stroke="#e8606f" stroke-width="1.2"><animate attributeName="r" values="8;16;8" dur="1.2s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/></circle>` : ''
+    const title = `<title>${esc(`${m.project ? `${m.project.name} · ` : ''}${m.fixedClass ? m.label : CLASSES[classOf(m)].name}${crest ? ` [${crest}]` : ''}${m.team ? ` · ${m.team.name}` : ''}: ${m.waiting ? `waits on you: ${m.waiting}` : m.activity}`)}</title>`
+    const still = memberSprite(look, 0), step1 = memberSprite(look, 1), step2 = memberSprite(look, 2)
+    const fade = m.isDim ? ' opacity=".4"' : ''
+    // Walking: from where it was, along the roads, to its spot; started as long ago as it moved.
+    const elapsed = m.movedAt && now ? (now - m.movedAt) / 1000 : Infinity
+    const path = m.from && m.from !== m.location ? route(m.from, m.location, spot) : []
+    const dur = path.length ? length(path) / WALK_SPEED : 0
+    if (path.length && elapsed < dur) {
+      const d = `M${path.map(p => `${r1(p.x)} ${r1(p.y)}`).join('L')}`
+      people.push({ y: spot.y, svg: `<g${fade} color="${project}">${title}<g>${ring}<use href="#${step1}"><animate attributeName="href" values="#${step1};#${step2}" dur=".35s" calcMode="discrete" repeatCount="indefinite"/></use>${tag}<animateMotion dur="${r1(dur)}s" begin="${r1(-elapsed)}s" fill="freeze" path="${d}"/></g></g>` })
+      continue
+    }
+    const bob = m.isBusy ? `<animateTransform attributeName="transform" type="translate" values="0 0;0 -1;0 0" dur=".5s" repeatCount="indefinite"/>` : ''
+    people.push({ y: spot.y, svg: `<g transform="translate(${spot.x} ${spot.y})"${fade} color="${project}">${title}${ring}<g>${bob}<use href="#${still}"/></g>${tag}${m.team ? `<path d="M-8 -22v9" stroke="#3a2414" stroke-width="1"/><path d="M-7 -22h4v3h-4z" fill="${m.team.color}"/>` : ''}</g>` })
+  }
+  people.sort((a, b) => a.y - b.y)
+  scene.push(...people.map(p => p.svg))
+  if (night) scene.push(nightLights())
+
+  // Name plates over each place; busy ones lit in their colour, the inspected one in gold.
+  const plates: string[] = []
+  for (const loc of Object.keys(PLACES) as GuildLocation[]) {
+    const { tag } = PLACES[loc]
+    const name = NAMES[loc], w = name.length * 5.2 + 12, x = tag.x - w / 2
+    const waits = party.some(m => m.location === loc && m.waiting && !m.isDim)
+    const edge = waits ? '#e8606f' : opts.selected === loc ? '#f2b84b' : busyAt(loc) ? PLACE_COLOR[loc] : '#3d2f4c'
+    const here = party.filter(m => m.location === loc && !m.isDim).length
+    plates.push(`<g><title>${esc(`${LOCATIONS[loc].name} · ${here} here\n${PLACE_INFO[loc].blurb}`)}</title><path d="M${r1(x - 1)} ${tag.y - 7}h${r1(w + 2)}v14h${-r1(w + 2)}z" fill="#000"/><path d="M${r1(x)} ${tag.y - 6}h${r1(w)}v12h${-r1(w)}z" fill="${edge}"/><path d="M${r1(x + 1)} ${tag.y - 5}h${r1(w - 2)}v10h${-r1(w - 2)}z" fill="#1b1424"/><text x="${tag.x}" y="${tag.y + 2.6}" font-size="7.5" font-family="monospace" font-weight="bold" text-anchor="middle" fill="${PLACE_COLOR[loc]}">${esc(name)}</text>${waits ? `<path d="M${r1(x - 1)} ${tag.y - 7}h${r1(w + 2)}v14h${-r1(w + 2)}z" fill="none" stroke="#e8606f" stroke-width="1.5"><animate attributeName="opacity" values="1;.2;1" dur=".9s" repeatCount="indefinite"/></path><path d="M${r1(x + 4)} ${tag.y + 8}h${r1(w - 8)}v8h${-r1(w - 8)}z" fill="#e8606f"/><text x="${tag.x}" y="${tag.y + 14}" font-size="5.5" font-family="monospace" font-weight="bold" text-anchor="middle" fill="#fff3d0">AWAITS YOU</text>` : ''}${here ? `<path d="M${r1(x + w - 4)} ${tag.y - 10}h9v8h-9z" fill="${PLACE_COLOR[loc]}"/><text x="${r1(x + w + 0.5)}" y="${tag.y - 3.6}" font-size="6" font-family="monospace" font-weight="bold" text-anchor="middle" fill="#1b1424">${here}</text>` : ''}</g>`)
+  }
+  // Teams in the field fly their banners along the shore.
+  const flying = new Map<string, { color: string; n: number }>()
+  for (const m of party) if (m.team && !m.isDim) flying.set(m.team.name, { color: m.team.color, n: (flying.get(m.team.name)?.n ?? 0) + 1 })
+  let fx = 12
+  for (const [name, t] of flying) {
+    const label = `${name} ×${t.n}`, w = label.length * 4.4 + 10
+    plates.push(`<path d="M${fx} 316V296" stroke="#3a2414" stroke-width="1.2"/><path d="M${fx + 1} 296h${r1(w)}l-4 5l4 5h${-r1(w)}z" fill="${t.color}" stroke="#1b1424" stroke-width=".7"/><text x="${fx + 4}" y="303.4" font-size="6" font-family="monospace" font-weight="bold" fill="#1b1424">${esc(label)}</text>`)
+    fx += w + 10
+  }
+
+  const lamp = (id: string, c: string) => `<radialGradient id="lamp-${id}"><stop offset="0" stop-color="${c}" stop-opacity=".55"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient>`
+  const defs = [
+    ...[...art.entries()].map(([id, body]) => `<g id="${id}">${body}</g>`),
+    ...(Object.keys(PLACES) as GuildLocation[]).map(loc => `<radialGradient id="busy-${loc}"><stop offset="0" stop-color="${PLACE_COLOR[loc]}" stop-opacity=".45"/><stop offset="1" stop-color="${PLACE_COLOR[loc]}" stop-opacity="0"/></radialGradient>`),
+    lamp('warm', '#ffd27a'), lamp('fire', '#ff8a3a'), lamp('arcane', '#a593ff'),
+    `<radialGradient id="vignette" r=".75"><stop offset=".62" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".4"/></radialGradient>`,
+  ]
+  const svg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W * 2}" height="${H * 2}" shape-rendering="crispEdges">`,
+    `<defs>${defs.join('')}</defs>`,
+    `<image href="${WORLD_ART}" width="${W}" height="${H}" style="image-rendering:pixelated"/>`,
+    ...scene,
+    ...plates,
+    `<rect width="${W}" height="${H}" fill="url(#vignette)" pointer-events="none"/>`,
+    `</svg>`,
+  ].join('')
+  // The surface takes at most 131072 characters: a crowded realm gives up its ambient life first.
+  return svg.length > 130000 ? svg.replace(life, '') : svg
 }
 
 export function describeMap(party: GuildMember[], dungeon: GuildDungeon): string {
-  const where = party.map(m => `${CLASSES[classOf(m)].name} in the ${LOCATIONS[m.location].name}: ${m.activity}`)
-  const d = dungeon.hasRun ? `Dungeon: ${dungeon.monsters} failing, ${dungeon.slain} passing.` : 'Dungeon unexplored.'
-  return `Guild realm map, an island with the guild town at its heart. ${where.join('. ')}. ${d}`
+  const where = party.map(m => `${m.project ? `${m.project.name}: ` : ''}${CLASSES[classOf(m)].name} in the ${LOCATIONS[m.location].name}, ${m.activity}`)
+  const d = dungeon.hasRun ? `The Dungeon holds ${dungeon.monsters} failing tests; ${dungeon.slain} have passed.` : 'No tests have run yet.'
+  return `The guild realm: a town in the west, the Wizard's tower in the forest, the Armory in the snowy mountains, the Alchemist's swamp and the Dungeon on the cliffs. ${where.join('. ')}. ${d}`
 }

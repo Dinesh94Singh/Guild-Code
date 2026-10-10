@@ -56,6 +56,7 @@ When two or more subagents are out at once they march as a **team** (the Vanguar
 - **One world for every workspace.** Each session publishes its guild to the mod's store, and the pane draws every workspace open on this machine on the same map, each party tagged in its project's colour. Press a workspace to highlight it; the others fade.
 - **Mana.** The account's rate-limit windows (5-hour, weekly, and per-model ones when the account reports them) are drawn as mana gauges with what is left and when each resets.
 - **Inspect a place.** Press a place's button under the map to see what lands there, who is there now and the latest deeds there; hover the map for tooltips.
+- **The Guildmaster's Desk.** Write a quest on the scroll, pick who to summon (the Guildmaster, or the Wizard, Rogue, Dwarf or Alchemist subagent), and it reaches Claude. Decrees offer one-press prompts for what the guild can see: slay the monsters, re-run the trial, pursue a quest, verify one, temper, rebrew, ration mana, recall a subagent, ask the scribe. By default each lands as a **petition** in your prompt box for you to send; switch to **sealed** to send at once.
 - **Night.** After dark (by your local clock) the realm dims and its windows, torches and forge light up.
 
 ## Supported toolchains (V1)

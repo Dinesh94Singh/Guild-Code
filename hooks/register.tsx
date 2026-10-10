@@ -15,11 +15,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionRateLimit } from 'claude-code'
 
-import type { GuildClass, GuildDungeon, GuildEntry, GuildLocation, GuildMember, GuildOutcome, GuildQuest, GuildQuota, GuildRealm, GuildXp } from '../types'
+import type { GuildClass, GuildDungeon, GuildEntry, GuildLocation, GuildMember, GuildOutcome, GuildQuest, GuildQuota, GuildRealm, GuildSendMode, GuildXp } from '../types'
 import { classifyTool, readBattle } from './classify'
 import type { Placement } from './classify'
-import { CLASSES, LANGS, LOCATIONS, ORDER, PLACE_INFO, PROJECT_COLORS, TEAMS, classOf, classOfAgentType, windowLabel } from './lore'
+import { CLASSES, LANGS, LOCATIONS, ORDER, PLACE_INFO, PROJECT_COLORS, SUMMONS, TEAMS, classOf, classOfAgentType, questText, windowLabel } from './lore'
 import { describeMap, drawMap } from './map'
+import { alertArt, deskArt, legendArt, manaArt } from './panels'
 
 const PANE = 'guild-hall'
 const MAIN = 'main'
@@ -44,7 +45,60 @@ const quota = atom({ plugin: 'guild-code', key: 'quota' } as const, [] as GuildQ
 const realms = atom({ plugin: 'guild-code', key: 'realms' } as const, [] as GuildRealm[])
 const viewing = atom({ plugin: 'guild-code', key: 'viewing' } as const, '')
 const selected = atom({ plugin: 'guild-code', key: 'selected' } as const, '' as GuildLocation | '')
+const picked = atom({ plugin: 'guild-code', key: 'picked' } as const, '')
+const legend = atom({ plugin: 'guild-code', key: 'legend' } as const, false)
 const teams = atom({ plugin: 'guild-code', key: 'teams' } as const, 0)
+const sendMode = atom({ plugin: 'guild-code', key: 'sendMode' } as const, 'petition' as GuildSendMode)
+const summon = atom({ plugin: 'guild-code', key: 'summon' } as const, 'guildmaster' as GuildClass)
+
+type Decree = { key: string; label: string; text: string }
+
+/**
+ * The Guildmaster's Desk: a quest or decree reaches Claude as a petition drafted into the
+ * prompt box for the person to send, or, sealed, as a prompt submitted at once.
+ */
+async function petition($: EngineInterface, text: string, title: string, asUser = false) {
+  const mode = await read($, sendMode)
+  if (mode === 'seal') {
+    await $.prompt.submit(asUser ? { text, asUser: true } : { text })
+    $.ui.toast(`🔏 ${title}: sealed and sent.`)
+    await log($, { who: 'Guildmaster', cls: 'guildmaster', location: 'tavern', text: `🔏 Sealed: ${title}`, outcome: 'ok' })
+    return
+  }
+  const drafted = await $.prompt.fill({ text })
+  if (drafted.isFilled) {
+    $.ui.toast(`📜 ${title}: the petition waits in your prompt box. Press Enter to send it.`)
+    await log($, { who: 'Guildmaster', cls: 'guildmaster', location: 'tavern', text: `📜 Petition drafted: ${title}`, outcome: 'ok' })
+  } else {
+    $.ui.toast(drafted.refusal === 'dialog' ? '📜 Close the open dialog, then press again.' : '📜 No prompt box here to hold the petition.')
+  }
+}
+
+/** One-press decrees for what the guild can see right now: each a ready-made prompt. */
+function decrees(d: GuildDungeon, board: GuildQuest[], mana: GuildQuota[], pick: GuildLocation | '', members: GuildMember[], entries: GuildEntry[]): Decree[] {
+  const out: Decree[] = []
+  if (d.hasRun && d.monsters > 0) {
+    const run = d.lastCommand ? ` Run \`${d.lastCommand}\`,` : ' Run the tests,'
+    out.push({ key: 'slay', label: `⚔️ Slay the ${d.monsters} monster${d.monsters === 1 ? '' : 's'}`, text: `Fix the ${d.monsters} failing test${d.monsters === 1 ? '' : 's'}${d.framework ? ` (${d.framework})` : ''}.${run} find each root cause and fix it, then run the tests again to confirm.` })
+  }
+  if (d.hasRun && d.lastCommand) out.push({ key: 'retrial', label: '🔁 Re-run the trial', text: `Run \`${d.lastCommand}\` again and report what passes and what still fails.` })
+  for (const q of board.filter(q => !q.isDone).slice(0, 3)) out.push({ key: `pursue-${q.id}`, label: `🗡️ Pursue: ${q.title.length > 28 ? `${q.title.slice(0, 27)}…` : q.title}`, text: `Work on the task "${q.title}" now, and mark it done when it is.` })
+  for (const q of board.filter(q => q.isDone).slice(-1)) out.push({ key: `verify-${q.id}`, label: `🔍 Verify & seal: ${q.title.length > 22 ? `${q.title.slice(0, 21)}…` : q.title}`, text: `Check that the task "${q.title}" is really done: verify it against the code and tests, and report.` })
+  const place: Record<GuildLocation, Decree> = {
+    tavern: { key: 'board', label: '📜 Read the board', text: 'Summarize the open tasks and what you would do next, in order.' },
+    study: { key: 'archives', label: '📚 Consult the archives', text: 'Explain how this project is laid out: its main modules, how they connect, and where to start reading.' },
+    dungeon: { key: 'scout', label: '🕯️ Scout the dungeon', text: 'Run the test suite and report what passes and what fails, without changing any code yet.' },
+    armory: { key: 'temper', label: '🔨 Temper the blade', text: "Run the project's formatter and linter, fix what they report, and show a summary of the diff." },
+    cauldron: { key: 'rebrew', label: '⚗️ Rebrew', text: 'Rebuild the project (reinstall dependencies if needed), fix any build errors, and report the result.' },
+  }
+  if (pick) out.push(place[pick])
+  const low = mana.filter(q => q.percentLeft < 30).sort((a, b) => a.percentLeft - b.percentLeft)[0]
+  if (low) out.push({ key: 'ration', label: `🧪 Ration mana (${Math.round(low.percentLeft)}% left)`, text: `Our ${low.label.toLowerCase()} rate limit is running low (${Math.round(low.percentLeft)}% left). For the rest of this work, be lean: fewer, more targeted tool calls and shorter replies.` })
+  for (const m of members.filter(m => m.id !== MAIN && !m.project && !m.isDim).slice(0, 2)) out.push({ key: `recall-${m.id}`, label: `🪶 Recall the ${m.label}`, text: `Tell the ${m.label} subagent working on "${m.activity}" to wrap up, report what it has done so far, and return.` })
+  const recent = entries.slice(-3)
+  if (recent.length) out.push({ key: 'scribe', label: '🪶 Ask the scribe', text: `Explain the last few steps you took and why:\n${recent.map(x => `- ${x.who}: ${x.text}`).join('\n')}` })
+  return out
+}
 
 const REALM_PREFIX = 'realm:'
 const PUBLISH_MS = 4000
@@ -116,12 +170,34 @@ async function settle($: EngineInterface, id: string, outcome: GuildOutcome, tex
 }
 
 async function move($: EngineInterface, memberId: string, change: Partial<GuildMember>) {
-  await update($, party, list => list.map(m => (m.id === memberId ? { ...m, ...change } : m)))
+  const at = await $.clock.now().catch(() => 0)
+  await update($, party, list => list.map(m => {
+    if (m.id !== memberId) return m
+    // A change of place starts a walk along the roads, drawn by the map.
+    const walks = change.location !== undefined && change.location !== m.location
+    return { ...m, ...change, ...(walks ? { from: m.location, movedAt: at } : {}) }
+  }))
 }
 
 async function gainXp($: EngineInterface, cls: GuildClass, amount: number) {
   const next = await update($, xp, cur => ({ ...cur, [cls]: (cur[cls] ?? 0) + amount }))
   void $.store.set('xp', next).catch(() => undefined)
+}
+
+/** A member now waits on the person: it raises its hand on the map, and the person is told. */
+async function awaitPerson($: EngineInterface, memberId: string, what: string, notify: boolean) {
+  const roster = await read($, party)
+  const m = roster.find(one => one.id === memberId)
+  if (!m || m.waiting === what) return
+  await update($, party, list => list.map(one => (one.id === memberId ? { ...one, waiting: what } : one)))
+  const who = m.fixedClass ? m.label : CLASSES[classOf(m)].name
+  const where = LOCATIONS[m.location].name
+  $.ui.toast(`❗ ${who} at the ${where} awaits your word: ${what}`)
+  if (notify) void $.ui.notify(`${who} at the ${where} ${what}`, { title: '❗ The guild awaits your word' }).catch(() => undefined)
+  await log($, { who, cls: classOf(m), location: m.location, text: `❗ awaits your word: ${what}`, outcome: 'running' })
+}
+async function answered($: EngineInterface, memberId: string) {
+  await update($, party, list => (list.some(m => m.id === memberId && m.waiting) ? list.map(m => (m.id === memberId ? { ...m, waiting: undefined } : m)) : list))
 }
 
 function statusLine(m: GuildMember): string {
@@ -156,6 +232,12 @@ export const register: Register = on => {
       if (saved && typeof saved === 'object') await update($, xp, () => ({ ...NO_XP, ...saved }))
     } catch {
       // A fresh guild: no XP yet.
+    }
+    try {
+      const mode = await $.store.get('sendMode')
+      if (mode === 'petition' || mode === 'seal') await update($, sendMode, () => mode)
+    } catch {
+      // Petitions by default.
     }
     try {
       const usage = await $.session.usage()
@@ -199,12 +281,33 @@ export const register: Register = on => {
     const points = await read($, xp)
     const d = await read($, dungeon)
     const rows = (Object.keys(CLASSES) as GuildClass[]).map(c => `${CLASSES[c].icon} ${CLASSES[c].name}: ${points[c] ?? 0} XP (level ${1 + Math.floor((points[c] ?? 0) / 50)})`)
-    const record = d.hasRun ? `💀 Dungeon: ${d.monsters} monsters left, ${d.slain} slain${d.framework ? ` (${d.framework})` : ''}` : '💀 Dungeon: unexplored this session'
+    const record = d.hasRun ? `💀 Dungeon: ${d.monsters} monsters left, ${d.slain} slain${d.framework ? ` (${d.framework})` : ''}` : '💀 Dungeon: no trials yet this session'
     return { text: ['🏰 Guild record', ...rows, record].join('\n') }
+  })
+
+  // An agent stuck on the person: a permission to grant, or a question to answer.
+  on('classic.PermissionRequest', async ($, e, next) => {
+    try {
+      const input = (e.tool_input ?? {}) as Record<string, unknown>
+      const detail = typeof input.command === 'string' ? input.command : typeof input.file_path === 'string' ? input.file_path : typeof input.url === 'string' ? input.url : ''
+      await awaitPerson($, e.agent_id ?? MAIN, `asks leave to use ${e.tool_name}${detail ? `: ${detail.length > 60 ? `${detail.slice(0, 59)}…` : detail}` : ''}`, true)
+    } catch {
+      // ignore
+    }
+    return next(e)
+  })
+  on('classic.Notification', async ($, e, next) => {
+    try {
+      if (/idle/.test(e.notification_type)) await awaitPerson($, e.agent_id ?? MAIN, 'waits for your next quest', false)
+    } catch {
+      // ignore
+    }
+    return next(e)
   })
 
   on('prompt.submit', async ($, e, next) => {
     try {
+      await answered($, MAIN)
       const words = e.text.replace(/\s+/g, ' ').trim()
       if (words.length > 0 && !words.startsWith('/')) {
         const short = words.length > 48 ? `${words.slice(0, 47)}…` : words
@@ -281,7 +384,9 @@ export const register: Register = on => {
       // ignore: the tool still runs
     }
 
+    if (String(e.tool) === 'AskUserQuestion') await awaitPerson($, memberId, 'asks you a question', true).catch(() => undefined)
     const ran = await next(e)
+    await answered($, memberId).catch(() => undefined) // whatever it waited on is settled once the tool returns
 
     try {
       if (place && entryId && member) {
@@ -393,6 +498,50 @@ export const register: Register = on => {
     const { Box: B, Text: Tx, Button } = $.ui.resolve(e)
     const setPlace = (loc: GuildLocation) => () => void update($, selected, cur => (cur === loc ? '' : loc))
     const setView = (id: string) => () => void update($, viewing, () => id)
+    const mode = await read($, sendMode)
+    const calling = await read($, summon)
+    const ui = $.ui.resolve(e)
+    const Input = 'Input' in ui ? ui.Input : undefined
+    const ownMembers = members.filter(m => !m.project || m.project.name === here)
+    const deeds = decrees(own.dungeon, own.quests, mana, pick, ownMembers.map(m => ({ ...m, project: undefined })), entries)
+    const toggleMode = () => void update($, sendMode, cur => {
+      const next: GuildSendMode = cur === 'petition' ? 'seal' : 'petition'
+      void $.store.set('sendMode', next).catch(() => undefined)
+      return next
+    })
+    // The quest scroll and the decrees reach only this session: ravens to other guilds come later.
+    const desk = () => (
+      <B flexDirection="column" paddingX={1} borderStyle="round" borderColor="warning">
+        <Tx bold>🪶 The Guildmaster's Desk{multi ? ` · quests go to ${here}` : ''}</Tx>
+        {Input ? (
+          <Input
+            key="quest-scroll"
+            label="📜 Quest scroll"
+            placeholder={calling === 'guildmaster' ? 'Write a quest for the guild…' : `Write a quest for the ${CLASSES[calling].name}…`}
+            submitLabel={mode === 'seal' ? 'Seal & send' : 'Draft petition'}
+            onSubmit={value => {
+              if (value.trim()) void petition($, questText(value, calling), `Quest for the ${CLASSES[calling].name}`, calling === 'guildmaster')
+            }}
+          />
+        ) : (
+          <Tx dimColor>The quest scroll needs a surface with text fields; the decrees below still work.</Tx>
+        )}
+        <B flexWrap="wrap" gap={1}>
+          <Tx dimColor>Summon:</Tx>
+          {(Object.keys(CLASSES) as GuildClass[]).map(c => (
+            <Button key={`summon-${c}`} label={`${calling === c ? '▸ ' : ''}${CLASSES[c].icon} ${CLASSES[c].name}`} dimColor={calling !== c} onPress={() => void update($, summon, () => c)} />
+          ))}
+        </B>
+        <Tx dimColor>{CLASSES[calling].icon} {CLASSES[calling].name}: {SUMMONS[calling]}</Tx>
+        {deeds.length > 0 && <Tx bold>Decrees</Tx>}
+        <B flexWrap="wrap" gap={1}>
+          {deeds.map(x => <Button key={`decree-${x.key}`} label={x.label} onPress={() => void petition($, x.text, x.label.replace(/^\S+\s/, ''))} />)}
+        </B>
+        <B gap={1}>
+          <Button key="send-mode" label={mode === 'seal' ? '🔏 Sealed: sends at once' : '📜 Petitions: you approve each'} dimColor onPress={toggleMode} />
+        </B>
+      </B>
+    )
 
     const glyph = (o: GuildOutcome) => (o === 'running' ? '…' : o === 'ok' ? '✓' : '✗')
     const realmBar = () =>
@@ -409,13 +558,45 @@ export const register: Register = on => {
           </B>
         </B>
       )
+    const showLegend = await read($, legend)
+    const pickedId = await read($, picked)
     const placeBar = () => (
       <B flexWrap="wrap" gap={1} paddingX={1}>
         {ORDER.map(loc => (
           <Button key={`place-${loc}`} label={`${LOCATIONS[loc].icon} ${LOCATIONS[loc].name}`} dimColor={pick !== loc} onPress={setPlace(loc)} />
         ))}
+        <Button key="legend" label={showLegend ? '📖 Close legend' : '📖 Legend'} variant={showLegend ? 'primary' : undefined} onPress={() => void update($, legend, on => !on)} />
       </B>
     )
+    // Who waits on the person, across every workspace on the map.
+    const waiting = members.filter(m => m.waiting && !m.isDim).map(m => ({ who: `${m.project ? `${m.project.name}: ` : ''}${m.fixedClass ? m.label : CLASSES[classOf(m)].name}`, where: LOCATIONS[m.location].name, what: m.waiting! }))
+    // A party member picked from the roster: its task in full, which the map leaves unwritten.
+    const pickedKey = (m: GuildMember) => `${m.project?.name ?? ''}/${m.id}`
+    const chosen = members.find(m => pickedKey(m) === pickedId)
+    const memberCard = () => {
+      if (!chosen) return null
+      const cls = classOf(chosen)
+      const name = chosen.fixedClass ? chosen.label : `${CLASSES[cls].name} (main loop)`
+      const theirs = entries.filter(x => x.who === (chosen.fixedClass ? chosen.label : CLASSES[cls].name)).slice(-5).reverse()
+      return (
+        <B flexDirection="column" paddingX={1} borderStyle="round" borderColor={chosen.waiting ? 'error' : LOCATIONS[chosen.location].color}>
+          <B justifyContent="space-between">
+            <Tx bold>{CLASSES[cls].icon} {name}</Tx>
+            <Button key="unpick" label="✕" plain onPress={() => void update($, picked, () => '')} />
+          </B>
+          {chosen.project && <Tx dimColor>Workspace: {chosen.project.name}</Tx>}
+          <Tx>At the {LOCATIONS[chosen.location].icon} {LOCATIONS[chosen.location].name}{chosen.lang ? ` · ${LANGS[chosen.lang].name}` : ''}{chosen.team ? ` · 🚩 ${chosen.team.name}` : ''}</Tx>
+          {chosen.waiting && <Tx color="error" bold>❗ Waits on you: {chosen.waiting}</Tx>}
+          <Tx wrap="wrap">{chosen.isBusy ? '⚒️ ' : '💤 '}{chosen.activity}</Tx>
+          {theirs.length > 0 && <Tx bold>Recent deeds</Tx>}
+          {theirs.map(x => (
+            <Tx wrap="truncate-end">
+              <Tx color={tone(x.outcome)}>{glyph(x.outcome)}</Tx> <Tx dimColor>{x.text}</Tx>
+            </Tx>
+          ))}
+        </B>
+      )
+    }
     const inspector = () => {
       if (!pick) return null
       const info = LOCATIONS[pick]
@@ -426,7 +607,7 @@ export const register: Register = on => {
           <Tx bold color={info.color}>{info.icon} {info.name}</Tx>
           <Tx dimColor>{PLACE_INFO[pick].blurb}</Tx>
           <Tx dimColor>{PLACE_INFO[pick].tools}</Tx>
-          {pick === 'dungeon' && <Tx>{d.hasRun ? `💀 ${d.monsters} lurk · ${d.slain} slain${d.framework ? ` (${d.framework})` : ''}` : 'Unexplored'}</Tx>}
+          {pick === 'dungeon' && <Tx>{d.hasRun ? `💀 ${d.monsters} lurk · ${d.slain} slain${d.framework ? ` (${d.framework})` : ''}` : '💀 0 lurk · 0 slain · no trials yet'}</Tx>}
           {pick === 'tavern' && <Tx>📜 {board.filter(q => !q.isDone).length} open · {board.filter(q => q.isDone).length} done</Tx>}
           <Tx bold>Here now</Tx>
           {people.length === 0 && <Tx dimColor>Nobody is here.</Tx>}
@@ -457,16 +638,22 @@ export const register: Register = on => {
       </B>
     )
     const partyList = () => {
-      const out = members.filter(m => m.id !== MAIN && !m.isDim)
+      const out = members.filter(m => !m.isDim)
       if (out.length === 0) return null
       return (
         <B flexDirection="column" paddingX={1}>
-          <Tx bold>⚔️ Party out</Tx>
-          {out.map(m => (
-            <Tx wrap="truncate-end">
-              {m.project ? `[${m.project.name}] ` : ''}{CLASSES[classOf(m)].icon} {m.label}{m.team ? ` 🚩${m.team.name}` : ''} · {LOCATIONS[m.location].name} <Tx dimColor>{m.activity}</Tx>
-            </Tx>
-          ))}
+          <Tx bold>⚔️ The party · pick one for its task</Tx>
+          <B flexWrap="wrap" gap={1}>
+            {out.map(m => (
+              <Button
+                key={`pick-${pickedKey(m)}`}
+                label={`${m.waiting ? '❗' : CLASSES[classOf(m)].icon} ${m.project ? `${m.project.name}: ` : ''}${m.fixedClass ? m.label : CLASSES[classOf(m)].name}`}
+                dimColor={pickedKey(m) !== pickedId && !m.waiting}
+                variant={pickedKey(m) === pickedId ? 'primary' : undefined}
+                onPress={() => void update($, picked, cur => (cur === pickedKey(m) ? '' : pickedKey(m)))}
+              />
+            ))}
+          </B>
         </B>
       )
     }
@@ -496,7 +683,7 @@ export const register: Register = on => {
             ))}
             {loc === 'dungeon' && (
               <Text color={d.monsters > 0 ? 'error' : d.hasRun ? 'success' : undefined} dimColor={!d.hasRun}>
-                {d.hasRun ? `${'💀'.repeat(Math.min(d.monsters, 6))} ${d.monsters} lurk · ${d.slain} slain` : 'unexplored'}
+                {`${'💀'.repeat(Math.min(d.monsters, 6))} ${d.monsters} lurk · ${d.slain} slain`}
               </Text>
             )}
             {loc === 'tavern' && (
@@ -520,9 +707,19 @@ export const register: Register = on => {
             {room('dungeon', half)}
             {room('cauldron', half)}
           </Box>
+          {desk()}
           {placeBar()}
+          {showLegend && (
+            <Box flexDirection="column" paddingX={1} borderStyle="round">
+              <Text bold>📖 Legend</Text>
+              {ORDER.map(loc => <Text>{LOCATIONS[loc].icon} {LOCATIONS[loc].name}: <Text dimColor>{PLACE_INFO[loc].blurb}</Text></Text>)}
+              <Text dimColor>💀 failing tests · ❗ waits on you · 🚩 a team of subagents</Text>
+            </Box>
+          )}
+          {waiting.map(x => <Text color="error" bold>❗ {x.who} at the {x.where} {x.what}</Text>)}
           {inspector()}
           {partyList()}
+          {memberCard()}
           {manaPanel()}
           {openQuests.length > 0 && (
             <Box flexDirection="column" paddingX={1}>
@@ -547,22 +744,60 @@ export const register: Register = on => {
     }
 
     const { Box, Text, Svg } = $.ui.resolve(e)
-    return (
-      <Box flexDirection="column">
-        {realmBar()}
-        <Svg source={drawMap(members, d, board, { realm: focus ? focus.name : multi ? `${all.length} workspaces` : here, selected: pick, quota: mana, hour: new Date(now).getHours() })} alt={describeMap(members, d)} isInteractive />
-        {placeBar()}
-        {inspector()}
-        {partyList()}
-        {manaPanel()}
-        {openQuests.length > 0 && (
-          <Box flexDirection="column" paddingX={1}>
-            <Text bold>📜 Quest board</Text>
-            {openQuests.slice(0, 6).map(q => (
-              <Text>☐ {q.title}</Text>
-            ))}
+    // The map with the desk and the mana beside it when there is room; stacked when narrow.
+    const wide = cols >= 110
+    const deskControls = () => (
+      <Box flexDirection="column" gap={1}>
+        {Input ? (
+          <Input
+            key="quest-scroll"
+            placeholder={calling === 'guildmaster' ? '📜 Write a quest for the guild…' : `📜 Write a quest for the ${CLASSES[calling].name}…`}
+            submitLabel={mode === 'seal' ? '⚜ Seal & send' : '✎ Draft petition'}
+            onSubmit={value => {
+              if (value.trim()) void petition($, questText(value, calling), `Quest for the ${CLASSES[calling].name}`, calling === 'guildmaster')
+            }}
+          />
+        ) : (
+          <Text dimColor>The quest scroll needs a surface with text fields; the decrees still work.</Text>
+        )}
+        <Box flexWrap="wrap" gap={1}>
+          {(Object.keys(CLASSES) as GuildClass[]).map(c => (
+            <Button key={`summon-${c}`} label={CLASSES[c].icon} dimColor={calling !== c} variant={calling === c ? 'primary' : undefined} onPress={() => void update($, summon, () => c)} />
+          ))}
+          <Button key="send-mode" label={mode === 'seal' ? '⚜ Sealed' : '✎ Petitions'} dimColor onPress={toggleMode} />
+        </Box>
+        {deeds.length > 0 && (
+          <Box flexDirection="column" gap={0}>
+            <Text bold color="warning">⚔ Decrees</Text>
+            <Box flexWrap="wrap" gap={1}>
+              {deeds.map(x => <Button key={`decree-${x.key}`} label={x.label} onPress={() => void petition($, x.text, x.label.replace(/^\S+\s/, ''))} />)}
+            </Box>
           </Box>
         )}
+      </Box>
+    )
+    const column = (
+      <Box flexDirection="column" gap={1} width={wide ? 46 : undefined}>
+        {waiting.length > 0 && <Svg source={alertArt(waiting)} alt={`Awaiting your word: ${waiting.map(x => `${x.who} at the ${x.where} ${x.what}`).join('; ')}`} />}
+        {partyList()}
+        {memberCard()}
+        <Svg source={deskArt(calling, mode, own.quests.filter(q => !q.isDone).length)} alt={`The Guildmaster's Desk: the quest scroll summons the ${CLASSES[calling].name}; ${mode === 'seal' ? 'quests are sealed and sent at once' : 'quests are drafted as petitions for you to send'}.`} />
+        {deskControls()}
+        <Svg source={manaArt(mana, now)} alt={mana.length ? `Mana: ${mana.map(q => `${q.label} ${Math.round(q.percentLeft)}% left`).join(', ')}.` : 'Mana: no rate-limit reading yet.'} isInteractive />
+      </Box>
+    )
+    return (
+      <Box flexDirection="column" gap={1}>
+        {realmBar()}
+        <Box flexDirection={wide ? 'row' : 'column'} gap={1}>
+          <Box flexDirection="column" flexGrow={1} gap={1}>
+            <Svg source={drawMap(members, d, board, { selected: pick, hour: new Date(now).getHours(), now })} alt={describeMap(members, d)} isInteractive />
+            {placeBar()}
+            {showLegend && <Svg source={legendArt()} alt="Legend: the Tavern takes prompts and hires subagents; the Wizard's Study is reading and research; the Armory is edits, linting and formatting; the Cauldron is builds and installs; the Dungeon is test runs, where failing tests are monsters. A red ! marks an agent waiting on you; a pennant marks a team; a glowing road marks work under way." />}
+            {inspector()}
+          </Box>
+          {column}
+        </Box>
         <Box flexDirection="column" paddingX={1}>
           <Text bold>📖 Chronicle</Text>
           {recent.length === 0 && <Text dimColor>The hall is quiet. Post a quest to begin.</Text>}

@@ -49,6 +49,22 @@ export const PLACE_INFO: Record<GuildLocation, { blurb: string; tools: string }>
   cauldron: { blurb: 'Builds, installs, bundlers, compilers and containers.', tools: 'npm install · cargo build · uv sync · cmake · docker · …' },
 }
 
+/** What each class is summoned for from the quest scroll. */
+export const SUMMONS: Record<GuildClass, string> = {
+  guildmaster: 'the main loop decides',
+  wizard: 'research and reading',
+  rogue: 'failing tests and bugs',
+  dwarf: 'formatting, linting and types',
+  alchemist: 'builds and dependencies',
+}
+
+/** A quest from the scroll: the person's words, and the guild class to send on it. */
+export function questText(text: string, summon: GuildClass): string {
+  const quest = text.trim()
+  if (summon === 'guildmaster') return quest
+  return `${quest}\n\nSend the guild-code:${summon} subagent (the ${CLASSES[summon].name}) on this quest.`
+}
+
 /** Each workspace's colour on the shared map: this one first, the others in name order. */
 export const PROJECT_COLORS = ['#ff8a5c', '#5fd3f3', '#f7dd5b', '#c9f27a', '#ff7ad9', '#a593ff']
 

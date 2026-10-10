@@ -15,6 +15,11 @@ export type GuildMember = {
   isBusy: boolean
   /** Set when two or more subagents are out at once: they march as one team. */
   team?: GuildTeam
+  /** Where the member was before its latest move, and when it moved: the map walks it along the roads. */
+  from?: GuildLocation
+  movedAt?: number
+  /** Set while the member waits on the person: a permission to grant, a question to answer, a prompt to give. */
+  waiting?: string
   /** Set while drawing every workspace on one map: whose party this member belongs to. */
   project?: GuildProject
   /** Set while drawing: another workspace is highlighted, so this member is drawn faint. */
@@ -24,6 +29,8 @@ export type GuildMember = {
 export type GuildProject = { name: string; color: string }
 
 export type GuildTeam = { name: string; color: string }
+
+export type GuildSendMode = 'petition' | 'seal'
 
 /** One rate-limit window as the engine reports it, turned into what is left. */
 export type GuildQuota = {
@@ -84,6 +91,14 @@ declare module 'claude-code' {
       /** The place the inspector shows, or '' for none. */
       selected: GuildLocation | ''
       teams: number
+      /** How the Guildmaster's Desk reaches Claude: a petition drafted into the prompt box, or sealed and sent at once. */
+      sendMode: GuildSendMode
+      /** Who the quest scroll summons: the guildmaster (the main loop decides) or one of the guild's classes. */
+      summon: GuildClass
+      /** The party member whose details show beside the map, or '' for none. */
+      picked: string
+      /** Whether the legend is open. */
+      legend: boolean
     }
   }
 }
