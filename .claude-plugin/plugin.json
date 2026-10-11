@@ -1,6 +1,6 @@
 {
   "name": "guild-code",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A medieval guild hall for Claude: watch your party move between the Tavern, Wizard's Study, Dungeon, Armory and Alchemist's Cauldron as it works.",
   "author": { "name": "Guild Code contributors" },
   "license": "MIT",
