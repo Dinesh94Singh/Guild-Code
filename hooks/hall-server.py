@@ -1,7 +1,8 @@
 # The Guild Hall's own little server, one per session that ran /guild.
 #   python3 hall-server.py <dir> <first port>
 # It serves the hall page and live.json from <dir> on 127.0.0.1 only, and hands each quest the
-# page sends (POST /petition) to the session as one JSON line on stdout. The page carries a
+# page sends (POST /petition) and each shop order (POST /shop) to the session as one JSON line
+# on stdout. The page carries a
 # token minted here, so no other site can post quests; the Host check stops DNS rebinding.
 import http.server
 import json
@@ -48,14 +49,15 @@ class Hall(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         host = self.headers.get('Host', '')
-        if self.path != '/petition' or not self.local() or self.headers.get('Origin') != f'http://{host}' or not secrets.compare_digest(self.headers.get('X-Guild-Token', ''), token):
+        kind = {'/petition': 'petition', '/shop': 'shop'}.get(self.path)
+        if not kind or not self.local() or self.headers.get('Origin') != f'http://{host}' or not secrets.compare_digest(self.headers.get('X-Guild-Token', ''), token):
             return self.send_error(403)
         size = min(int(self.headers.get('Content-Length') or 0), 100_000)
         try:
             body = json.loads(self.rfile.read(size) or b'{}')
         except ValueError:
             return self.send_error(400)
-        print(json.dumps({'petition': body}), flush=True)
+        print(json.dumps({kind: body}), flush=True)
         self.send_response(204)
         self.end_headers()
 

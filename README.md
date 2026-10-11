@@ -87,6 +87,28 @@ Classes earn XP for work done (more for slaying monsters), and XP persists acros
 
 When two or more subagents are out at once they march as a **team** (the Vanguard, the Lantern Company, …): each member wears the team's colour on the map and the team flies its banner until everyone is back.
 
+### Guild Crowns and the merchant
+
+Good work earns **Guild Crowns**, and crowns buy things for the island. XP still levels each class; crowns are the purse you spend.
+
+| Deed | Crowns |
+| --- | --- |
+| A monster slain (a failing test now passes) | 10 each |
+| The dungeon cleared (the suite goes green after a failure) | 40 |
+| A clean brew (a build, install or bundle succeeds) | 8 |
+| A spoiled brew rescued (a failed build now passes) | 20 |
+| A blade tempered (a linter, formatter or type checker comes back clean) | 6 |
+| A commit scribed | 5 |
+| A quest closed (a task on the board is done) | 15 |
+| A party returned (a subagent comes home) | 5 |
+| A team marched (two or more subagents at once) | 20 |
+
+Crowns pay for results, never for raw tool calls or tokens, and an hour pays at most 300, so a loop can't farm them. The first quest closed each day pays a **streak** bonus that grows from 10 to 60 over a week; a missed day steps the streak back one day rather than to the start.
+
+Press **SHOP** on the Guild Hall page (or **VISIT THE MERCHANT** on the Treasury card) to spend them. Each ware has its own patch of the island and comes alive with the work: the bell tower rings when a dungeon is cleared, the bard plays when a quest closes, the obelisk's runes burn while the Study reads, the potion shelf glows while a brew bubbles, the lighthouse sweeps the sea at night, and the guild hound trots after the Guildmaster. Sell a ware back for half its price.
+
+Your **rank** (Hamlet, Village, Town, Port, City, Kingdom) follows every crown ever earned, so spending never sets you back; each rank opens a finer tier of wares. The purse is one per machine, kept in the mod's store beside the XP, since every project shares the one island. Wares show on the Guild Hall page; the map pane draws the island as it was.
+
 ### The pane and the Guild Hall page
 
 - **The map pane** (`/guild-map`) is the live map and nothing else: every session on this machine on one island, each party tagged in its project's colour, and, once `/guild` has run, a link to the full hall.
@@ -115,7 +137,7 @@ Wrappers are seen through: `npx`, `pnpm exec`, `uv run`, `poetry run`, `env FOO=
 
 - `/guild` opens the Guild Hall page in the browser.
 - `/guild-map` opens the map as a pane beside the conversation.
-- `/guild-stats` shows XP per class and the dungeon record.
+- `/guild-stats` shows XP per class, the dungeon record and the treasury.
 
 ## Surfaces
 
@@ -132,9 +154,10 @@ hooks/
   register.tsx        the hooks: tool calls, prompts, subagents, the pane
   classify.ts         where each command goes, and test-report parsing (pure)
   lore.ts             rooms, classes, languages
+  treasury.ts         Guild Crowns: what deeds pay, ranks, and the merchant's wares (pure)
   map.ts              the SVG map the pane draws
-  world.js, pixelart.js  the island and its pixel art, shared with the page
-  hall-server.py      serves the Guild Hall page on 127.0.0.1 and relays its quests
+  world.js, pixelart.js  the island, its pixel art and where each ware stands, shared with the page
+  hall-server.py      serves the Guild Hall page on 127.0.0.1 and relays its quests and shop orders
 agents/               the four class subagents
 demo/
   src.html            the Guild Hall page: the dry run, and live when /guild serves it

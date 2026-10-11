@@ -210,6 +210,33 @@ dialog.legend::backdrop { background: rgba(8, 5, 12, .7); }
 .legend img { image-rendering: pixelated; width: 24px; height: 32px; }
 .legend .sw { width: 20px; height: 14px; border: 2px solid #000; flex: none; }
 @media (prefers-reduced-motion: reduce) { .awaits { animation: none; } }
+/* The treasury and the merchant's stall */
+.purse { border-color: #8a6a24; }
+.purse-row { display: flex; align-items: center; gap: 8px; }
+.purse-row b { font-family: var(--display); font-size: 18px; font-weight: normal; color: var(--gold); font-variant-numeric: tabular-nums; }
+.crown { width: 22px; height: 16px; flex: none; image-rendering: pixelated; }
+.rank { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.rank span { font-family: var(--display); font-size: 8px; color: var(--parch); }
+.rank small { color: var(--muted); font-size: 16px; }
+#rankBar { background: var(--gold); }
+dialog.shop { width: min(820px, calc(100vw - 32px)); }
+.shop .legend-head .purse-row { margin-left: auto; }
+.shop h3 { display: flex; align-items: center; gap: 8px; }
+.shop h3 i { width: 10px; height: 10px; border: 2px solid #000; display: inline-block; }
+.wares { display: grid; gap: 6px; }
+.ware { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 8px 10px; background: var(--panel-2); border: 2px solid var(--edge); }
+.ware.owned { border-color: var(--c); }
+.ware .wname { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ware .wname b { font-weight: normal; font-size: 21px; }
+.ware .tier { font-family: var(--display); font-size: 7px; padding: 2px 4px 1px; color: #1b1424; }
+.ware small { grid-column: 1; color: var(--muted); font-size: 17px; }
+.ware button { grid-row: 1 / span 2; grid-column: 2; min-width: 112px; min-height: 36px; }
+.ware button.buy { background: var(--gold); color: var(--void); border-color: var(--gold); }
+.ware button:disabled { opacity: .6; cursor: default; transform: none; box-shadow: none; }
+.deeds { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 14px; }
+.deeds li { display: flex; justify-content: space-between; gap: 8px; font-size: 18px; }
+.deeds b { font-weight: normal; color: var(--gold); }
+@media (max-width: 560px) { .ware { grid-template-columns: minmax(0, 1fr); } .ware button { grid-row: auto; grid-column: 1; justify-self: start; } }
 </style>
 
 <div class="wrap">
@@ -225,6 +252,7 @@ dialog.legend::backdrop { background: rgba(8, 5, 12, .7); }
       <div class="crt"><canvas id="map" width="512" height="320" tabindex="0" aria-label="Pixel-art world map of the guild realm with the party at work. Drag or use the arrow keys to explore; press M for the whole map."></canvas>
         <div class="mapctl">
           <button type="button" id="gear" aria-expanded="false" aria-controls="settings">SETTINGS</button>
+          <button type="button" id="shopBtn" aria-haspopup="dialog">SHOP</button>
           <button type="button" id="zoomOut" aria-label="Zoom out">-</button>
           <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
         </div>
@@ -296,6 +324,13 @@ dialog.legend::backdrop { background: rgba(8, 5, 12, .7); }
         <h3>DECREES</h3>
         <div class="decrees" id="decrees"></div>
       </div>
+      <div class="card px purse" id="purseCard">
+        <h2 class="with-act">TREASURY <button type="button" class="act" id="purseShop" aria-haspopup="dialog">VISIT THE MERCHANT</button></h2>
+        <div class="purse-row"><canvas class="crown" width="11" height="8" aria-hidden="true"></canvas><b id="crowns">0</b><span class="hint">crowns</span></div>
+        <div class="rank"><span id="rankName">HAMLET</span><small id="rankNext"></small></div>
+        <div class="qbar" aria-hidden="true"><i id="rankBar" style="width:0%"></i></div>
+        <small class="hint" id="streak"></small>
+      </div>
       <div class="card px inspect" id="inspect" hidden aria-live="polite"></div>
       <div class="card px">
         <h2>NOW</h2>
@@ -337,6 +372,14 @@ dialog.legend::backdrop { background: rgba(8, 5, 12, .7); }
   </div>
   <footer>Places, languages and test counts come from the same code the mod runs. The tool output in these quests is sample data.</footer>
 </div>
+<dialog id="shop" class="px legend shop" aria-labelledby="shopTitle">
+  <div class="legend-head"><h2 id="shopTitle">THE MERCHANT'S STALL</h2><span class="purse-row"><canvas class="crown" width="11" height="8" aria-hidden="true"></canvas><b id="shopCrowns">0</b></span><button type="button" id="shopClose" aria-label="Close">✕</button></div>
+  <p class="hint" id="shopNote"></p>
+  <div id="shopBody"></div>
+  <h3>HOW CROWNS ARE EARNED</h3>
+  <ul class="deeds" id="deeds"></ul>
+  <p class="hint">Crowns pay for results, never for busy work: at most 300 an hour, and an idle guild earns nothing. The first quest closed each day pays a streak bonus. Rank follows every crown ever earned, so spending never sets you back.</p>
+</dialog>
 <dialog id="legend" class="px legend" aria-labelledby="legendTitle">
   <div class="legend-head"><h2 id="legendTitle">LEGEND OF THE REALM</h2><button type="button" id="legendClose" aria-label="Close">✕</button></div>
   <div id="legendBody"></div>
@@ -434,13 +477,14 @@ const MON = [['#d1495b', '#9e2f3f'], ['#9b59d0', '#6d3a99'], ['#e07a2f', '#a8541
 
 
 // ───────────────────────── the painted world ─────────────────────────
-function paintBackground() {
-  const w = GuildWorld.paintWorld();
+function paintBackground(owned = []) {
+  const w = GuildWorld.paintWorld(owned);
   const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
   const b = bg.getContext('2d'), img = b.createImageData(W, H); img.data.set(w.data); b.putImageData(img, 0, 0);
   const mini = document.createElement('canvas'); mini.width = 120; mini.height = Math.round(120 * H / W);
   const m = mini.getContext('2d'); m.imageSmoothingEnabled = true; m.drawImage(bg, 0, 0, mini.width, mini.height);
   const M = w.marks;
+  for (const list of [CHIMNEYS, VENTS, LAMPS, TORCHES, WINDOWS]) list.length = 0;
   CHIMNEYS.push(...M.chimneys); VENTS.push(...M.vents); LAMPS.push(...M.lamps); TORCHES.push(...M.torches); WINDOWS.push(...M.windows);
   VOLC = M.volcano; TOWER = M.tower; WINDMILL = M.windmill; SKULL = M.skull; HUT = M.hut; FORGE = M.forge; ANVIL = M.anvil;
   return {
@@ -448,6 +492,7 @@ function paintBackground() {
     foam: w.foam.map((f, i) => ({ ...f, ph: hash(f.x, f.y) * 6.28 })),
     sparks: w.sparks.map(sp => ({ ...sp, ph: hash(sp.x, sp.y * 5) * 6.28 })),
     ship: FOLK.ship,
+    estates: w.estates,
   };
 }
 
@@ -737,6 +782,7 @@ function startTask(r, th, st) {
       r.threads.push({ id: m.id, steps: [...m.steps.map(x => ({ ...x, who: m.id })), { back: m.id }], idx: 0, task: null, gap: 0.9 + i * 0.45, wait: null });
     });
     const names = st.members.map(m => CLASSES[m.cls].name).join(', ');
+    pay('team', 1, DOORWAY);
     log(r, { who: 'Guildmaster', cls: 'guildmaster', aid: 'main', loc: 'tavern', text: `sends out the ${team.name}: ${names}`, outcome: 'ok', team: team.name });
     banner(r, `THE ${team.name.toUpperCase()} SETS OUT`);
     hero.busy = false; hero.activity = `awaits the ${team.name}`; hero.bubble = `Go, ${team.name}!`;
@@ -776,7 +822,7 @@ function finishTask(r, th) {
   if (th.task.denied) { th.task = null; th.gap = 0.3; entry.outcome = 'fail'; a.busy = a.id !== 'main'; dirty(); return; }
   th.task = null; th.gap = 0.3;
   burn(modelOf(a), (st.tool ? 0.35 : 0.1) * (r.lean ? 0.5 : 1));
-  if (st.back) { a.fading = true; burst(r, a.x, a.y - 8, a.team?.color ?? r.color, 16); th.gap = 0.35; dirty(); return; }
+  if (st.back) { pay('return', 1, a); a.fading = true; burst(r, a.x, a.y - 8, a.team?.color ?? r.color, 16); th.gap = 0.35; dirty(); return; }
   if (st.prompt || st.spawn) { th.gap = 0.35; dirty(); return; }
   const cls = classOf(a);
   let outcome = 'ok';
@@ -790,15 +836,17 @@ function finishTask(r, th) {
       r.state.dungeon.monsters = battle.failed; r.state.dungeon.slain = battle.passed;
       setMonsters(r, battle.failed);
       gainXp(r, cls, 2 + Math.max(0, before - battle.failed) * 5, a, 'dungeon');
-      if (battle.failed === 0 && before > 0) { banner(r, 'DUNGEON CLEARED!', true); r.chest = 1; burst(r, CHEST.x, CHEST.y - 6, '#f2b84b', 24); }
+      pay('slay', Math.max(0, before - battle.failed), a);
+      if (battle.failed === 0 && before > 0) { banner(r, 'DUNGEON CLEARED!', true); r.chest = 1; burst(r, CHEST.x, CHEST.y - 6, '#f2b84b', 24); pay('clear', 1, CHEST); ringBell(); }
     }
   } else {
     gainXp(r, cls, 1, a, place.location);
-    if (place.location === 'cauldron') burst(r, CAULDRON.x, CAULDRON.y - 12, '#84d488', 14);
+    if (place.location === 'cauldron') { burst(r, CAULDRON.x, CAULDRON.y - 12, '#84d488', 14); if (st.tool === 'Bash') pay('brew', 1, CAULDRON); }
+    if (place.location === 'armory' && st.tool === 'Bash') { const cmd = st.in.command; if (/\bgit\s+commit\b/.test(cmd)) pay('commit', 1, ANVIL); else if (!/\bgit\b/.test(cmd)) pay('temper', 1, ANVIL); }
     if (place.location === 'armory') { burst(r, ANVIL.x, ANVIL.y - 4, '#ffd27a', 12); }
   }
   if (st.tool === 'TaskCreate') r.state.quests.push({ id: String(r.state.quests.length + 1), title: st.in.subject, isDone: false, sealed: !!st.sealed });
-  if (st.tool === 'TaskUpdate') { const q = r.state.quests.find(q => q.id === st.in.taskId || (st.in.subject && q.title === st.in.subject && !q.isDone)); if (q) { q.isDone = true; gainXp(r, 'guildmaster', 10, a, 'tavern'); } }
+  if (st.tool === 'TaskUpdate') { const q = r.state.quests.find(q => q.id === st.in.taskId || (st.in.subject && q.title === st.in.subject && !q.isDone)); if (q && !q.isDone) { q.isDone = true; gainXp(r, 'guildmaster', 10, a, 'tavern'); pay('quest', 1, { x: BOARD.x + 16, y: BOARD.y }); EST.bard = 4; } }
   entry.outcome = outcome;
   a.busy = a.id !== 'main'; a.bubble = '';
   dirty();
@@ -841,6 +889,37 @@ function setMonsters(r, n) {
     }
   }
 }
+
+// ───────────────────────── the treasury ─────────────────────────
+// Guild Crowns, by the mod's own rules (hooks/treasury.ts). Live, the purse is the machine's,
+// read from live.json, and the merchant's orders go to the session; in the dry run the sample
+// projects earn into a purse of the page's own, and the dry run's hour passes in a minute.
+const { CATALOG, DEED_NAMES, REFUSALS, REGIONS, REWARDS, TIERS, ESTATES, closeQuest, earn, isOpen, rankOf, trade, treasuryOf } = GuildWorld;
+let purse = treasuryOf(LIVE ? null : { crowns: 1240, earned: 2600, owned: ['lanterns', 'fountain'], streak: { day: '', count: 3 } });
+let purseSeen = false, shopPending = '';
+const owns = id => purse.owned.includes(id);
+const EST = { bell: 0, bard: 0, rainbow: 0, wasRain: false, hound: null };
+const demoNow = () => T0 + clock * 60e3;
+function crownFloat(got, at) {
+  if (got > 0 && at) FX.floats.push({ x: at.x, y: at.y - 20, text: `+${got}`, color: '#f2b84b', life: 1.4 });
+}
+function pay(deed, n, at) {
+  if (LIVE || n <= 0) return;
+  const before = purse.crowns, rank = rankOf(purse.earned).index;
+  if (deed === 'quest') for (let i = 0; i < n; i++) purse = closeQuest(purse, demoNow()).treasury;
+  else purse = earn(purse, deed, n, demoNow()).treasury;
+  crownFloat(purse.crowns - before, at);
+  if (rankOf(purse.earned).index > rank) banner(null, `THE REALM GROWS TO A ${rankOf(purse.earned).name.toUpperCase()}`, true);
+  dirty();
+}
+/** A dungeon cleared: the bell tower, where there is one, rings it out. */
+function ringBell() {
+  EST.bell = 4;
+  const b = WORLD?.estates?.belltower?.bell;
+  if (b) FX.floats.push({ x: b.x, y: b.y - 6, text: 'DONG!', color: '#f2b84b', life: 1.6 });
+}
+/** Paint the island again with what the treasury has built. */
+function rebuild() { WORLD = paintBackground(purse.owned); }
 
 // ───────────────────────── waiting on the person ─────────────────────────
 const waitingActors = () => everyone().filter(a => a.waiting && !a.fading);
@@ -1264,6 +1343,7 @@ function update(dt) {
   if (REALMS.some(r => r.state.dungeon.hasRun) && FOG > 0) FOG = Math.max(0, FOG - dt * 0.8);
   updateLife(dt);
   updateRavens(dt);
+  updateEstates(dt);
   for (const c of CLOUDS) { c.x += c.v * dt * (1 + sky.storm * 1.5); if (c.x > W + 60) c.x = -c.c.width - 60; }
   updateSky(dt);
   // The fire mountain smokes always, and every so often it erupts.
@@ -1588,6 +1668,7 @@ function drawNight() {
   for (const e of SKULL.eyes) LIGHT(e.x, e.y, 12, 'rgba(232,96,111,.7)', dark);
   for (const a of everyone()) if (!(a.delay > 0) && a.alpha > .3) LIGHT(a.x, a.y - 8, 20, 'rgba(255,214,140,.45)', dark * a.alpha); // everyone carries a lantern
   if (anyChest()) LIGHT(CHEST.x, CHEST.y - 6, 14, 'rgba(255,210,90,.6)', dark);
+  estateLights(dark);
   g.globalCompositeOperation = 'source-over';
   for (const w of WINDOWS) px(g, '#ffd27a', w.x - 2, w.y - 2, 4, 4);
   for (const ff of FIREFLIES) { const v = Math.sin(clock * 2 + ff.ph); if (v > .3) { g.globalAlpha = v * dark; px(g, '#e9ff8a', Math.round(ff.x + Math.sin(clock * .7 + ff.ph) * 6), Math.round(ff.y + Math.cos(clock * .9 + ff.ph) * 4)); g.globalAlpha = 1; } }
@@ -1766,6 +1847,116 @@ function drawVignette() {
   if (!vignette) { vignette = g.createRadialGradient(VW / 2, VH / 2, VH * .45, VW / 2, VH / 2, VW * .62); vignette.addColorStop(0, 'rgba(0,0,0,0)'); vignette.addColorStop(1, 'rgba(10,6,16,.45)'); }
   g.fillStyle = vignette; g.fillRect(0, 0, VW, VH);
 }
+// ───────────────────────── what the treasury built ─────────────────────────
+// The still parts are painted into the realm (hooks/world.js); these are the parts that move.
+const WISPS = Array.from({ length: 6 }, (_, i) => ({ x: 446 + hash(i, 71) * 56, y: 232 + hash(i, 72) * 44, ph: hash(i, 73) * 6.28 }));
+const RAINBOW = ['#e8606f', '#e39a4d', '#f7dd5b', '#84d488', '#5fd3f3', '#a593ff'];
+function heroToFollow() {
+  const r = focusP ?? REALMS.find(x => x.self) ?? REALMS[0];
+  return r?.actors.get('main');
+}
+function updateEstates(dt) {
+  EST.bell = Math.max(0, EST.bell - dt); EST.bard = Math.max(0, EST.bard - dt);
+  if (sky.rain > .5) EST.wasRain = true;
+  else if (EST.wasRain && sky.rain < .15) { EST.wasRain = false; EST.rainbow = 14; }
+  EST.rainbow = Math.max(0, EST.rainbow - dt);
+  if (owns('hound')) {
+    const hero = heroToFollow(), d = EST.hound ??= { x: ESTATES.hound.at.x, y: ESTATES.hound.at.y, facing: 1, moving: false };
+    if (hero) {
+      const tx = hero.x - 9 * (hero.facing || 1), ty = hero.y + 2, dx = tx - d.x, dy = ty - d.y, dist = Math.hypot(dx, dy);
+      d.moving = dist > 6;
+      if (d.moving) { const v = Math.min(dist, (dist > 40 ? 90 : 60) * dt); d.x += dx / dist * v; d.y += dy / dist * v; if (Math.abs(dx) > 1) d.facing = Math.sign(dx); }
+    }
+  }
+}
+function drawEstates() {
+  const E = WORLD.estates ?? {}, study = busyAt('study'), brewing = busyAt('cauldron');
+  if (E.fountain) {
+    const j = E.fountain.jet;
+    for (let k = 0; k < 8; k++) {
+      const t = reduced ? (k + 1) / 9 : (clock * 1.2 + k / 8) % 1, side = k % 2 ? 1 : -1;
+      px(g, t < .5 ? '#d6f2ff' : '#5aaed8', Math.round(j.x + side * t * 8), Math.round(j.y - Math.sin(t * Math.PI) * 5 + t * 12));
+    }
+    px(g, '#d6f2ff', j.x, j.y - 2, 1, 2);
+  }
+  if (E.belltower) {
+    const b = E.belltower.bell, sw = EST.bell > 0 && !reduced ? Math.round(Math.sin(clock * 9) * 1.5) : 0;
+    px(g, '#3a2414', b.x, b.y - 2, 1, 2);
+    px(g, '#1b1424', b.x - 3 + sw, b.y, 7, 6); px(g, '#f2b84b', b.x - 2 + sw, b.y + 1, 5, 4); px(g, '#c98a2a', b.x - 2 + sw, b.y + 4, 5, 1); px(g, '#fff3c0', b.x - 1 + sw, b.y + 1, 1, 2);
+  }
+  if (E.obelisk) for (const r of E.obelisk.runes) {
+    px(g, study ? '#e0d7ff' : '#7a6fb0', r.x, r.y, 2, 2);
+    if (study) glow(r.x + 1, r.y + 1, 7, 'rgba(165,147,255,.8)', .5 + Math.sin(clock * 4 + r.y) * .3);
+  }
+  if (E.watchtower) {
+    const b = E.watchtower.beacon, f = flick(b.x, b.y);
+    px(g, '#ff7a2a', b.x - 2, b.y - 1 - Math.round(f * 3), 5, 3 + Math.round(f * 3)); px(g, '#ffd27a', b.x - 1, b.y, 3, 1);
+    glow(b.x, b.y - 2, 9, 'rgba(255,150,60,.7)', .35 + f * .3);
+  }
+  if (E.shelf) for (const bt of E.shelf.bottles) {
+    if (!brewing) continue;
+    px(g, '#fff3d0', bt.x, bt.y - 1 + (Math.floor(clock * 4 + bt.x) % 2), 1, 1);
+    glow(bt.x, bt.y, 5, bt.c, .4 + Math.sin(clock * 5 + bt.x) * .3);
+  }
+  if (E.cauldron2) {
+    const c = E.cauldron2.brew;
+    px(g, brewing ? ['#7a5fd9', '#4fbf5a', '#e0a030', '#d1495b'][Math.floor(clock + 2) % 4] : '#7a5fd9', c.x - 5, c.y, 10, 2);
+    if (brewing && !reduced) for (let k = 0; k < 3; k++) { const t = (clock * 1.5 + k / 3) % 1; px(g, '#d6ffd8', c.x - 3 + k * 3, Math.round(c.y - t * 8), 1, 1); }
+    glow(c.x, c.y + 10, brewing ? 14 : 8, 'rgba(255,140,50,.6)', .5);
+    px(g, '#ff7a2a', c.x - 4, c.y + 9 - (Math.sin(clock * 12) > 0 ? 1 : 0), 8, 2);
+  }
+  if (E.lighthouse) { const l = E.lighthouse.lamp; glow(l.x, l.y, 8, 'rgba(255,230,150,.8)', .5 + flick(l.x, l.y) * .2); }
+  if (owns('owl') && TOWER) {
+    const perched = study || reduced, a = clock * .9;
+    const x = Math.round(perched ? TOWER.x + 13 : TOWER.x + Math.cos(a) * 28), y = Math.round(perched ? TOWER.top - 5 : TOWER.top - 24 + Math.sin(a) * 9);
+    const flap = !perched && Math.floor(clock * 8) % 2;
+    if (!perched) { px(g, '#1b1424', x - 4, y - 3 + flap, 9, 2); px(g, '#8a6a44', x - 3, y - 3 + flap, 7, 1); }
+    px(g, '#1b1424', x - 2, y - 6, 5, 6); px(g, '#8a6a44', x - 1, y - 5, 3, 4); px(g, '#e9d6a8', x - 1, y - 5, 3, 2); px(g, '#f2b84b', x - 1, y - 5, 1, 1); px(g, '#f2b84b', x + 1, y - 5, 1, 1);
+    px(g, '#1b1424', x - 2, y - 7, 1, 1); px(g, '#1b1424', x + 2, y - 7, 1, 1);
+  }
+  if (owns('rainbow') && EST.rainbow > 0) {
+    const al = Math.min(1, EST.rainbow / 3, (14 - EST.rainbow) / 2) * .38, c = ESTATES.rainbow.at;
+    g.globalAlpha = Math.max(0, al);
+    RAINBOW.forEach((col, i) => { g.fillStyle = col; const R = 170 - i * 4; for (let t = 0; t <= 1; t += 0.004) { const an = Math.PI + t * Math.PI; g.fillRect(Math.round(c.x + Math.cos(an) * R * 1.4), Math.round(c.y + 60 + Math.sin(an) * R * .8), 2, 4); } });
+    g.globalAlpha = 1;
+  }
+}
+// The bard and the hound walk among the folk, so they stand in front of or behind them by row.
+function estateFolk() {
+  const out = [];
+  if (owns('bard')) {
+    const b = ESTATES.bard.at;
+    out.push({ y: b.y, d: () => outdoors(() => {
+      const strum = EST.bard > 0 || Math.sin(clock * .5) > 0;
+      drawVillager({ x: b.x, y: b.y, shirt: '#7a4fc9', hair: '#e39a4d', dist: 0, wait: 1 });
+      px(g, '#1b1424', b.x + 1, b.y - 8, 4, 4); px(g, '#c98a4a', b.x + 2, b.y - 7, 2, 2); px(g, '#5a3720', b.x + 4, b.y - 10, 1, 3);
+      if (strum && !reduced) for (let k = 0; k < (EST.bard > 0 ? 3 : 1); k++) {
+        const t = (clock * .8 + k / 3) % 1, nx = Math.round(b.x + 4 + t * 8 + Math.sin(t * 9) * 2), ny = Math.round(b.y - 14 - t * 14);
+        g.globalAlpha = 1 - t; px(g, '#f2b84b', nx, ny, 1, 3); px(g, '#f2b84b', nx - 1, ny + 2, 2, 1); px(g, '#f2b84b', nx, ny, 2, 1); g.globalAlpha = 1;
+      }
+    }) });
+  }
+  if (owns('hound') && EST.hound) { const d = EST.hound, hero = heroToFollow(); out.push({ y: d.y, d: () => drawDog(d.x, d.y, d.facing, d.moving, ['#b07a3a', '#7a4a2a'], d.moving ? 0 : hero && !hero.busy ? 1 : 0) }); }
+  return out;
+}
+function estateLights(dark) {
+  const E = WORLD.estates ?? {};
+  if (E.fairyring) LIGHT(E.fairyring.ring.x, E.fairyring.ring.y, 18, 'rgba(200,150,255,.7)', dark * (.6 + Math.sin(clock * 2) * .3));
+  if (E.watchtower) LIGHT(E.watchtower.beacon.x, E.watchtower.beacon.y, 34, 'rgba(255,150,60,.6)', dark * (.75 + flick(1, 2) * .25));
+  if (E.obelisk && busyAt('study')) for (const r of E.obelisk.runes) LIGHT(r.x, r.y, 10, 'rgba(165,147,255,.7)', dark);
+  if (E.lighthouse) {
+    const l = E.lighthouse.lamp, a = reduced ? 0.4 : clock * .7;
+    LIGHT(l.x, l.y, 24, 'rgba(255,230,150,.7)', dark);
+    if (Math.sin(a) > -0.2) tri(l.x, l.y, l.x + Math.cos(a - .14) * 90, l.y + Math.sin(a - .14) * 36, l.x + Math.cos(a + .14) * 90, l.y + Math.sin(a + .14) * 36, `rgba(255,240,180,${(.22 * dark).toFixed(3)})`);
+  }
+  if (owns('wisps')) for (const w of WISPS) {
+    const v = Math.sin(clock * 1.3 + w.ph); if (v < 0) continue;
+    const x = Math.round(w.x + Math.sin(clock * .6 + w.ph) * 8), y = Math.round(w.y + Math.cos(clock * .8 + w.ph) * 5);
+    LIGHT(x, y, 9, 'rgba(170,230,255,.7)', dark * v);
+  }
+  if (E.fairyring) for (let k = 0; k < 9; k++) { const an = k / 9 * Math.PI * 2; if (Math.sin(clock * 3 + k) > .2) { g.globalAlpha = dark; px(g, '#e9d6ff', Math.round(E.fairyring.ring.x + Math.cos(an) * 9), Math.round(E.fairyring.ring.y + Math.sin(an) * 4 - 2)); g.globalAlpha = 1; } }
+}
+
 function draw() {
   g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#22558a'; g.fillRect(0, 0, VW, VH);
   if (!WORLD) { text('CHARTING THE REALM…', VW / 2, VH / 2 - 4, '#f3e6c0', 'center'); return; }
@@ -1776,10 +1967,12 @@ function draw() {
   drawPlaceGlow();
   drawTrails();
   drawDynamicProps(WORLD);
+  drawEstates();
   const people = everyone();
   const things = people.map(a => ({ y: a.y + (focusP && a.proj === focusP ? .1 : 0), d: () => drawActor(a) }))
     .concat(allMonsters().map(m => ({ y: m.y, d: () => drawMonster(m) })))
-    .concat([{ y: 0, d: () => drawLife() }]);
+    .concat([{ y: 0, d: () => drawLife() }])
+    .concat(estateFolk());
   things.sort((p, q) => p.y - q.y).forEach(t => t.d());
   for (const p of FX.particles) { g.globalAlpha = Math.max(0, Math.min(1, p.life * (p.fade ? .5 : 2))); g.fillStyle = p.color; const s = p.s ?? 1; g.fillRect(Math.round(p.x), Math.round(p.y), s, s); }
   g.globalAlpha = 1;
@@ -1870,6 +2063,7 @@ function renderInspect() {
 }
 function renderSide() {
   sideDirty = false;
+  renderPurse();
   const ps = shown(), a = focusActor();
   if (a) { const r = ROOMS[a.room]; const cls = CLASSES[classOf(a)];
     $('now').innerHTML = `<span class="room-tag" style="background:${r.color}">${esc(r.label)}</span> <span class="proj" style="--c:${a.proj.color}">${esc(a.proj.name)}</span> <span style="color:${cls.color}">${esc(a.fixed ? a.label : cls.name)}</span> ${esc(a.activity)}`; }
@@ -1903,6 +2097,64 @@ function renderSide() {
   const title = LIVE ? 'Guild Hall' : 'Guild Hall Dry Run';
   document.title = stuck.length ? `(${stuck.length}) ! ${title}` : title;
   if (selected) renderInspect();
+}
+function renderPurse() {
+  const rank = rankOf(purse.earned), base = GuildWorld.RANKS?.[rank.index]?.at ?? 0;
+  $('crowns').textContent = purse.crowns.toLocaleString('en-US');
+  $('rankName').textContent = rank.name.toUpperCase();
+  $('rankNext').textContent = rank.next ? `${(rank.next.at - purse.earned).toLocaleString('en-US')} to ${rank.next.name}` : 'the realm is a kingdom';
+  $('rankBar').style.width = `${rank.next ? Math.round((purse.earned - base) / (rank.next.at - base) * 100) : 100}%`;
+  $('streak').textContent = `${purse.streak.count ? `Streak: day ${purse.streak.count}` : 'No streak yet: close a quest today'} · ${purse.owned.length} of ${CATALOG.length} wares built`;
+}
+function renderShop() {
+  $('shopCrowns').textContent = purse.crowns.toLocaleString('en-US');
+  if (!$('shop').open) return;
+  const rank = rankOf(purse.earned);
+  $('shopNote').textContent = `Your realm is a ${rank.name}.${rank.next ? ` At ${rank.next.at.toLocaleString('en-US')} crowns earned it grows to a ${rank.next.name}, and the merchant brings finer wares.` : ''} What you buy rises on its own patch of the island; sell it back for half.`;
+  const lockedName = tier => (GuildWorld.RANKS.find(r => r.opens === tier)?.name ?? '').toUpperCase();
+  $('shopBody').innerHTML = Object.entries(REGIONS).map(([key, reg]) => {
+    const wares = CATALOG.filter(w => w.region === key);
+    if (!wares.length) return '';
+    return `<h3><i style="background:${reg.color}"></i>${esc(reg.name.toUpperCase())}</h3><ul class="wares">${wares.map(w => {
+      const own = owns(w.id), open = isOpen(w.tier, purse.earned), afford = purse.crowns >= w.price, busy = shopPending === w.id;
+      const btn = own ? `<button type="button" data-ware="${w.id}" data-action="sell"${busy ? ' disabled' : ''} aria-label="Sell ${esc(w.name)} for ${Math.floor(w.price / 2)} crowns">SELL · ${Math.floor(w.price / 2)}</button>`
+        : !open ? `<button type="button" disabled>RANK: ${lockedName(w.tier)}</button>`
+        : `<button type="button" class="${afford ? 'buy' : ''}" data-ware="${w.id}" data-action="buy"${afford && !busy ? '' : ' disabled'} aria-label="Buy ${esc(w.name)} for ${w.price} crowns">${busy ? 'SENDING…' : `BUY · ${w.price.toLocaleString('en-US')}`}</button>`;
+      return `<li class="ware${own ? ' owned' : ''}" style="--c:${reg.color}"><span class="wname"><b>${esc(w.name)}</b><span class="tier" style="background:${TIERS[w.tier].color}">${esc(TIERS[w.tier].name.toUpperCase())}</span>${own ? '<span class="hint">BUILT</span>' : ''}</span><small>${esc(w.desc)}</small>${btn}</li>`;
+    }).join('')}</ul>`;
+  }).join('');
+  $('deeds').innerHTML = Object.entries(REWARDS).map(([k, n]) => `<li><span>${esc(DEED_NAMES[k])}</span><b>+${n}</b></li>`).join('');
+}
+function openShop() { $('shop').showModal(); renderShop(); }
+async function order(action, id) {
+  const w = CATALOG.find(x => x.id === id); if (!w) return;
+  if (LIVE) {
+    shopPending = id; renderShop();
+    try {
+      const res = await fetch('shop', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guild-Token': LIVE.token }, body: JSON.stringify({ action, item: id }) });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch { shopPending = ''; renderShop(); banner(null, 'THE MERCHANT IS AWAY: IS THE SESSION OPEN?'); return; }
+    if (action === 'buy') { $('shop').close(); setCam('free', ESTATES[id].at); }
+    return;
+  }
+  const done = trade(purse, { action, item: id });
+  if ('refusal' in done) { banner(null, REFUSALS[done.refusal].toUpperCase()); return; }
+  purse = done.treasury; rebuild(); dirty(); renderShop();
+  if (action === 'buy') { $('shop').close(); banner(null, `${w.name.toUpperCase()} IS BUILT`, true); setCam('free', ESTATES[id].at); burst(null, ESTATES[id].at.x, ESTATES[id].at.y - 10, '#f2b84b', 30); }
+}
+$('shopBtn').addEventListener('click', openShop);
+$('purseShop').addEventListener('click', openShop);
+$('shopClose').addEventListener('click', () => $('shop').close());
+$('shop').addEventListener('click', e => {
+  if (e.target === $('shop')) { $('shop').close(); return; }
+  const b = e.target.closest('button[data-ware]'); if (b && !b.disabled) order(b.dataset.action, b.dataset.ware);
+});
+// The crown beside every purse, drawn in pixels.
+for (const c of document.querySelectorAll('canvas.crown')) {
+  const x = c.getContext('2d');
+  ['k.k..k..k.k', 'kykkyykkyk.', 'kyyyyyyyyyk', 'kyRyyByyRyk', 'kyyyyyyyyyk', 'kkkkkkkkkkk'].forEach((row, j) => [...row].forEach((ch, i) => {
+    const col = { k: '#1b1424', y: '#f2b84b', R: '#e8606f', B: '#5fd3f3' }[ch]; if (col) { x.fillStyle = col; x.fillRect(i, j + 1, 1, 1); }
+  }));
 }
 function renderQuota() {
   if (LIVE) {
@@ -2282,7 +2534,8 @@ function applyLive(s) {
     // The dungeon: failing tests are monsters at the skull; clearing it opens the chest.
     const d = src.dungeon ?? { monsters: 0, slain: 0, hasRun: false }, before = r.state.dungeon.monsters;
     if (d.monsters !== r.monsters.filter(mo => !mo.dying).length) setMonsters(r, d.monsters);
-    if (before > 0 && d.monsters === 0 && d.hasRun) { banner(r, 'DUNGEON CLEARED!', true); r.chest = 1; burst(r, CHEST.x, CHEST.y - 6, '#f2b84b', 24); }
+    if (before > 0 && d.monsters === 0 && d.hasRun) { banner(r, 'DUNGEON CLEARED!', true); r.chest = 1; burst(r, CHEST.x, CHEST.y - 6, '#f2b84b', 24); ringBell(); }
+    if (src.quests.filter(q => q.isDone).length > r.state.quests.filter(q => q.isDone).length) EST.bard = 4;
     r.state.dungeon = { ...d };
     r.state.quests = src.quests.map(q => ({ ...q }));
     r.questTitle = src.quests.filter(q => !q.isDone).slice(-1)[0]?.title ?? '';
@@ -2301,7 +2554,14 @@ function applyLive(s) {
   const five = liveQuota.find(q => /^five_hour/.test(q.kind)) ?? liveQuota[0], week = liveQuota.find(q => /^seven_day/.test(q.kind));
   for (const m of Object.values(MODELS)) { m.hour = 100 - (five?.percentLeft ?? 100); m.week = 100 - (week?.percentLeft ?? 100); }
   Object.assign(xp, s.xp ?? {});
-  if (changed) { renderRealms(); renderAll(); }
+  if (s.treasury) {
+    const t = treasuryOf(s.treasury), built = t.owned.join() !== purse.owned.join();
+    if (purseSeen) crownFloat(t.crowns - purse.crowns, ROOMS.tavern.at);
+    if (t.crowns !== purse.crowns || built) changed = true;
+    purse = t; purseSeen = true; shopPending = '';
+    if (built) rebuild();
+  }
+  if (changed) { renderRealms(); renderAll(); renderShop(); }
 }
 // A quest or decree from the desk: the session drafts it into its prompt box, or, sealed, sends it.
 async function sendLive(r, d, mode) {
@@ -2387,7 +2647,7 @@ function setIcon() {
 }
 async function start() {
   setIcon();
-  WORLD = paintBackground();
+  WORLD = paintBackground(purse.owned);
   if (LIVE) {
     document.body.classList.add('live');
     $('liveBadge').textContent = 'LIVE';

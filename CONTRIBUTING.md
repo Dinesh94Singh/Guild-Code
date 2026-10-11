@@ -48,8 +48,16 @@ If a test runner prints a summary line Guild Code doesn't read yet, add a branch
 3. Add its test, lint and build rules, and tests for them.
 4. Add its commands to the four agents in `agents/`.
 
+## Add a ware to the merchant's stall
+
+1. Add it to `CATALOG` in `hooks/treasury.ts`: an id, name, region, tier, price and one line on what it does.
+2. Give it a place in `ESTATES` in `hooks/world.js`: where it stands (`at`), the ground to clear of trees (`clears`), and a `paint` function for its still part, returning the marks its overlay needs. A ware that only moves (a creature, a light) has no `paint`.
+3. Draw what moves in `drawEstates`, `estateFolk` or `estateLights` in `demo/src.html`, then `node demo/build.mjs`.
+
+To see where a ware lands, paint the island with everything bought: bundle `hooks/world.js` and call `paintWorld(Object.keys(ESTATES))`.
+
 ## Design rules
 
 - **Never block real work.** Every hook that sits in front of a tool call, prompt or subagent is fail-open (`.catch(($, e, next) => next(e))`), and the hook's own bookkeeping is wrapped in `try`.
 - **State the drawing reads lives in `$.state`** (declared in `types/index.d.ts`), never in module variables, so it survives a hot reload.
-- **Keep `classify.ts` pure**, so it is tested without the engine.
+- **Keep `classify.ts` and `treasury.ts` pure**, so they are tested without the engine.

@@ -53,6 +53,11 @@ test('the party walks the hall, and the dungeon counts its monsters', async ($, 
   expect(drawn).toMatch(/brews mvn -q package/)
   expect(drawn).toMatch(/reads src\/lib\.rs/)
 
+  // Crowns for the outcomes, none for the reading: a clean lint (6), two slain (20), the
+  // dungeon cleared (40) and a clean brew (8).
+  const stats = await $.command.run({ command: 'guild-stats', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
+  expect(String((stats as { text?: string } | undefined)?.text ?? '')).toMatch(/Treasury: 74 crowns · Hamlet \(426 more to Village\)/)
+
   // A picture on the surfaces that draw them, with words for those who can't see it.
   for (const surface of ['desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
