@@ -392,9 +392,13 @@ async function move($: EngineInterface, memberId: string, change: Partial<GuildM
   }))
 }
 
+// XP is the machine's, like the purse: each gain reads the store fresh, so sessions add to one another's.
 async function gainXp($: EngineInterface, cls: GuildClass, amount: number) {
-  const total = await update($, xp, cur => ({ ...cur, [cls]: (cur[cls] ?? 0) + amount }))
-  void $.store.set('xp', total).catch(() => undefined)
+  const saved = (await $.store.get('xp').catch(() => undefined)) as Partial<GuildXp> | undefined
+  const cur = { ...NO_XP, ...(await read($, xp)), ...(saved && typeof saved === 'object' ? saved : {}) }
+  const total = { ...cur, [cls]: (cur[cls] ?? 0) + amount }
+  await update($, xp, () => total)
+  await $.store.set('xp', total).catch(() => undefined)
 }
 
 /** A member now waits on the person: it raises its hand on the map, and the person is told. */
