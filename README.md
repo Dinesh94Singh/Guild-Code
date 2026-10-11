@@ -42,7 +42,7 @@ No install needed for the **dry run**: clone the repository and open [`demo/guil
 
 ## Take the tour
 
-1. **Start a session** in any project with the mod loaded, and **run `/guild`**. The Guild Hall opens at `http://guildmaster.localhost:8790/`: in the desktop app's browser pane, or in your browser where there is none. It shows every session on this machine on one island, each project in its own colour, and updates every couple of seconds. The Guildmaster (your session) rests at the Tavern. Sessions that have ended stay on the map asleep at the Tavern (💤), up to five sessions in all, and are forgotten a day after they were last used.
+1. **Start a session** in any project with the mod loaded, and **run `/guild`**. The Guild Hall opens at `http://guildmaster.localhost:8790/`: in the desktop app's browser pane, or in your browser where there is none. It shows every session on this machine on one island, each project in its own colour, and updates every couple of seconds. The Guildmaster (your session) rests at the Tavern. Sessions that have ended, or sat unused for an hour, sleep at the Tavern (💤), up to five sessions in all; an ended one is forgotten a day after it was last used. The chronicle keeps the last three hours of deeds.
 2. **Give Claude some work** that crosses the realm, for example:
    > Read the README, run the tests, fix what fails, then run the linter.
 
@@ -116,7 +116,7 @@ Theme packs dress the island for the time of year, by your calendar: Hallow's Ev
 ### The pane and the Guild Hall page
 
 - **The map pane** (`/guild-map`) is the live map and nothing else: every session on this machine on one island, each party tagged in its project's colour, and, once `/guild` has run, a link to the full hall.
-- **The Guild Hall page** (`/guild`) is the place to act, at `http://guildmaster.localhost:8790/` (browsers send every `*.localhost` name to your own machine; `http://127.0.0.1:8790/` works too, and the port moves up if 8790 is taken). It is served from your session on `127.0.0.1` only, by a small `python3` server (`hooks/hall-server.py`), and reads a `live.json` that each session keeps fresh under `~/.claude/guild-code/hall/`. The page carries a token minted by that server, so no other site can post quests to your sessions.
+- **The Guild Hall page** (`/guild`) is the place to act, at `http://guildmaster.localhost:8790/` (browsers send every `*.localhost` name to your own machine; `http://127.0.0.1:8790/` works too, and the port moves up if 8790 is taken). It is served from your session on `127.0.0.1` only, by a small `python3` server (`hooks/hall-server.py`), and reads a `live.json` that the session keeps fresh under `~/.claude/guild-code/hall/<session id>/`. The page carries a token minted by that server, so no other site can post quests to your sessions.
 - **One screen.** The map fills the window's height, the sidebar scrolls beside it, and the whole island is in view, sized to the window.
 - **Mana.** The sidebar's Model Quota card shows the account's rate-limit windows (5-hour, weekly) with what is left and when each resets. A session billed by API key has no such windows; the page uses the freshest reading any open session has.
 - **Waiting on you.** Only a decision raises the call: an agent asking permission for a tool, asking you a question, or showing a form raises a red `!` on the map and a card at the top of the sidebar, and the session sends a notification. Answer it in Claude. A session that is merely idle rests at the Tavern with a sleeping `z`; it never nags you for a quest.

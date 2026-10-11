@@ -81,6 +81,11 @@ test('the map shows the live sessions and the last few asleep, and forgets one u
     'realm:live': realm('live', 'awake', { updatedAt: now, activeAt: now }),
     'realm:old': realm('old', 'forgotten', { updatedAt: now - 25 * HOUR, activeAt: now - 25 * HOUR }),
   }
+  // Open but unused for two hours, with a deed from then and one from long before.
+  seeded['realm:idle'] = realm('idle', 'dozing', {
+    updatedAt: now, activeAt: now - 2 * HOUR,
+    chronicle: [{ id: 'x', at: now - 2 * HOUR, who: 'Wizard', cls: 'wizard', location: 'study', text: 'reads recent.md', outcome: 'ok' }, { id: 'y', at: now - 5 * HOUR, who: 'Wizard', cls: 'wizard', location: 'study', text: 'reads ancient.md', outcome: 'ok' }],
+  })
   for (let i = 1; i <= 5; i++) seeded[`realm:s${i}`] = realm(`s${i}`, `slept${i}`, { updatedAt: now - i * HOUR, activeAt: now - i * HOUR, endedAt: now - i * HOUR })
   mock.store(on, seeded)
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -95,8 +100,10 @@ test('the map shows the live sessions and the last few asleep, and forgets one u
   await ui.unmount()
   expect(drawn).toMatch(/\[awake\][\s\S]*forges src\/x\.rs/)
   expect(drawn).toMatch(/\[slept1\][\s\S]*sleeps at the tavern · last active 1h ago/)
-  expect(drawn).toMatch(/\[slept3\]/)
-  // This session, one live and three asleep make five: the two that slept longest stay off the map.
-  expect(drawn).not.toMatch(/slept4|slept5/)
+  // An open session unused for an hour sleeps too, and ranks among the sleepers by its last work.
+  expect(drawn).toMatch(/\[dozing\][\s\S]*last active 2h ago/)
+  expect(drawn).toMatch(/\[slept1\]/)
+  // This session, one at work and three asleep make five: the rest stay off the map.
+  expect(drawn).not.toMatch(/slept3|slept4|slept5/)
   expect(drawn).not.toMatch(/forgotten/)
 })

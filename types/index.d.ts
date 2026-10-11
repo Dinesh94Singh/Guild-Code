@@ -57,8 +57,10 @@ export type GuildRealm = {
   activeAt?: number
   /** When its session ended; it sleeps on the map until it is forgotten. */
   endedAt?: number
-  /** Set on a realm whose session has ended or gone quiet: shown resting, sent no quests. */
+  /** Set on a realm whose session has ended or gone idle: shown resting at the tavern. */
   isAsleep?: boolean
+  /** Set on a realm whose session has ended (or stopped answering): it is sent no quests. */
+  isClosed?: boolean
 }
 
 /** A quest the Guild Hall page sends to a session: drafted into its prompt box, or sealed and sent. */

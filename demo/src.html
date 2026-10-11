@@ -2427,7 +2427,7 @@ function drawRavens() {
 }
 function renderDesk() {
   const r = deskTarget();
-  $('deskTo').innerHTML = REALMS.map(p => `<option value="${p.id}" ${p === r ? 'selected' : ''}>${esc(p.name)}${p.asleep ? ' (asleep)' : ''}</option>`).join('');
+  $('deskTo').innerHTML = REALMS.map(p => `<option value="${p.id}" ${p === r ? 'selected' : ''}>${esc(p.name)}${p.closed ? ' (ended)' : p.asleep ? ' (asleep)' : ''}</option>`).join('');
   $('deskTo').style.setProperty('--c', r.color);
   $('summon').innerHTML = Object.entries(CLASSES).map(([k, c]) => `<button type="button" data-summon="${k}" aria-pressed="${desk.summon === k}" style="--c:${c.color}">${esc(c.name.toUpperCase())}</button>`).join('');
   $('summonHint').textContent = `${CLASSES[desk.summon].name}: ${SUMMON_HINT[desk.summon]}`;
@@ -2591,7 +2591,7 @@ function applyLive(s) {
     if (r.color !== src.color || r.name !== src.name) { r.name = src.name; r.color = src.color; capeFor(r); changed = true; }
     seen.add(r.id);
     r.self = src.id === s.self;
-    if (r.asleep !== !!src.isAsleep) { r.asleep = !!src.isAsleep; changed = true; }
+    if (r.asleep !== !!src.isAsleep || r.closed !== !!src.isClosed) { r.asleep = !!src.isAsleep; r.closed = !!src.isClosed; changed = true; }
     r.activeAt = src.activeAt;
     const lang = src.dungeon?.lang ?? src.party.find(m => m.lang)?.lang;
     r.lang = LANGS[lang] ?? r.lang;
@@ -2649,7 +2649,7 @@ function applyLive(s) {
 // A quest or decree from the desk: the session drafts it into its prompt box, or, sealed, sends it.
 async function sendLive(r, d, mode) {
   desk.pending = null; renderDesk();
-  if (r.asleep) { banner(r, 'THAT SESSION SLEEPS: RESUME IT TO SEND QUESTS'); return; }
+  if (r.closed) { banner(r, 'THAT SESSION HAS ENDED: RESUME IT TO SEND QUESTS'); return; }
   try {
     const res = await fetch('petition', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guild-Token': LIVE.token }, body: JSON.stringify({ realm: r.id, title: d.title, text: d.text, mode, asUser: !!d.asUser }) });
     if (!res.ok) throw new Error(String(res.status));

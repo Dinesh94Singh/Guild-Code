@@ -132,6 +132,10 @@ const STALE_MS = 2 * 60_000
 const FORGET_MS = 24 * 3600_000
 // The map shows every live session, and the most recently used sleeping ones up to this many in all.
 const RECENT_MAX = 5
+// An open session unused this long sleeps on the map too, though it still takes quests.
+const IDLE_MS = 3600_000
+// Deeds older than this drop out of the chronicle the map and the page show.
+const FRESH_MS = 3 * 3600_000
 
 const toQuota = (limits: readonly SessionRateLimit[]): GuildQuota[] =>
   limits.map(l => ({ kind: l.kind, label: windowLabel(l.kind), percentLeft: Math.max(0, Math.round((100 - l.percentUsed) * 10) / 10), resetsAt: l.resetsAt }))
@@ -157,10 +161,22 @@ function ago(ms: number): string {
   return mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`
 }
 
-/** A realm whose session has ended or gone quiet: its Guildmaster sleeps at the tavern. */
-function asleep(realm: GuildRealm, at: number): GuildRealm {
-  const used = realm.activeAt ?? realm.updatedAt
-  return { ...realm, isAsleep: true, party: [{ ...GUILDMASTER, activity: `sleeps at the tavern · last active ${ago(at - used)}` }] }
+/** Only the deeds of the last few hours: an idle session's old work is no news. */
+const fresh = (entries: readonly GuildEntry[] | undefined, at: number) => (entries ?? []).filter(e => at - e.at <= FRESH_MS)
+
+/**
+ * When a realm last did real work. A session on an older Guild Code publishes no activeAt:
+ * its latest deed stands in for it, else its last heartbeat.
+ */
+function lastUsed(realm: GuildRealm): number {
+  if (typeof realm.activeAt === 'number') return realm.activeAt
+  const deeds = realm.chronicle ?? []
+  return deeds.length ? Math.max(...deeds.map(e => e.at)) : realm.updatedAt
+}
+
+/** A realm whose session has ended or gone idle: its Guildmaster sleeps at the tavern. */
+function asleep(realm: GuildRealm, at: number, isClosed: boolean): GuildRealm {
+  return { ...realm, isAsleep: true, isClosed, party: [{ ...GUILDMASTER, activity: `sleeps at the tavern · last active ${ago(at - lastUsed(realm))}` }] }
 }
 
 /** Write this session's guild to the shared store, and read every other recent one back. */
@@ -168,7 +184,7 @@ async function share($: EngineInterface) {
   const id = await $.session.id()
   const cwd = await $.session.cwd()
   const at = await $.clock.now()
-  const mine: Omit<GuildRealm, 'updatedAt'> = { id, name: cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests), chronicle: (await read($, chronicle)).slice(-20), quota: await read($, quota), activeAt: activeAt || at }
+  const mine: Omit<GuildRealm, 'updatedAt'> = { id, name: cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests), chronicle: fresh(await read($, chronicle), at).slice(-20), quota: await read($, quota), activeAt: activeAt || at }
   const body = JSON.stringify(mine)
   if (body !== published || at - publishedAt > STALE_MS / 2) {
     await $.store.set(`${REALM_PREFIX}${id}`, { ...mine, updatedAt: at })
@@ -188,18 +204,22 @@ async function share($: EngineInterface) {
     if (!key.startsWith(REALM_PREFIX) || key === `${REALM_PREFIX}${id}`) continue
     const realm = (await $.store.get(key)) as GuildRealm | undefined
     if (!realm || typeof realm !== 'object' || typeof realm.updatedAt !== 'number') continue
-    if (realm.endedAt === undefined && at - realm.updatedAt <= STALE_MS) {
-      live.push(realm)
+    const isOpen = realm.endedAt === undefined && at - realm.updatedAt <= STALE_MS
+    const idle = at - lastUsed(realm)
+    const seen = { ...realm, chronicle: fresh(realm.chronicle, at) }
+    if (isOpen && idle <= IDLE_MS) {
+      live.push(seen)
       continue
     }
-    if (at - (realm.activeAt ?? realm.updatedAt) > FORGET_MS) {
-      void $.store.delete(key).catch(() => undefined)
+    if (idle > FORGET_MS) {
+      // A closed realm is forgotten; an open one keeps writing its own, so it is only left off the map.
+      if (!isOpen) void $.store.delete(key).catch(() => undefined)
       continue
     }
-    sleeping.push(asleep(realm, at))
+    sleeping.push(asleep(seen, at, !isOpen))
   }
-  // Every live session shows; the most recently used sleeping ones fill the map up to RECENT_MAX.
-  sleeping.sort((a, b) => (b.activeAt ?? b.updatedAt) - (a.activeAt ?? a.updatedAt))
+  // Every session at work shows; the most recently used sleeping ones fill the map up to RECENT_MAX.
+  sleeping.sort((a, b) => lastUsed(b) - lastUsed(a))
   const others = [...live, ...sleeping.slice(0, Math.max(0, RECENT_MAX - 1 - live.length))]
   others.sort((a, b) => a.name.localeCompare(b.name))
   await update($, realms, cur => (JSON.stringify(cur) === JSON.stringify(others) ? cur : others))
@@ -229,7 +249,8 @@ const isPetition = (p: unknown): p is GuildPetition => {
 async function hallFolder($: EngineInterface): Promise<string> {
   if (!hallDir) {
     const { stdout } = await $.process.run(['printenv', 'HOME'])
-    hallDir = `${stdout.trim()}/.claude/guild-code/hall`
+    // A folder of its own per session: each hall server serves its own live.json.
+    hallDir = `${stdout.trim()}/.claude/guild-code/hall/${await $.session.id()}`
   }
   return hallDir
 }
@@ -249,8 +270,8 @@ async function receive($: EngineInterface, p: unknown) {
   const id = await $.session.id()
   if (p.realm === id) return petition($, p.text, p.title, p.mode, p.asUser)
   const to = (await read($, realms)).find(r => r.id === p.realm)
-  if (to?.isAsleep) {
-    $.ui.toast(`💤 ${to.name} sleeps: resume that session to send it quests.`)
+  if (to?.isClosed) {
+    $.ui.toast(`💤 ${to.name} has ended: resume that session to send it quests.`)
     return
   }
   await $.store.set(`${PETITION_PREFIX}${p.realm}:${(await $.clock.now()).toString(36)}-${(seq += 1)}`, p)
