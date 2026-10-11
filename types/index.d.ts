@@ -53,6 +53,12 @@ export type GuildRealm = {
   chronicle?: GuildEntry[]
   /** Its last rate-limit reading: none for a session billed by API key. */
   quota?: GuildQuota[]
+  /** When it last did real work: a prompt or a tool call. */
+  activeAt?: number
+  /** When its session ended; it sleeps on the map until it is forgotten. */
+  endedAt?: number
+  /** Set on a realm whose session has ended or gone quiet: shown resting, sent no quests. */
+  isAsleep?: boolean
 }
 
 /** A quest the Guild Hall page sends to a session: drafted into its prompt box, or sealed and sent. */

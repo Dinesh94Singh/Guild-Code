@@ -42,7 +42,7 @@ No install needed for the **dry run**: clone the repository and open [`demo/guil
 
 ## Take the tour
 
-1. **Start a session** in any project with the mod loaded, and **run `/guild`**. The Guild Hall opens at `http://guildmaster.localhost:8790/`: in the desktop app's browser pane, or in your browser where there is none. It shows every session on this machine on one island, each project in its own colour, and updates every couple of seconds. The Guildmaster (your session) rests at the Tavern.
+1. **Start a session** in any project with the mod loaded, and **run `/guild`**. The Guild Hall opens at `http://guildmaster.localhost:8790/`: in the desktop app's browser pane, or in your browser where there is none. It shows every session on this machine on one island, each project in its own colour, and updates every couple of seconds. The Guildmaster (your session) rests at the Tavern. Sessions that have ended stay on the map asleep at the Tavern (💤), up to five sessions in all, and are forgotten a day after they were last used.
 2. **Give Claude some work** that crosses the realm, for example:
    > Read the README, run the tests, fix what fails, then run the linter.
 

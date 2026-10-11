@@ -67,3 +67,36 @@ test('the party walks the hall, and the dungeon counts its monsters', async ($, 
     await ui.unmount()
   }
 })
+
+test('the map shows the live sessions and the last few asleep, and forgets one unused for a day', async ($, on) => {
+  const HOUR = 3600_000
+  const clock = mock.clock(on, { now: 30 * HOUR })
+  const realm = (id: string, name: string, extra: Record<string, unknown>) => ({
+    id, name, party: [{ id: 'main', label: 'Guildmaster', location: 'armory', activity: 'forges src/x.rs', isBusy: true }],
+    dungeon: { monsters: 0, slain: 0, isCleared: false, hasRun: false }, quests: [], ...extra,
+  })
+  const now = clock.now()
+  // One live, five that ended at different times, and one last used more than a day ago.
+  const seeded: Record<string, unknown> = {
+    'realm:live': realm('live', 'awake', { updatedAt: now, activeAt: now }),
+    'realm:old': realm('old', 'forgotten', { updatedAt: now - 25 * HOUR, activeAt: now - 25 * HOUR }),
+  }
+  for (let i = 1; i <= 5; i++) seeded[`realm:s${i}`] = realm(`s${i}`, `slept${i}`, { updatedAt: now - i * HOUR, activeAt: now - i * HOUR, endedAt: now - i * HOUR })
+  mock.store(on, seeded)
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('command.register', () => ({ value: undefined }) as never)
+  on('session.id', () => ({ value: 'here' }) as never)
+  on('session.cwd', () => ({ value: '/repo/here' }) as never)
+  await $.session.start({ cwd: '/repo/here', surface: 'terminal', isInteractive: true })
+  await clock.advance(5000)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const drawn = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+  await ui.unmount()
+  expect(drawn).toMatch(/\[awake\][\s\S]*forges src\/x\.rs/)
+  expect(drawn).toMatch(/\[slept1\][\s\S]*sleeps at the tavern · last active 1h ago/)
+  expect(drawn).toMatch(/\[slept3\]/)
+  // This session, one live and three asleep make five: the two that slept longest stay off the map.
+  expect(drawn).not.toMatch(/slept4|slept5/)
+  expect(drawn).not.toMatch(/forgotten/)
+})

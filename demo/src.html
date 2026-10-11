@@ -135,6 +135,7 @@ footer { color: var(--muted); font-size: 18px; }
 .realm .rname { display: flex; gap: 6px; align-items: center; font-family: var(--display); font-size: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .realm .rstat { color: var(--muted); font-size: 16px; min-height: 1.1em; }
 .realm .fail { color: var(--blood); }
+.realm.asleep { opacity: .6; }
 .places { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .team { font-family: var(--display); font-size: 7px; padding: 2px 4px 1px; border: 1px solid var(--gold); color: var(--parch); margin-right: 4px; white-space: nowrap; }
 .party { gap: 4px; }
@@ -2245,8 +2246,13 @@ function renderQuota() {
 }
 function renderRealms() {
   $('realms').innerHTML = `<button type="button" class="realm all" data-i="-1" aria-pressed="${!focusP}"><span class="rname">ALL PROJECTS</span><span class="rstat" data-stat="-1"></span></button>` +
-    REALMS.map((r, i) => `<button type="button" class="realm" data-i="${i}" aria-pressed="${r === focusP}" style="--c:${r.color}">
+    REALMS.map((r, i) => `<button type="button" class="realm${r.asleep ? ' asleep' : ''}" data-i="${i}" aria-pressed="${r === focusP}" style="--c:${r.color}">
     <span class="rname"><i class="swatch"></i><span class="crest">${r.lang}</span>${esc(r.name)}</span><span class="rstat" data-stat="${i}"></span></button>`).join('');
+}
+// A sleeping realm is a session that has ended or gone quiet: it rests on the map for a day after its last work.
+function sleptFor(r) {
+  const mins = Math.max(0, Math.round((Date.now() - (r.activeAt ?? Date.now())) / 60e3));
+  return mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
 }
 function updateRealmCards() {
   let working = 0, monsters = 0;
@@ -2254,6 +2260,7 @@ function updateRealmCards() {
     const s = document.querySelector(`[data-stat="${i}"]`); if (!s) return;
     const n = LIVE ? [...r.actors.values()].filter(a => a.busy && !a.fading).length : r.threads.filter(t => t.task?.place).length, team = r.main?.wait?.name, m = r.state?.dungeon.monsters ?? 0;
     working += n; monsters += m;
+    if (r.asleep) { s.textContent = `💤 asleep · ${sleptFor(r)}`; return; }
     s.innerHTML = `${team ? `<span class="team">${esc(team)}</span>` : ''}${n ? `${n} at work` : 'resting'}${m ? ` · <span class="fail">${m} monsters</span>` : ''}`;
   });
   const all = document.querySelector('[data-stat="-1"]');
@@ -2420,7 +2427,7 @@ function drawRavens() {
 }
 function renderDesk() {
   const r = deskTarget();
-  $('deskTo').innerHTML = REALMS.map(p => `<option value="${p.id}" ${p === r ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+  $('deskTo').innerHTML = REALMS.map(p => `<option value="${p.id}" ${p === r ? 'selected' : ''}>${esc(p.name)}${p.asleep ? ' (asleep)' : ''}</option>`).join('');
   $('deskTo').style.setProperty('--c', r.color);
   $('summon').innerHTML = Object.entries(CLASSES).map(([k, c]) => `<button type="button" data-summon="${k}" aria-pressed="${desk.summon === k}" style="--c:${c.color}">${esc(c.name.toUpperCase())}</button>`).join('');
   $('summonHint').textContent = `${CLASSES[desk.summon].name}: ${SUMMON_HINT[desk.summon]}`;
@@ -2584,6 +2591,8 @@ function applyLive(s) {
     if (r.color !== src.color || r.name !== src.name) { r.name = src.name; r.color = src.color; capeFor(r); changed = true; }
     seen.add(r.id);
     r.self = src.id === s.self;
+    if (r.asleep !== !!src.isAsleep) { r.asleep = !!src.isAsleep; changed = true; }
+    r.activeAt = src.activeAt;
     const lang = src.dungeon?.lang ?? src.party.find(m => m.lang)?.lang;
     r.lang = LANGS[lang] ?? r.lang;
     // The party: new members come through the tavern door, the gone fade out, the moved walk.
@@ -2640,6 +2649,7 @@ function applyLive(s) {
 // A quest or decree from the desk: the session drafts it into its prompt box, or, sealed, sends it.
 async function sendLive(r, d, mode) {
   desk.pending = null; renderDesk();
+  if (r.asleep) { banner(r, 'THAT SESSION SLEEPS: RESUME IT TO SEND QUESTS'); return; }
   try {
     const res = await fetch('petition', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guild-Token': LIVE.token }, body: JSON.stringify({ realm: r.id, title: d.title, text: d.text, mode, asUser: !!d.asUser }) });
     if (!res.ok) throw new Error(String(res.status));
@@ -2729,7 +2739,7 @@ async function start() {
     document.body.classList.add('live');
     $('liveBadge').textContent = 'LIVE';
     document.querySelector('header h1').textContent = 'GUILD HALL';
-    document.querySelector('header p').textContent = 'Your Claude Code sessions, live: every workspace open on this machine shares the realm. Click a place or a hero to see what is going on; quests and decrees from the desk go straight to the session you pick.';
+    document.querySelector('header p').textContent = 'Your Claude Code sessions, live: every workspace open on this machine shares the realm, with the last few that ended asleep at the tavern for a day. Click a place or a hero to see what is going on; quests and decrees from the desk go straight to the session you pick.';
     document.querySelector('footer').textContent = 'Served by the Guild Code mod from your session. Close it any time: /guild opens it again.';
     while (!REALMS.length) { await pollLive(); if (!REALMS.length) await new Promise(r => setTimeout(r, 1500)); }
     setInterval(pollLive, 1500);
