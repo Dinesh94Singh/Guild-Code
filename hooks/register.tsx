@@ -320,7 +320,8 @@ function narrate(p: Placement, tool: string): string {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'guild', description: 'Open the Guild Code map of your party at work' })
+    await $.command.register({ name: 'guild', description: 'Open the Guild Hall in the browser: your party at work, live' })
+    await $.command.register({ name: 'guild-map', description: 'Open the Guild Code map pane beside the conversation' })
     await $.command.register({ name: 'guild-stats', description: 'Show Guild Code XP per class and the dungeon record' })
     try {
       const saved = (await $.store.get('xp')) as Partial<GuildXp> | undefined
@@ -343,7 +344,6 @@ export const register: Register = on => {
     // so a Guild Hall page left open picks up where it was.
     const port = await $.store.get(`${HALL_PREFIX}${await $.session.id()}`).catch(() => undefined)
     if (typeof port === 'number') void startHall($, port).catch(() => undefined)
-    void $.ui.open({ id: PANE, title: 'Guild Hall' })
     return next(e)
   })
 
@@ -368,8 +368,8 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // /guild opens the Guild Hall page and nothing else: the page is where the guild lives.
   on('command.run', { command: 'guild' }, async $ => {
-    void $.ui.open({ id: PANE, title: 'Guild Hall' })
     try {
       const port = await startHall($)
       const url = hallAddress(port)
@@ -379,8 +379,14 @@ export const register: Register = on => {
       const opened = await openInBrowser($, url)
       return { text: opened ? `🏰 The Guild Hall is open in your browser: ${url}${also}` : `🏰 The Guild Hall is ready: open ${url}${also}` }
     } catch (err) {
-      return { text: `🏰 The map is in the pane, but the full Guild Hall could not start: ${err instanceof Error ? err.message : String(err)}` }
+      return { text: `🏰 The Guild Hall could not start: ${err instanceof Error ? err.message : String(err)}. /guild-map opens the map pane instead.` }
     }
+  })
+
+  // The map pane, for a surface without a browser (the terminal) or anyone who wants it beside the chat.
+  on('command.run', { command: 'guild-map' }, async $ => {
+    const opened = await $.ui.open({ id: PANE, title: 'Guild Hall', focus: true })
+    return { text: opened.isPlaced ? '🗺️ The Guild Code map is open.' : '🗺️ The map will show where this surface seats panes.' }
   })
 
   on('command.run', { command: 'guild-stats' }, async $ => {

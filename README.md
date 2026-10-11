@@ -25,7 +25,7 @@ claude plugin marketplace add Dinesh94Singh/Guild-Code
 claude plugin install guild-code@guild-code
 ```
 
-Start a new session and the Guild Hall pane opens. To pick up a newer version later, run `claude plugin marketplace update guild-code`; to switch it off, `claude plugin disable guild-code`.
+Start a new session and run `/guild`. To pick up a newer version later, run `claude plugin marketplace update guild-code`; to switch it off, `claude plugin disable guild-code`.
 
 ### From a clone (to try a branch, or to hack on it)
 
@@ -42,15 +42,15 @@ No install needed for the **dry run**: clone the repository and open [`demo/guil
 
 ## Take the tour
 
-1. **Start a session** in any project with the mod loaded. The **Guild Hall pane** opens beside the conversation with the live map: the Guildmaster (your session) waits at the Tavern.
-
-   ![The map the pane draws: the Guildmaster at the Tavern, a Wizard in the Study, a Dwarf at the Armory, an Alchemist at the Cauldron, and a Rogue facing three slimes at the Dungeon](docs/pane-map.png)
-
+1. **Start a session** in any project with the mod loaded, and **run `/guild`**. The Guild Hall opens at `http://guildmaster.localhost:8790/`: in the desktop app's browser pane, or in your browser where there is none. It shows every session on this machine on one island, each project in its own colour, and updates every couple of seconds. The Guildmaster (your session) rests at the Tavern.
 2. **Give Claude some work** that crosses the realm, for example:
    > Read the README, run the tests, fix what fails, then run the linter.
 
    The Guildmaster walks to the Wizard's Study while it reads, delves into the Dungeon for the tests (each failing test is a slime; the slimes fall as tests pass), and forges at the Armory while it edits and lints. Ask it to *use subagents* and each one joins the party at the Tavern door and walks to its own place.
-3. **Run `/guild`.** The full Guild Hall opens: in the desktop app's browser pane, or in your browser where there is none. It shows every session on this machine on one island, each project in its own colour, and updates every couple of seconds.
+3. **Want the map beside the chat instead?** `/guild-map` opens it as a pane in Claude (in the terminal, as five rooms in text):
+
+   ![The map pane: the Guildmaster at the Tavern, a Wizard in the Study, a Dwarf at the Armory, an Alchemist at the Cauldron, and a Rogue facing three slimes at the Dungeon](docs/pane-map.png)
+
 4. **On the Guild Hall page**, try:
    - **`−` / `+`** (or the mouse wheel) to zoom from the whole island down to a single place and back.
    - **SETTINGS** for the legend, follow or world-map camera, weather, time of day, and a place to visit.
@@ -89,7 +89,7 @@ When two or more subagents are out at once they march as a **team** (the Vanguar
 
 ### The pane and the Guild Hall page
 
-- **The pane** is the live map and nothing else: every session on this machine on one island, each party tagged in its project's colour, and, once `/guild` has run, a link to the full hall.
+- **The map pane** (`/guild-map`) is the live map and nothing else: every session on this machine on one island, each party tagged in its project's colour, and, once `/guild` has run, a link to the full hall.
 - **The Guild Hall page** (`/guild`) is the place to act, at `http://guildmaster.localhost:8790/` (browsers send every `*.localhost` name to your own machine; `http://127.0.0.1:8790/` works too, and the port moves up if 8790 is taken). It is served from your session on `127.0.0.1` only, by a small `python3` server (`hooks/hall-server.py`), and reads a `live.json` that each session keeps fresh under `~/.claude/guild-code/hall/`. The page carries a token minted by that server, so no other site can post quests to your sessions.
 - **One screen.** The map fills the window's height, the sidebar scrolls beside it, and the whole island is in view, sized to the window.
 - **Mana.** The sidebar's Model Quota card shows the account's rate-limit windows (5-hour, weekly) with what is left and when each resets. A session billed by API key has no such windows; the page uses the freshest reading any open session has.
@@ -113,12 +113,13 @@ Wrappers are seen through: `npx`, `pnpm exec`, `uv run`, `poetry run`, `env FOO=
 
 ## Commands
 
-- `/guild` opens the Guild Hall page, and the pane if it is closed.
+- `/guild` opens the Guild Hall page in the browser.
+- `/guild-map` opens the map as a pane beside the conversation.
 - `/guild-stats` shows XP per class and the dungeon record.
 
 ## Surfaces
 
-The desktop app, VS Code and mobile draw the pane as the illustrated, animated map. The terminal draws it as five bordered rooms in text, with the chronicle of recent deeds. `/guild` opens the same Guild Hall page from any of them.
+`/guild` opens the same Guild Hall page from any surface. The map pane (`/guild-map`) is the illustrated, animated map in the desktop app, VS Code and mobile, and five bordered rooms in text, with the chronicle of recent deeds, in the terminal.
 
 ## Project layout
 
