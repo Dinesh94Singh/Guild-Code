@@ -2557,11 +2557,53 @@ window.GuildPacks = window.GuildPacks || {};
 GuildPacks.halloween = api => {
   const { px, hash, glow, burst, reduced } = api
   const P = (c, x, y, w = 1, h = 1) => px(api.g, c, Math.round(x), Math.round(y), w, h)
-  const MOON = { x: 430, y: 36, r: 15 }
+  // the moon hangs in the sky, not on the land: pinned to the view's top-right corner
+  const MOON = { dx: 46, y: 50, r: 14 }
   const BATS = Array.from({ length: 9 }, (_, i) => ({ y: 30 + hash(i, 3) * 200, v: (hash(i, 4) > .5 ? 1 : -1) * (14 + hash(i, 5) * 14), off: hash(i, 6) * 900, ph: hash(i, 7) * 6 }))
   const FOGS = Array.from({ length: 7 }, (_, i) => ({ x: 360 + hash(i, 11) * 150, y: 200 + hash(i, 12) * 80, r: 22 + hash(i, 13) * 18, v: 3 + hash(i, 14) * 4 }))
   const COSTUME = { '#b8323f': 'ghost', '#84d488': 'ghost', '#3b5fa8': 'witch', '#7a4fc9': 'witch' }
   const night = () => api.darkness()
+  // how far into the night: nothing at dusk, all of it once it is properly dark
+  const deep = () => Math.max(0, Math.min(1, (night() - .35) * 2.5))
+
+  // the haunts: where ghosts drift after dark
+  const HAUNTS = [[470, 256, 22], [420, 214, 16], [170, 214, 30], [100, 118, 22], [128, 60, 18], [62, 236, 18], [300, 120, 20]]
+  const GHOSTS = HAUNTS.map(([x, y, r], i) => ({ x, y, r, ph: hash(i, 21) * 6.28, v: .25 + hash(i, 22) * .3 }))
+  // werewolves prowl the Wizard's forest between these clearings, and stop now and then to howl
+  const DEN = [[20, 40], [32, 100], [90, 30], [100, 110], [16, 140], [130, 100], [170, 40], [60, 150]].map(([x, y]) => ({ x, y }))
+  const WOLVES = [0, 5].map((k, i) => ({ x: DEN[k].x, y: DEN[k].y, to: DEN[(k + 2) % DEN.length], wait: 1 + i * 3, facing: 1, howl: 0, dist: 0 }))
+  // eyes that glint between the trees
+  const EYES = Array.from({ length: 10 }, (_, i) => ({ x: 8 + hash(i, 31) * 180, y: 20 + hash(i, 32) * 150, ph: hash(i, 33) * 9 }))
+
+  const ghost = (x, y, a, t) => {
+    const g = api.g, wave = Math.floor(t * 4) % 2
+    g.globalAlpha = a
+    glow(x, y - 5, 12, 'rgba(200,220,255,.6)', .5)
+    P('#e8eefc', x - 3, y - 11, 7, 7); P('#e8eefc', x - 4, y - 7, 9, 5); P('#e8eefc', x - 4 + wave, y - 2, 2, 2); P('#e8eefc', x, y - 2 + wave, 2, 2); P('#e8eefc', x + 3 - wave, y - 2, 2, 2)
+    P('#1b1424', x - 2, y - 9, 1, 2); P('#1b1424', x + 1, y - 9, 1, 2); P('#1b1424', x - 1, y - 5, 2, 2)
+    g.globalAlpha = 1
+  }
+  // a werewolf, drawn from a sprite like the folk: grey fur rimmed in moonlight, yellow eyes,
+  // a raised head when it howls. Rows face right; a wolf facing left is mirrored.
+  const WOLF = [
+    '...........k..k..', '..........kfk.kfk', '..........kfffffk', '.........kfyffffkk', '.........kffffffffk',
+    'k.......kkfffffkk.', 'kk...kkkffffffk...', '.kkkkfffffffffk...', '..kfLLfffLLfffk...', '..kffffffffffLfk..',
+    '..kffkkffkkfffk...', '..kfk..kfk.kfk....', '..kfk..kfk.kfk....', '..kwk..kwk.kwk....',
+  ]
+  const HOWL = ['............kk', '...........kfk', '..........kffk', '.........kfyfk', '........kffffk']
+  const WOLF_PAL = { k: '#1b1424', f: '#6e6478', L: '#a49ac0', y: '#ffd23a', w: '#efe6d2' }
+  const wolf = (w, a) => {
+    const g = api.g, f = w.facing, x0 = Math.round(w.x), y0 = Math.round(w.y) - WOLF.length, step = w.wait > 0 || w.howl > 0 ? 0 : Math.floor(w.dist / 4) % 2
+    const dot = (ch, i, j, dy = 0) => { const col = WOLF_PAL[ch]; if (col) P(col, f > 0 ? x0 - 8 + i : x0 + 8 - i, y0 + j + dy, 1, 1) }
+    g.globalAlpha = a
+    P('rgba(0,0,0,.35)', x0 - 7, y0 + WOLF.length - 1, 14, 2)
+    WOLF.forEach((row, j) => { if (w.howl > 0 && j < 5) return; [...row].forEach((ch, i) => dot(ch, i, j, j >= 11 && step && i > 6 ? -1 : 0)) })
+    if (w.howl > 0) HOWL.forEach((row, j) => [...row].forEach((ch, i) => dot(ch, i, j, 0)))
+    g.globalAlpha = 1
+    const eye = w.howl > 0 ? { i: 11, j: 3 } : { i: 11, j: 3 }
+    return { ex: f > 0 ? x0 - 8 + eye.i : x0 + 8 - eye.i, ey: y0 + eye.j }
+  }
+
 
   // a witch on her broom, black against whatever is behind her
   const witch = (x, y, dir) => {
@@ -2593,6 +2635,22 @@ GuildPacks.halloween = api => {
       body[data-season="halloween"] .badge { background: #ff8a2a; }
     `,
 
+    update(dt) {
+      const d = deep()
+      for (const w of WOLVES) {
+        if (w.howl > 0) { w.howl -= dt; continue }
+        if (w.wait > 0) {
+          w.wait -= dt
+          // now and then, under a full dark sky, a wolf howls at the moon
+          if (w.wait <= 0 && d > .6 && Math.random() < .35) { w.howl = 2.4; api.float?.(w.x, w.y - 24, 'AWOOO', '#c8d0ff') }
+          continue
+        }
+        const dx = w.to.x - w.x, dy = w.to.y - w.y, dist = Math.hypot(dx, dy), v = Math.min(dist, 22 * dt)
+        if (dist < 1) { w.wait = 2 + Math.random() * 4; w.to = DEN[Math.floor(Math.random() * DEN.length)]; continue }
+        w.x += dx / dist * v; w.y += dy / dist * v; w.dist += v; if (Math.abs(dx) > .5) w.facing = Math.sign(dx)
+      }
+    },
+
     onEvent() { const t = api.ROOMS.tavern.at; burst(null, t.x, t.y - 20, '#ff8a2a', 26); burst(null, t.x, t.y - 20, '#9b59d0', 18); burst(null, t.x, t.y - 20, '#8fe36a', 12) },
 
     // fog curling out of the Dungeon, and the grinning faces of every jack-o'-lantern
@@ -2621,17 +2679,47 @@ GuildPacks.halloween = api => {
       }
     },
 
-    // the harvest moon over the fire mountain, and the witch who crosses it
+    // after dark: ghosts and glinting eyes, hands from the graves, a haze, and the moon
     drawSky() {
-      const n = night(); if (n < .2) return
-      const g = api.g, c = api.clock
-      g.globalAlpha = Math.min(1, (n - .2) * 2.5)
-      glow(MOON.x, MOON.y, 34, 'rgba(255,170,80,.5)', .6)
-      g.fillStyle = '#ffb347'; g.beginPath(); g.arc(MOON.x, MOON.y, MOON.r, 0, Math.PI * 2); g.fill()
-      P('#e8913a', MOON.x - 6, MOON.y - 4, 4, 3); P('#e8913a', MOON.x + 4, MOON.y + 3, 3, 3); P('#e8913a', MOON.x - 2, MOON.y + 7, 3, 2)
-      const t = (c % 46) / 46, wx = MOON.x - 120 + t * 240, wy = MOON.y + 6 - Math.sin(t * Math.PI) * 10
+      const n = night(), d = deep(), g = api.g, c = api.clock, S = api.WORLD?.seasonal ?? {}
+      if (d > 0) {
+        // werewolves prowl the forest, their eyes burning; more eyes glint between the trees
+        for (const w of [...WOLVES].sort((p, q) => p.y - q.y)) { const e = wolf(w, d); glow(e.ex, e.ey, 6, 'rgba(255,200,60,.8)', .55 * d) }
+        for (const e of EYES) { const open = Math.sin(c * .6 + e.ph) > .55 && Math.floor(c * 2 + e.ph) % 7 !== 0; if (open) { g.globalAlpha = d; P('#ffd23a', e.x, e.y, 1, 1); P('#ffd23a', e.x + 3, e.y, 1, 1); g.globalAlpha = 1 } }
+        // hands claw up among the candles, and sink again
+        for (const [i, cd] of (S.candles ?? []).entries()) {
+          const t = ((c * .4 + i * .37) % 1), up = t < .5 ? Math.sin(t * 2 * Math.PI) * 4 : 0
+          if (up > .5) { g.globalAlpha = d; P('#d8d0c0', cd.x + 4, cd.y + 5 - up, 1, up); P('#d8d0c0', cd.x + 3, cd.y + 5 - up, 1, 1); P('#d8d0c0', cd.x + 5, cd.y + 5 - up, 1, 1); g.globalAlpha = 1 }
+        }
+        // ghosts drift through their haunts, fading in and out
+        for (const [i, gh] of GHOSTS.entries()) {
+          const t = reduced ? i : c * gh.v + gh.ph, a = d * (.35 + Math.max(0, Math.sin(t * .7)) * .5)
+          if (a > .05) ghost(gh.x + Math.sin(t) * gh.r, gh.y + Math.sin(t * 1.3) * gh.r * .4 - 4, a, t)
+        }
+      }
+      if (n < .2) return
+      // the rest belongs to the sky, so it is drawn on the view, not the land
+      g.save(); g.setTransform(1, 0, 0, 1, 0, 0)
+      const VW = g.canvas.width, VH = g.canvas.height, k = Math.min(1, (n - .2) * 2.5)
+      // a violet haze rolling slowly over everything
+      for (let i = 0; i < 5; i++) {
+        const x = ((c * (4 + i) + i * 140) % (VW + 300)) - 150, y = VH * (.2 + i * .17), r = 110 + i * 14
+        const h = g.createRadialGradient(x, y, 0, x, y, r); h.addColorStop(0, `rgba(150,130,190,${.16 * k})`); h.addColorStop(1, 'rgba(150,130,190,0)')
+        g.fillStyle = h; g.fillRect(x - r, y - r, r * 2, r * 2)
+      }
+      g.fillStyle = `rgba(16,6,32,${.14 * k})`; g.fillRect(0, 0, VW, VH)
+      // the harvest moon, and the witch who crosses it
+      const mx = VW - MOON.dx, my = MOON.y
+      g.globalAlpha = k
+      const halo = g.createRadialGradient(mx, my, MOON.r * .6, mx, my, MOON.r * 3); halo.addColorStop(0, 'rgba(255,170,80,.45)'); halo.addColorStop(1, 'rgba(255,170,80,0)')
+      g.fillStyle = halo; g.fillRect(mx - MOON.r * 3, my - MOON.r * 3, MOON.r * 6, MOON.r * 6)
+      g.fillStyle = '#ffb347'; g.beginPath(); g.arc(mx, my, MOON.r, 0, Math.PI * 2); g.fill()
+      P('#e8913a', mx - 6, my - 5, 4, 3); P('#e8913a', mx + 4, my + 2, 3, 3); P('#e8913a', mx - 2, my + 6, 3, 2)
+      g.fillStyle = 'rgba(40,20,60,.55)'; g.fillRect(mx - MOON.r - 4, my + 3, MOON.r * 2 + 8, 2)
+      const t = (c % 40) / 40, wx = mx - 110 + t * 200, wy = my + 4 - Math.sin(t * Math.PI) * 12
       if (!reduced) witch(wx, wy, 1)
       g.globalAlpha = 1
+      g.restore()
     },
 
     // bats where the birds would be, out at all hours this season
@@ -3255,6 +3343,7 @@ const packApi = () => ({
   get VOLC() { return VOLC; }, get TOWER() { return TOWER; }, get SKULL() { return SKULL; }, get purse() { return purse; }, get season() { return season(); },
   px, hash, glow, tri, burst, emit, smoke, outdoors, drawVillager, makeSprite, owns, busyAt, everyone, allMonsters,
   LIGHT: (...a) => LIGHT(...a), darkness: () => baseDarkness(), flick: (x, y) => flick(x, y), banner: (t, gold) => banner(null, t, gold),
+  float: (x, y, text, color) => FX.floats.push({ x, y, text, color, life: 1.8 }),
   ROOMS, PLACES, FOLK, ESTATES, CHEST, CAULDRON, DOORWAY, BOARD, SEASONS, W, H, reduced,
 });
 function applySeason(force) {
