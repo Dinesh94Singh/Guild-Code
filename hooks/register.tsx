@@ -50,20 +50,62 @@ const hallUrl = atom({ plugin: 'guild-code', key: 'hall' } as const, '')
 const treasury = atom({ plugin: 'guild-code', key: 'treasury' } as const, NEW_TREASURY as Treasury)
 const spoiled = atom({ plugin: 'guild-code', key: 'spoiled' } as const, false)
 
+// ───────────── the shared folder ─────────────
+// Everything the sessions share lives in one folder per machine, ~/.claude/guild-code/realm:
+// the purse and XP, each session's realm, the hall's live.json and its server, and the quests
+// the hall files for each session. A folder, not the plugin's store, so a session sees the same
+// island however it loaded the mod (installed, or from a folder with --plugin-dir).
+let rootDir = ''
+
+async function root($: EngineInterface): Promise<string> {
+  if (!rootDir) {
+    const { stdout } = await $.process.run(['printenv', 'HOME'])
+    rootDir = `${stdout.trim()}/.claude/guild-code/realm`
+  }
+  return rootDir
+}
+
+/** A shared file read back: undefined when it is not there; rejects when it is there but unreadable. */
+async function readShared($: EngineInterface, name: string): Promise<unknown> {
+  const path = `${await root($)}/${name}`
+  if (!(await $.fs.exists(path))) return undefined
+  return JSON.parse(await $.fs.read(path))
+}
+
+let tmpSeq = 0
+/** Write a shared file whole: written aside, then moved into place, so no one reads it half done. */
+async function writeShared($: EngineInterface, name: string, body: unknown) {
+  const path = `${await root($)}/${name}`
+  const tmp = `${path}.${Math.random().toString(36).slice(2, 10)}-${(tmpSeq += 1)}.tmp`
+  await $.fs.write(tmp, JSON.stringify(body))
+  const moved = await $.process.run(['mv', '-f', tmp, path])
+  if (moved.exitCode !== 0) throw new Error(`could not write ${name}`)
+}
+
 // ───────────── the treasury ─────────────
-// One purse per machine, kept in the plugin's store that every session shares: each payment
-// reads it fresh, adds to it and writes it back, so sessions never pay over one another for long.
-const TREASURY_KEY = 'treasury'
+// One purse per machine, in the shared folder: each payment reads it fresh, adds to it and
+// writes it back, so sessions never pay over one another for long.
+const TREASURY_FILE = 'treasury.json'
+const XP_FILE = 'xp.json'
 
 async function readTreasury($: EngineInterface): Promise<Treasury> {
-  const t = treasuryOf(await $.store.get(TREASURY_KEY).catch(() => undefined))
+  const t = treasuryOf(await readShared($, TREASURY_FILE))
   await update($, treasury, cur => (JSON.stringify(cur) === JSON.stringify(t) ? cur : t))
   return t
 }
 
 async function keepTreasury($: EngineInterface, t: Treasury) {
-  await $.store.set(TREASURY_KEY, t)
+  await writeShared($, TREASURY_FILE, t)
   await update($, treasury, () => t)
+}
+
+/** The first session on 0.4 brings the purse and XP it kept in the plugin's store into the shared folder. */
+async function seedShared($: EngineInterface) {
+  if ((await readShared($, TREASURY_FILE)) === undefined) await writeShared($, TREASURY_FILE, treasuryOf(await $.store.get('treasury').catch(() => undefined)))
+  if ((await readShared($, XP_FILE)) === undefined) {
+    const saved = (await $.store.get('xp').catch(() => undefined)) as Partial<GuildXp> | undefined
+    await writeShared($, XP_FILE, { ...NO_XP, ...(saved && typeof saved === 'object' ? saved : {}) })
+  }
 }
 
 /** Pay a deed into the treasury, `times` over: within the hour's cap, and the day's streak for a quest. */
@@ -102,7 +144,6 @@ async function shop($: EngineInterface, order: ShopOrder) {
   }
   await keepTreasury($, done.treasury)
   await log($, { who: 'Guildmaster', cls: 'guildmaster', location: 'tavern', text: order.action === 'buy' ? `👑 Bought ${ware!.name} for ${ware!.price} crowns` : `👑 Sold ${ware!.name} for ${Math.floor(ware!.price / 2)} crowns`, outcome: 'ok' })
-  await share($)
 }
 
 /**
@@ -125,7 +166,6 @@ async function petition($: EngineInterface, text: string, title: string, mode: G
   }
 }
 
-const REALM_PREFIX = 'realm:'
 const PUBLISH_MS = 4000
 const STALE_MS = 2 * 60_000
 // A session that has ended (or gone quiet) sleeps on the map until a day after its last work.
@@ -136,12 +176,12 @@ const RECENT_MAX = 5
 const IDLE_MS = 3600_000
 // Deeds older than this drop out of the chronicle the map and the page show.
 const FRESH_MS = 3 * 3600_000
+// How often a session looks again whether the hall's server is still there.
+const SERVER_CHECK_MS = 30_000
 
 const toQuota = (limits: readonly SessionRateLimit[]): GuildQuota[] =>
   limits.map(l => ({ kind: l.kind, label: windowLabel(l.kind), percentLeft: Math.max(0, Math.round((100 - l.percentUsed) * 10) / 10), resetsAt: l.resetsAt }))
 
-const PETITION_PREFIX = 'petition:'
-const HALL_PREFIX = 'hall:'
 const HALL_PORT = 8790
 // The hall's address: every *.localhost name reaches this machine, so it needs no setup.
 const hallAddress = (port: number) => `http://guildmaster.localhost:${port}/`
@@ -164,174 +204,160 @@ function ago(ms: number): string {
 /** Only the deeds of the last few hours: an idle session's old work is no news. */
 const fresh = (entries: readonly GuildEntry[] | undefined, at: number) => (entries ?? []).filter(e => at - e.at <= FRESH_MS)
 
-/**
- * When a realm last did real work. A session on an older Guild Code publishes no activeAt:
- * its latest deed stands in for it, else its last heartbeat.
- */
-function lastUsed(realm: GuildRealm): number {
-  if (typeof realm.activeAt === 'number') return realm.activeAt
-  const deeds = realm.chronicle ?? []
-  return deeds.length ? Math.max(...deeds.map(e => e.at)) : realm.updatedAt
-}
+/** When a realm last did real work. */
+const lastUsed = (realm: GuildRealm) => (typeof realm.activeAt === 'number' ? realm.activeAt : realm.updatedAt)
 
 /** A realm whose session has ended or gone idle: its Guildmaster sleeps at the tavern. */
 function asleep(realm: GuildRealm, at: number, isClosed: boolean): GuildRealm {
   return { ...realm, isAsleep: true, isClosed, party: [{ ...GUILDMASTER, activity: `sleeps at the tavern · last active ${ago(at - lastUsed(realm))}` }] }
 }
 
-/** Write this session's guild to the shared store, and read every other recent one back. */
+const isRealm = (r: unknown): r is GuildRealm => {
+  const o = r as GuildRealm
+  return !!o && typeof o === 'object' && typeof o.id === 'string' && typeof o.name === 'string' && typeof o.updatedAt === 'number' && Array.isArray(o.party)
+}
+
+/**
+ * The realms on the map, in one order every session agrees on: by name, then id. Sessions
+ * open in the same folder share its name, so the later ones are numbered; each takes the
+ * colour of its place in the order.
+ */
+function roster(list: readonly GuildRealm[]): (GuildRealm & { color: string })[] {
+  const sorted = [...list].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+  const seen = new Map<string, number>()
+  return sorted.map((r, i) => {
+    const n = (seen.get(r.name) ?? 0) + 1
+    seen.set(r.name, n)
+    return { ...r, name: n > 1 ? `${r.name} #${n}` : r.name, color: PROJECT_COLORS[i % PROJECT_COLORS.length]! }
+  })
+}
+
+let server: { port: number; version: string; pid: number } | undefined
+let serverCheckedAt = -Infinity
+
+/** The hall's server as server.json tells it, if its process is still there. */
+async function readServer($: EngineInterface, force = false) {
+  const at = await $.clock.now()
+  if (!force && at - serverCheckedAt < SERVER_CHECK_MS) return server
+  serverCheckedAt = at
+  const s = (await readShared($, 'server.json').catch(() => undefined)) as typeof server
+  const alive = !!s && typeof s.pid === 'number' && typeof s.port === 'number' && (await $.process.run(['kill', '-0', String(s.pid)]).then(r => r.exitCode === 0, () => false))
+  server = alive ? s : undefined
+  await update($, hallUrl, () => (server ? hallAddress(server.port) : ''))
+  return server
+}
+
+/**
+ * Write this session's realm to the shared folder, read every other recent one back, and
+ * pick up the quests the hall filed for this session. One session (the scribe) keeps the
+ * hall's live.json, takes the shop's orders and forgets old realms for everyone.
+ */
 async function share($: EngineInterface) {
   const id = await $.session.id()
   const cwd = await $.session.cwd()
   const at = await $.clock.now()
+  const dir = await root($)
   const mine: Omit<GuildRealm, 'updatedAt'> = { id, name: cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests), chronicle: fresh(await read($, chronicle), at).slice(-20), quota: await read($, quota), activeAt: activeAt || at }
   const body = JSON.stringify(mine)
   if (body !== published || at - publishedAt > STALE_MS / 2) {
-    await $.store.set(`${REALM_PREFIX}${id}`, { ...mine, updatedAt: at })
+    await writeShared($, `realms/${id}.json`, { ...mine, updatedAt: at })
     published = body
     publishedAt = at
   }
+
   const live: GuildRealm[] = []
   const sleeping: GuildRealm[] = []
-  for (const key of await $.store.keys()) {
-    if (key.startsWith(`${PETITION_PREFIX}${id}:`)) {
-      // A quest the Guild Hall page sent here through another session's server.
-      const p = await $.store.get(key)
-      await $.store.delete(key)
-      if (isPetition(p)) await petition($, p.text, p.title, p.mode, p.asUser)
-      continue
-    }
-    if (!key.startsWith(REALM_PREFIX) || key === `${REALM_PREFIX}${id}`) continue
-    const realm = (await $.store.get(key)) as GuildRealm | undefined
-    if (!realm || typeof realm !== 'object' || typeof realm.updatedAt !== 'number') continue
+  const forgotten: string[] = []
+  const open = [id]
+  const entries = await $.fs.list(`${dir}/realms`).catch(() => [])
+  for (const entry of entries) {
+    if (entry.kind !== 'file' || !entry.name.endsWith('.json') || entry.name === `${id}.json`) continue
+    const realm = await readShared($, `realms/${entry.name}`).catch(() => undefined)
+    if (!isRealm(realm)) continue
     const isOpen = realm.endedAt === undefined && at - realm.updatedAt <= STALE_MS
+    if (isOpen) open.push(realm.id)
     const idle = at - lastUsed(realm)
     const seen = { ...realm, chronicle: fresh(realm.chronicle, at) }
-    if (isOpen && idle <= IDLE_MS) {
-      live.push(seen)
-      continue
-    }
-    if (idle > FORGET_MS) {
-      // A closed realm is forgotten; an open one keeps writing its own, so it is only left off the map.
-      if (!isOpen) void $.store.delete(key).catch(() => undefined)
-      continue
-    }
-    sleeping.push(asleep(seen, at, !isOpen))
+    if (isOpen && idle <= IDLE_MS) live.push(seen)
+    else if (idle <= FORGET_MS) sleeping.push(asleep(seen, at, !isOpen))
+    else if (!isOpen) forgotten.push(realm.id) // an open one keeps writing its own: it is only left off the map
   }
   // Every session at work shows; the most recently used sleeping ones fill the map up to RECENT_MAX.
   sleeping.sort((a, b) => lastUsed(b) - lastUsed(a))
   const others = [...live, ...sleeping.slice(0, Math.max(0, RECENT_MAX - 1 - live.length))]
-  others.sort((a, b) => a.name.localeCompare(b.name))
+  others.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
   await update($, realms, cur => (JSON.stringify(cur) === JSON.stringify(others) ? cur : others))
-  if (hallPort) await writeLive($, { ...mine, updatedAt: at }, others, at)
-}
+  const view = { mine: { ...mine, updatedAt: at }, others, at }
 
-/** Sessions open in the same folder share its name: number the others so each reads apart. */
-function named<R extends { name: string }>(here: string, others: R[]): R[] {
-  let twin = 1
-  return others.map(r => (r.name === here ? { ...r, name: `${here} #${(twin += 1)}` } : r))
+  // Quests the hall filed for this session.
+  for (const entry of await $.fs.list(`${dir}/inbox/${id}`).catch(() => [])) {
+    if (entry.kind !== 'file' || !entry.name.endsWith('.json')) continue
+    const p = await readShared($, `inbox/${id}/${entry.name}`).catch(() => undefined)
+    await $.process.run(['rm', '-f', `${dir}/inbox/${id}/${entry.name}`])
+    if (isPetition(p)) await petition($, p.text, p.title, p.mode, p.asUser)
+  }
+
+  // The scribe: the open session with the least id, the same one in every session's eyes.
+  if (open.sort()[0] !== id) return view
+  for (const gone of forgotten) await $.process.run(['rm', '-rf', `${dir}/realms/${gone}.json`, `${dir}/inbox/${gone}`])
+  for (const entry of await $.fs.list(`${dir}/shop`).catch(() => [])) {
+    if (entry.kind !== 'file' || !entry.name.endsWith('.json')) continue
+    const order = await readShared($, `shop/${entry.name}`).catch(() => undefined)
+    await $.process.run(['rm', '-f', `${dir}/shop/${entry.name}`])
+    if (isShopOrder(order)) await shop($, order).catch(() => undefined)
+  }
+  if (await readServer($)) await writeLive($, view.mine, others, at)
+  return view
 }
 
 // ───────────── the Guild Hall page ─────────────
-// /guild serves the full pixel-art hall from this session on 127.0.0.1 and opens it in the
-// browser. The page reads live.json, which every session with a server keeps fresh, and
-// posts its quests back; the server prints each one and this session sends it on.
-
-let hallPort = 0
-let hallStarting: Promise<number> | undefined
-let hallDir = ''
+// /guild opens the one Guild Hall on this machine, starting its server if none is running.
+// The server outlives the session that started it; any open session keeps its live.json
+// fresh, and the quests it posts back wait in the shared folder for their session.
 
 const isPetition = (p: unknown): p is GuildPetition => {
   const o = p as GuildPetition
   return !!o && typeof o === 'object' && typeof o.realm === 'string' && typeof o.title === 'string' && typeof o.text === 'string' && !!o.text.trim() && (o.mode === 'seal' || o.mode === 'petition')
 }
 
-async function hallFolder($: EngineInterface): Promise<string> {
-  if (!hallDir) {
-    const { stdout } = await $.process.run(['printenv', 'HOME'])
-    // A folder of its own per session: each hall server serves its own live.json.
-    hallDir = `${stdout.trim()}/.claude/guild-code/hall/${await $.session.id()}`
-  }
-  return hallDir
-}
-
 async function writeLive($: EngineInterface, mine: GuildRealm, others: GuildRealm[], at: number) {
-  const list = [mine, ...named(mine.name, others)].map((r, i) => ({ ...r, color: PROJECT_COLORS[i % PROJECT_COLORS.length]! }))
+  const list = roster([mine, ...others])
   // Mana is the account's: a session billed by API key has no windows, so the page takes the
   // freshest reading any open session has.
-  const reading = [mine, ...[...others].sort((a, b) => b.updatedAt - a.updatedAt)].find(r => r.quota?.length)
-  const live = { at, self: mine.id, realms: list, quota: reading?.quota ?? [], xp: await read($, xp), treasury: await readTreasury($), season: seasonOf(at) }
-  await $.fs.write(`${await hallFolder($)}/live.json`, JSON.stringify(live))
+  const reading = [mine, ...others].filter(r => !r.isClosed).sort((a, b) => b.updatedAt - a.updatedAt).find(r => r.quota?.length)
+  // The page's own session is the one at work most lately: the desk sends there unless told otherwise.
+  const self = [mine, ...others].filter(r => !r.isClosed).sort((a, b) => lastUsed(b) - lastUsed(a))[0]?.id ?? mine.id
+  const live = { at, self, realms: list, quota: reading?.quota ?? [], xp: await readXp($), treasury: await readTreasury($), season: seasonOf(at) }
+  await writeShared($, 'live.json', live)
 }
 
-/** A quest from the page: this session's own is sent here, another's waits in the store for it. */
-async function receive($: EngineInterface, p: unknown) {
-  if (!isPetition(p)) return
-  const id = await $.session.id()
-  if (p.realm === id) return petition($, p.text, p.title, p.mode, p.asUser)
-  const to = (await read($, realms)).find(r => r.id === p.realm)
-  if (to?.isClosed) {
-    $.ui.toast(`💤 ${to.name} has ended: resume that session to send it quests.`)
-    return
-  }
-  await $.store.set(`${PETITION_PREFIX}${p.realm}:${(await $.clock.now()).toString(36)}-${(seq += 1)}`, p)
+/** This build's version, which a running server must match or be replaced. */
+async function version($: EngineInterface): Promise<string> {
+  const manifest = JSON.parse(await $.fs.read(`${$.plugin.root}/.claude-plugin/plugin.json`)) as { version?: string }
+  return manifest.version ?? '0'
 }
 
-/** Start this session's hall server, once, and resolve its port. */
-function startHall($: EngineInterface, preferred = HALL_PORT): Promise<number> {
-  if (hallStarting) return hallStarting
-  const started = (async () => {
-    const dir = await hallFolder($)
-    const page = await $.fs.read(`${$.plugin.root}/demo/guild-hall.html`)
-    // The flag that turns the dry run live goes first; the server fills in its token.
-    const flag = `<script>window.GUILD_LIVE = { token: '__GUILD_TOKEN__' }</script>\n`
-    const head = page.startsWith('<meta charset="utf-8">\n') ? '<meta charset="utf-8">\n'.length : 0
-    await $.fs.write(`${dir}/index.html`, page.slice(0, head) + flag + page.slice(head))
-    return new Promise<number>((resolve, reject) => {
-      void (async () => {
-        let buf = ''
-        try {
-          // The child lives as long as this loop: the session's, or until the module reloads.
-          for await (const { stream, text } of $.process.spawn({ argv: ['python3', `${$.plugin.root}/hooks/hall-server.py`, dir, String(preferred)] })) {
-            if (stream !== 'stdout') continue
-            buf += text
-            for (let nl = buf.indexOf('\n'); nl >= 0; nl = buf.indexOf('\n')) {
-              const line = buf.slice(0, nl)
-              buf = buf.slice(nl + 1)
-              let msg: { ready?: number; petition?: unknown; shop?: unknown }
-              try {
-                msg = JSON.parse(line)
-              } catch {
-                continue
-              }
-              if (typeof msg.ready === 'number') {
-                hallPort = msg.ready
-                await $.store.set(`${HALL_PREFIX}${await $.session.id()}`, hallPort)
-                await update($, hallUrl, () => hallAddress(hallPort))
-                await share($)
-                resolve(hallPort)
-              } else if (msg.petition) {
-                await receive($, msg.petition).catch(() => undefined)
-              } else if (isShopOrder(msg.shop)) {
-                await shop($, msg.shop).catch(() => undefined)
-              }
-            }
-          }
-        } catch (err) {
-          reject(err)
-        }
-        hallPort = 0
-        hallStarting = undefined
-        await update($, hallUrl, () => '').catch(() => undefined)
-        reject(new Error('The Guild Hall server stopped. Is python3 installed?'))
-      })()
-    })
-  })()
-  hallStarting = started
-  started.catch(() => {
-    if (hallStarting === started) hallStarting = undefined
-  })
-  return started
+/** The hall's port: the running server's, or a new one's, started in the background for every session. */
+async function startHall($: EngineInterface): Promise<number> {
+  const dir = await root($)
+  const want = await version($)
+  const running = await readServer($, true)
+  if (running && running.version === want) return running.port
+  // A server from another build serves another page: it makes way for this one.
+  if (running) await $.process.run(['kill', String(running.pid)]).catch(() => undefined)
+  const page = await $.fs.read(`${$.plugin.root}/demo/guild-hall.html`)
+  // The flag that turns the dry run live goes first; the server fills in its token.
+  const flag = `<script>window.GUILD_LIVE = { token: '__GUILD_TOKEN__' }</script>\n`
+  const head = page.startsWith('<meta charset="utf-8">\n') ? '<meta charset="utf-8">\n'.length : 0
+  await $.fs.write(`${dir}/index.html`, page.slice(0, head) + flag + page.slice(head))
+  const started = await $.process.run(['python3', `${$.plugin.root}/hooks/hall-server.py`, dir, String(HALL_PORT), want], { timeoutMs: 15_000 })
+  const port = (JSON.parse(started.stdout.trim().split('\n').pop() || '{}') as { ready?: number }).ready
+  if (started.exitCode !== 0 || typeof port !== 'number') throw new Error(started.stderr.trim() || 'Is python3 installed?')
+  await readServer($, true)
+  // The scribe may be another session: write live.json now so the page has something to show at once.
+  const view = await share($)
+  await writeLive($, view.mine, view.others, view.at)
+  return port
 }
 
 const BUILT_IN_BROWSER = 'mcp__Claude_Browser__preview_start'
@@ -392,13 +418,19 @@ async function move($: EngineInterface, memberId: string, change: Partial<GuildM
   }))
 }
 
-// XP is the machine's, like the purse: each gain reads the store fresh, so sessions add to one another's.
+// XP is the machine's, like the purse: each gain reads the shared file fresh, so sessions add to one another's.
+async function readXp($: EngineInterface): Promise<GuildXp> {
+  const saved = (await readShared($, XP_FILE)) as Partial<GuildXp> | undefined
+  const total = { ...NO_XP, ...(saved && typeof saved === 'object' ? saved : {}) }
+  await update($, xp, cur => (JSON.stringify(cur) === JSON.stringify(total) ? cur : total))
+  return total
+}
+
 async function gainXp($: EngineInterface, cls: GuildClass, amount: number) {
-  const saved = (await $.store.get('xp').catch(() => undefined)) as Partial<GuildXp> | undefined
-  const cur = { ...NO_XP, ...(await read($, xp)), ...(saved && typeof saved === 'object' ? saved : {}) }
+  const cur = await readXp($)
   const total = { ...cur, [cls]: (cur[cls] ?? 0) + amount }
+  await writeShared($, XP_FILE, total)
   await update($, xp, () => total)
-  await $.store.set('xp', total).catch(() => undefined)
 }
 
 /** A member now waits on the person: it raises its hand on the map, and the person is told. */
@@ -445,12 +477,8 @@ export const register: Register = on => {
     await $.command.register({ name: 'guild', description: 'Open the Guild Hall in the browser: your party at work, live' })
     await $.command.register({ name: 'guild-map', description: 'Open the Guild Code map pane beside the conversation' })
     await $.command.register({ name: 'guild-stats', description: 'Show Guild Code XP per class, the dungeon record and the treasury' })
-    try {
-      const saved = (await $.store.get('xp')) as Partial<GuildXp> | undefined
-      if (saved && typeof saved === 'object') await update($, xp, () => ({ ...NO_XP, ...saved }))
-    } catch {
-      // A fresh guild: no XP yet.
-    }
+    await seedShared($).catch(() => undefined)
+    await readXp($).catch(() => undefined)
     await readTreasury($).catch(() => undefined)
     try {
       const usage = await $.session.usage()
@@ -461,16 +489,12 @@ export const register: Register = on => {
     // An idle session used to be marked as waiting on the person; it rests now.
     await update($, party, list => (list.some(m => m.waiting === 'waits for your next quest') ? list.map(m => (m.waiting === 'waits for your next quest' ? { ...m, waiting: undefined, activity: 'rests at the tavern', isBusy: false } : m)) : list))
     // A reload or a resumed session keeps its last work time; a new one counts as used now.
-    const prev = (await $.store.get(`${REALM_PREFIX}${await $.session.id()}`).catch(() => undefined)) as GuildRealm | undefined
-    activeAt = typeof prev?.activeAt === 'number' ? prev.activeAt : await $.clock.now()
+    const prev = await readShared($, `realms/${await $.session.id()}.json`).catch(() => undefined)
+    activeAt = isRealm(prev) && typeof prev.activeAt === 'number' ? prev.activeAt : await $.clock.now()
     published = ''
     ticker?.cancel()
     ticker = $.clock.every(PUBLISH_MS, () => void share($).catch(() => undefined))
     void share($).catch(() => undefined)
-    // A reload ends the hall's server with the old module: start it again on the same port,
-    // so a Guild Hall page left open picks up where it was.
-    const port = await $.store.get(`${HALL_PREFIX}${await $.session.id()}`).catch(() => undefined)
-    if (typeof port === 'number') void startHall($, port).catch(() => undefined)
     return next(e)
   })
 
@@ -488,11 +512,10 @@ export const register: Register = on => {
     ticker?.cancel()
     try {
       // The realm stays, asleep, so the map still shows it among the recent sessions until it is forgotten.
-      const key = `${REALM_PREFIX}${await $.session.id()}`
-      const realm = (await $.store.get(key)) as GuildRealm | undefined
-      if (realm && typeof realm === 'object') await $.store.set(key, { ...realm, activeAt: activeAt || realm.activeAt, endedAt: await $.clock.now() })
+      const name = `realms/${await $.session.id()}.json`
+      const realm = await readShared($, name)
+      if (isRealm(realm)) await writeShared($, name, { ...realm, activeAt: activeAt || realm.activeAt, endedAt: await $.clock.now() })
       published = ''
-      await $.store.delete(`${HALL_PREFIX}${await $.session.id()}`)
     } catch {
       // A quiet realm falls asleep in the others' view by itself.
     }
@@ -751,12 +774,12 @@ export const register: Register = on => {
     const here = (await $.session.cwd().catch(() => '')).split(/[\\/]/).filter(Boolean).pop() ?? 'this workspace'
     // Every workspace shares one map: this one from live state, the others from their last
     // published snapshots, each party in its project's colour.
-    const others = named(here, await read($, realms))
-    const own = { name: here, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests) }
-    const all = [own, ...others]
-    const multi = others.length > 0
-    const members: GuildMember[] = all.flatMap((r, i) =>
-      r.party.map(m => ({ ...m, project: multi ? { name: r.name, color: PROJECT_COLORS[i % PROJECT_COLORS.length]! } : undefined })),
+    // The same order, names and colours as the Guild Hall page.
+    const own: GuildRealm = { id: await $.session.id().catch(() => ''), name: here, updatedAt: 0, party: await read($, party), dungeon: await read($, dungeon), quests: await read($, quests) }
+    const all = roster([own, ...(await read($, realms))])
+    const multi = all.length > 1
+    const members: GuildMember[] = all.flatMap(r =>
+      r.party.map(m => ({ ...m, project: multi ? { name: r.name, color: r.color } : undefined })),
     )
     const d: GuildDungeon = {
       monsters: all.reduce((n, r) => n + r.dungeon.monsters, 0),

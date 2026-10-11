@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
 
 // Fake tool output standing in for real runs, by command.
 const OUTPUT: Record<string, string> = {
@@ -6,6 +7,47 @@ const OUTPUT: Record<string, string> = {
   'cargo test --workspace': 'running 6 tests\ntest result: ok. 6 passed; 0 failed; 0 ignored',
   'npx eslint . --fix': '',
   'mvn -q package': 'BUILD SUCCESS',
+}
+
+/**
+ * A machine in memory beneath the plugins: the files Guild Code shares between sessions, and
+ * the few commands it runs on them (printenv, mv, rm, kill). No hall server is ever running.
+ */
+function machine(on: On, seed: Record<string, unknown> = {}) {
+  const files = new Map<string, string>(Object.entries(seed).map(([k, v]) => [k, JSON.stringify(v)]))
+  const run = (code: number, stdout = '') => ({ value: { exitCode: code, stdout, stderr: '' } }) as never
+  on('fs.exists', ($, e) => ({ value: files.has(e.path) || [...files.keys()].some(k => k.startsWith(`${e.path}/`)) }) as never)
+  on('fs.read', ($, e) => {
+    const text = files.get(e.path)
+    if (text === undefined) throw new Error(`no such file: ${e.path}`)
+    return { value: text } as never
+  })
+  on('fs.write', ($, e) => {
+    files.set(e.path, e.text)
+    return { value: undefined } as never
+  })
+  on('fs.list', ($, e) => {
+    const names = new Set([...files.keys()].filter(k => k.startsWith(`${e.path}/`)).map(k => k.slice(e.path.length + 1).split('/')[0]!))
+    return { value: [...names].map(name => ({ name, kind: files.has(`${e.path}/${name}`) ? 'file' : 'dir', size: 0, mtimeMs: 0, isLink: false })) } as never
+  })
+  on('process.run', ($, e) => {
+    const [cmd, ...args] = e.argv
+    if (cmd === 'printenv') return run(0, '/home/guild\n')
+    if (cmd === 'mv') {
+      const [from, to] = args.filter(a => !a.startsWith('-'))
+      const text = files.get(from!)
+      if (text === undefined) return run(1)
+      files.delete(from!)
+      files.set(to!, text)
+      return run(0)
+    }
+    if (cmd === 'rm') {
+      for (const path of args.filter(a => !a.startsWith('-'))) for (const k of [...files.keys()]) if (k === path || k.startsWith(`${path}/`)) files.delete(k)
+      return run(0)
+    }
+    return run(1)
+  })
+  return files
 }
 
 const PANE = {
@@ -18,6 +60,7 @@ const PANE = {
 test('the party walks the hall, and the dungeon counts its monsters', async ($, on) => {
   mock.clock(on)
   mock.store(on)
+  machine(on)
   // Beneath the plugin, answer every tool as the engine would.
   on('tool.call', ($, e) => {
     const command = String((e as unknown as { command?: string }).command ?? '')
@@ -77,17 +120,22 @@ test('the map shows the live sessions and the last few asleep, and forgets one u
   })
   const now = clock.now()
   // One live, five that ended at different times, and one last used more than a day ago.
+  const DIR = '/home/guild/.claude/guild-code/realm/realms'
   const seeded: Record<string, unknown> = {
-    'realm:live': realm('live', 'awake', { updatedAt: now, activeAt: now }),
-    'realm:old': realm('old', 'forgotten', { updatedAt: now - 25 * HOUR, activeAt: now - 25 * HOUR }),
+    '/home/guild/.claude/guild-code/realm/realms/live.json': realm('live', 'awake', { updatedAt: now, activeAt: now }),
+    '/home/guild/.claude/guild-code/realm/realms/old.json': realm('old', 'forgotten', { updatedAt: now - 25 * HOUR, activeAt: now - 25 * HOUR }),
   }
   // Open but unused for two hours, with a deed from then and one from long before.
-  seeded['realm:idle'] = realm('idle', 'dozing', {
+  seeded[`${DIR}/idle.json`] = realm('idle', 'dozing', {
     updatedAt: now, activeAt: now - 2 * HOUR,
     chronicle: [{ id: 'x', at: now - 2 * HOUR, who: 'Wizard', cls: 'wizard', location: 'study', text: 'reads recent.md', outcome: 'ok' }, { id: 'y', at: now - 5 * HOUR, who: 'Wizard', cls: 'wizard', location: 'study', text: 'reads ancient.md', outcome: 'ok' }],
   })
-  for (let i = 1; i <= 5; i++) seeded[`realm:s${i}`] = realm(`s${i}`, `slept${i}`, { updatedAt: now - i * HOUR, activeAt: now - i * HOUR, endedAt: now - i * HOUR })
-  mock.store(on, seeded)
+  for (let i = 1; i <= 5; i++) seeded[`${DIR}/s${i}.json`] = realm(`s${i}`, `slept${i}`, { updatedAt: now - i * HOUR, activeAt: now - i * HOUR, endedAt: now - i * HOUR })
+  // A quest the hall filed for this session, waiting in its inbox.
+  seeded['/home/guild/.claude/guild-code/realm/inbox/here/1.json'] = { realm: 'here', title: 'Ask the scribe', text: 'What happened today?', mode: 'petition' }
+  mock.store(on)
+  const files = machine(on, seeded)
+  on('prompt.fill', () => ({ isFilled: true }) as never)
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }) as never)
   on('session.id', () => ({ value: 'here' }) as never)
@@ -106,4 +154,11 @@ test('the map shows the live sessions and the last few asleep, and forgets one u
   // This session, one at work and three asleep make five: the rest stay off the map.
   expect(drawn).not.toMatch(/slept3|slept4|slept5/)
   expect(drawn).not.toMatch(/forgotten/)
+  // This session is the scribe (the least id of the open ones): it forgets the old realm for everyone.
+  expect(files.has(`${DIR}/old.json`)).toBe(false)
+  expect(files.has(`${DIR}/s5.json`)).toBe(true)
+  // Its own realm is in the shared folder, and the quest in its inbox was drafted and cleared.
+  expect(JSON.parse(files.get(`${DIR}/here.json`)!).name).toBe('here')
+  expect(drawn).toMatch(/Petition drafted: Ask the scribe/)
+  expect([...files.keys()].some(k => k.includes('/inbox/'))).toBe(false)
 })

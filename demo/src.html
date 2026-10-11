@@ -2204,7 +2204,7 @@ async function order(action, id) {
     try {
       const res = await fetch('shop', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guild-Token': LIVE.token }, body: JSON.stringify({ action, item: id }) });
       if (!res.ok) throw new Error(String(res.status));
-    } catch { shopPending = ''; renderShop(); banner(null, 'THE MERCHANT IS AWAY: IS THE SESSION OPEN?'); return; }
+    } catch { shopPending = ''; renderShop(); banner(null, 'THE MERCHANT IS AWAY: RUN /GUILD AGAIN'); return; }
     if (action === 'buy') { $('shop').close(); setCam('free', ESTATES[id].at); }
     return;
   }
@@ -2574,7 +2574,7 @@ async function pollLive() {
     applyLive(await res.json());
     if (!liveUp) { liveUp = true; $('liveBadge').textContent = 'LIVE'; $('liveBadge').classList.remove('off'); }
   } catch {
-    if (liveUp) { liveUp = false; $('liveBadge').textContent = 'OFFLINE · THE SESSION HAS ENDED?'; $('liveBadge').classList.add('off'); }
+    if (liveUp) { liveUp = false; $('liveBadge').textContent = 'OFFLINE · RUN /GUILD TO REOPEN THE HALL'; $('liveBadge').classList.add('off'); }
   }
 }
 function applyLive(s) {
@@ -2657,7 +2657,7 @@ async function sendLive(r, d, mode) {
     RAVENS.push({ sx: DOORWAY.x, sy: DOORWAY.y - 30, tx: to.x, ty: to.y - 24, t: 0, proj: r });
     banner(r, mode === 'seal' ? 'A RAVEN CARRIES THE QUEST' : 'THE PETITION WAITS IN CLAUDE', mode === 'seal');
   } catch {
-    banner(r, 'THE RAVEN COULD NOT FLY: IS THE SESSION OPEN?');
+    banner(r, 'THE RAVEN COULD NOT FLY: RUN /GUILD AGAIN');
   }
 }
 

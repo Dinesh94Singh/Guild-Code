@@ -1,18 +1,36 @@
-# The Guild Hall's own little server, one per session that ran /guild.
-#   python3 hall-server.py <dir> <first port>
-# It serves the hall page and live.json from <dir> on 127.0.0.1 only, and hands each quest the
-# page sends (POST /petition) and each shop order (POST /shop) to the session as one JSON line
-# on stdout. The page carries a
-# token minted here, so no other site can post quests; the Host check stops DNS rebinding.
+# The Guild Hall's server: one per machine, shared by every session, owned by none.
+#   python3 hall-server.py <dir> <first port> <version>
+# It binds the first free port from <first port>, prints {"ready": port}, then leaves for the
+# background, so it outlives the session that started it. It serves the hall page and the
+# live.json the sessions keep fresh in <dir>, on 127.0.0.1 only, and files each quest the
+# page sends (POST /petition) in <dir>/inbox/<session>/ and each shop order (POST /shop) in
+# <dir>/shop/, for the sessions to pick up. It notes itself in <dir>/server.json, and goes
+# when no session has written live.json for half an hour. The page carries a token minted
+# here, so no other site can post quests; the Host check stops DNS rebinding.
 import http.server
 import json
 import os
+import re
 import secrets
+import signal
 import socketserver
 import sys
+import threading
+import time
 
-root, first = sys.argv[1], int(sys.argv[2])
+root, first, version = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 token = secrets.token_urlsafe(24)
+IDLE_S = 30 * 60
+SESSION_ID = re.compile(r'^[A-Za-z0-9_-]{1,100}$')
+
+
+def drop(path, body):
+    """Write a file whole: a session never reads one half written."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f'{path}.{secrets.token_hex(4)}.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(body, f)
+    os.replace(tmp, path)
 
 
 class Hall(http.server.SimpleHTTPRequestHandler):
@@ -57,7 +75,14 @@ class Hall(http.server.SimpleHTTPRequestHandler):
             body = json.loads(self.rfile.read(size) or b'{}')
         except ValueError:
             return self.send_error(400)
-        print(json.dumps({kind: body}), flush=True)
+        name = f'{time.time_ns()}-{secrets.token_hex(3)}.json'
+        if kind == 'petition':
+            realm = body.get('realm') if isinstance(body, dict) else None
+            if not isinstance(realm, str) or not SESSION_ID.match(realm):
+                return self.send_error(400)
+            drop(os.path.join(root, 'inbox', realm, name), body)
+        else:
+            drop(os.path.join(root, 'shop', name), body)
         self.send_response(204)
         self.end_headers()
 
@@ -66,11 +91,52 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
 
+def idle():
+    # Gone once no session has written live.json for a while: the last of them has ended.
+    started = time.time()
+    while True:
+        time.sleep(60)
+        try:
+            last = os.path.getmtime(os.path.join(root, 'live.json'))
+        except OSError:
+            last = started
+        if time.time() - max(last, started) > IDLE_S:
+            leave()
+            os._exit(0)
+
+
+def leave():
+    try:
+        with open(os.path.join(root, 'server.json')) as f:
+            if json.load(f).get('pid') == os.getpid():
+                os.remove(os.path.join(root, 'server.json'))
+    except (OSError, ValueError):
+        pass
+
+
+server = None
 for port in range(first, first + 20):
     try:
         server = Server(('127.0.0.1', port), Hall)
+        break
     except OSError:
         continue
-    print(json.dumps({'ready': port}), flush=True)
+if server is None:
+    sys.exit('no free port')
+
+# Into the background: the session's call returns once this process has said where it is.
+if os.fork() > 0:
+    print(json.dumps({'ready': server.server_address[1]}), flush=True)
+    os._exit(0)
+os.setsid()
+devnull = os.open(os.devnull, os.O_RDWR)
+for fd in (0, 1, 2):
+    os.dup2(devnull, fd)
+drop(os.path.join(root, 'server.json'), {'pid': os.getpid(), 'port': server.server_address[1], 'version': version})
+threading.Thread(target=idle, daemon=True).start()
+# Made way for a newer build: take server.json along.
+signal.signal(signal.SIGTERM, lambda *_: (leave(), os._exit(0)))
+try:
     server.serve_forever()
-sys.exit('no free port')
+finally:
+    leave()
