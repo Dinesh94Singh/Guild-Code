@@ -56,6 +56,16 @@ If a test runner prints a summary line Guild Code doesn't read yet, add a branch
 
 To see where a ware lands, paint the island with everything bought: bundle `hooks/world.js` and call `paintWorld(Object.keys(ESTATES))`.
 
+## Add a theme pack
+
+A pack dresses the realm for a season (`hooks/seasons.ts` holds the calendar and each season's event). Each pack keeps to its own files:
+
+1. `hooks/packs/<season>.ts`: its seasonal wares (with `season` set), spread into `PACK_WARES` in `hooks/packs/index.ts`.
+2. `hooks/packs/<season>-art.js`: how it paints the realm (`snow`, `ground` colours, `paint(ctx)`) and where its wares stand, spread into `PACK_ART` and `PACK_ESTATES` in `hooks/packs/art.js`.
+3. `demo/packs/<season>.js`: what moves on the page: `GuildPacks.<season> = api => ({ ...hooks })`. The hooks are listed in the seasons section of `demo/src.html`.
+
+Then `node demo/build.mjs`, and pick the season under SETTINGS → SEASON to see it out of season.
+
 ## Design rules
 
 - **Never block real work.** Every hook that sits in front of a tool call, prompt or subagent is fail-open (`.catch(($, e, next) => next(e))`), and the hook's own bookkeeping is wrapped in `try`.

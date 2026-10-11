@@ -109,6 +109,10 @@ Press **SHOP** on the Guild Hall page (or **VISIT THE MERCHANT** on the Treasury
 
 Your **rank** (Hamlet, Village, Town, Port, City, Kingdom) follows every crown ever earned, so spending never sets you back; each rank opens a finer tier of wares. The purse is one per machine, kept in the mod's store beside the XP, since every project shares the one island. Wares show on the Guild Hall page; the map pane draws the island as it was.
 
+### Seasons
+
+Theme packs dress the island for the time of year, by your calendar: Hallow's Eve (15 Oct – 1 Nov), the Harvest Feast (10 – 30 Nov) and Midwinter (1 Dec – 6 Jan). Each changes the light, the folk, the monsters and the sky, runs one small event that fills as you close quests, and brings wares the merchant sells only in season (what you buy stays built). SETTINGS → SEASON shows any pack by hand, or none.
+
 ### The pane and the Guild Hall page
 
 - **The map pane** (`/guild-map`) is the live map and nothing else: every session on this machine on one island, each party tagged in its project's colour, and, once `/guild` has run, a link to the full hall.

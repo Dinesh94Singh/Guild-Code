@@ -8,6 +8,9 @@
 // Kept pure, like classify.ts: the mod and the Guild Hall page both run it, and it is tested
 // without the engine.
 import type { GuildTreasury } from '../types'
+import { PACK_WARES } from './packs'
+import { SEASONS, boostOf } from './seasons'
+import type { SeasonId } from './seasons'
 
 export type Deed =
   | 'slay' // a failing test now passes (per monster)
@@ -83,10 +86,14 @@ export const RANKS: { name: string; at: number; opens: Tier }[] = [
 ]
 const TIER_ORDER: Tier[] = ['trinket', 'fixture', 'landmark', 'wonder']
 
-export type Ware = { id: string; name: string; region: Region; tier: Tier; price: number; desc: string }
+export type Ware = {
+  id: string; name: string; region: Region; tier: Tier; price: number; desc: string
+  /** Sold only while this season lasts (hooks/seasons.ts); once bought it stays built. */
+  season?: SeasonId
+}
 
 /** What the merchant sells. Each has its place on the island (hooks/world.js, ESTATES). */
-export const CATALOG: Ware[] = [
+const BASE_WARES: Ware[] = [
   { id: 'lanterns', name: 'Road lanterns', region: 'town', tier: 'trinket', price: 80, desc: 'Lamp posts along the roads out of town, lit after dark.' },
   { id: 'fountain', name: 'Square fountain', region: 'town', tier: 'fixture', price: 350, desc: 'A stone fountain on the cobbled square.' },
   { id: 'bard', name: 'Tavern bard', region: 'town', tier: 'fixture', price: 260, desc: 'Plays by the Tavern door, and strikes up when a quest closes.' },
@@ -105,9 +112,12 @@ export const CATALOG: Ware[] = [
   { id: 'rainbow', name: 'Rainbow', region: 'realm', tier: 'trinket', price: 120, desc: 'Every rain ends with a rainbow over the island.' },
 ]
 
+/** Every ware: the year-round ones and each theme pack's seasonal ones (hooks/packs). */
+export const CATALOG: Ware[] = [...BASE_WARES, ...PACK_WARES]
+
 export type Treasury = GuildTreasury
 
-export const NEW_TREASURY: Treasury = { crowns: 0, earned: 0, owned: [], hour: { start: 0, paid: 0 }, streak: { day: '', count: 0 } }
+export const NEW_TREASURY: Treasury = { crowns: 0, earned: 0, owned: [], hour: { start: 0, paid: 0 }, streak: { day: '', count: 0 }, event: { season: '', step: 0 } }
 
 /** A treasury read back from the store: anything missing or malformed takes its default. */
 export function treasuryOf(saved: unknown): Treasury {
@@ -119,6 +129,7 @@ export function treasuryOf(saved: unknown): Treasury {
     owned: Array.isArray(s.owned) ? s.owned.filter((id): id is string => typeof id === 'string' && CATALOG.some(w => w.id === id)) : [],
     hour: { start: num(s.hour?.start), paid: num(s.hour?.paid) },
     streak: { day: typeof s.streak?.day === 'string' ? s.streak.day : '', count: num(s.streak?.count) },
+    event: { season: typeof s.event?.season === 'string' ? s.event.season : '', step: num(s.event?.step) },
   }
 }
 
@@ -129,9 +140,13 @@ export function dayOf(at: number): string {
 }
 
 /** Pay out a deed `times` over, within the hour's cap. Returns the treasury and what was paid. */
-export function earn(t: Treasury, deed: Deed, times: number, at: number): { treasury: Treasury; paid: number } {
+export function earn(t: Treasury, deed: Deed, times: number, at: number, season: SeasonId | null = null): { treasury: Treasury; paid: number } {
+  return pay(t, Math.round(REWARDS[deed] * Math.max(0, Math.floor(times)) * boostOf(season, deed, at)), at)
+}
+
+/** Pay `want` crowns, within the hour's cap. */
+function pay(t: Treasury, want: number, at: number): { treasury: Treasury; paid: number } {
   const hour = at - t.hour.start >= HOUR || at < t.hour.start ? { start: at, paid: 0 } : t.hour
-  const want = REWARDS[deed] * Math.max(0, Math.floor(times))
   const paid = Math.max(0, Math.min(want, HOURLY_CAP - hour.paid))
   if (paid === 0) return { treasury: hour === t.hour ? t : { ...t, hour }, paid }
   return { treasury: { ...t, crowns: t.crowns + paid, earned: t.earned + paid, hour: { start: hour.start, paid: hour.paid + paid } }, paid }
@@ -139,18 +154,32 @@ export function earn(t: Treasury, deed: Deed, times: number, at: number): { trea
 
 /**
  * A quest closed: the day's first one pays the streak bonus. A day missed steps the streak back
- * one day rather than to the start; a gap of several days steps back one per missed day.
+ * one day rather than to the start; a gap of several days steps back one per missed day. In a
+ * season, it also steps the season's event on, which pays (within the cap) each time it fills.
  */
-export function closeQuest(t: Treasury, at: number): { treasury: Treasury; paid: number; bonus: number } {
-  const quest = earn(t, 'quest', 1, at)
+export function closeQuest(t: Treasury, at: number, season: SeasonId | null = null): { treasury: Treasury; paid: number; bonus: number; event: number } {
+  const quest = earn(t, 'quest', 1, at, season)
+  let after = quest.treasury, paid = quest.paid, bonus = 0, event = 0
   const today = dayOf(at)
-  if (t.streak.day === today) return { ...quest, bonus: 0 }
-  const missed = t.streak.day ? Math.max(0, Math.round((Date.parse(today) - Date.parse(t.streak.day)) / 86_400_000) - 1) : 0
-  const count = Math.max(1, t.streak.count - missed + 1)
-  const bonus = STREAK_BONUS[Math.min(count, STREAK_BONUS.length) - 1]!
-  // The streak bonus is a daily gift, outside the hourly cap.
-  const after = quest.treasury
-  return { treasury: { ...after, crowns: after.crowns + bonus, earned: after.earned + bonus, streak: { day: today, count } }, paid: quest.paid + bonus, bonus }
+  if (t.streak.day !== today) {
+    const missed = t.streak.day ? Math.max(0, Math.round((Date.parse(today) - Date.parse(t.streak.day)) / 86_400_000) - 1) : 0
+    const count = Math.max(1, t.streak.count - missed + 1)
+    bonus = STREAK_BONUS[Math.min(count, STREAK_BONUS.length) - 1]!
+    // The streak bonus is a daily gift, outside the hourly cap.
+    after = { ...after, crowns: after.crowns + bonus, earned: after.earned + bonus, streak: { day: today, count } }
+    paid += bonus
+  }
+  if (season) {
+    const spec = SEASONS[season].event
+    const step = (after.event.season === season ? after.event.step : 0) + 1
+    if (step >= spec.every) {
+      const filled = pay(after, spec.pays, at)
+      after = { ...filled.treasury, event: { season, step: 0 } }
+      event = filled.paid
+      paid += event
+    } else after = { ...after, event: { season, step } }
+  }
+  return { treasury: after, paid, bonus, event }
 }
 
 export function rankOf(earned: number): { name: string; index: number; next?: { name: string; at: number } } {
@@ -169,13 +198,14 @@ export function openTier(earned: number): Tier {
 
 export const isOpen = (tier: Tier, earned: number) => TIER_ORDER.indexOf(tier) <= TIER_ORDER.indexOf(openTier(earned))
 
-export type Refusal = 'unknown' | 'owned' | 'not-owned' | 'locked' | 'poor'
+export type Refusal = 'unknown' | 'owned' | 'not-owned' | 'locked' | 'poor' | 'season'
 
-/** Buy a ware: it must exist, not be owned, be open at this rank, and be affordable. */
-export function buy(t: Treasury, id: string): { treasury: Treasury } | { refusal: Refusal } {
+/** Buy a ware: it must exist, not be owned, be in season, be open at this rank, and be affordable. */
+export function buy(t: Treasury, id: string, season: SeasonId | null = null): { treasury: Treasury } | { refusal: Refusal } {
   const ware = CATALOG.find(w => w.id === id)
   if (!ware) return { refusal: 'unknown' }
   if (t.owned.includes(id)) return { refusal: 'owned' }
+  if (ware.season && ware.season !== season) return { refusal: 'season' }
   if (!isOpen(ware.tier, t.earned)) return { refusal: 'locked' }
   if (t.crowns < ware.price) return { refusal: 'poor' }
   return { treasury: { ...t, crowns: t.crowns - ware.price, owned: [...t.owned, id] } }
@@ -197,8 +227,8 @@ export const isShopOrder = (o: unknown): o is ShopOrder => {
   return !!s && typeof s === 'object' && (s.action === 'buy' || s.action === 'sell') && typeof s.item === 'string'
 }
 
-export function trade(t: Treasury, order: ShopOrder): { treasury: Treasury } | { refusal: Refusal } {
-  return order.action === 'buy' ? buy(t, order.item) : sell(t, order.item)
+export function trade(t: Treasury, order: ShopOrder, season: SeasonId | null = null): { treasury: Treasury } | { refusal: Refusal } {
+  return order.action === 'buy' ? buy(t, order.item, season) : sell(t, order.item)
 }
 
 export const REFUSALS: Record<Refusal, string> = {
@@ -207,4 +237,5 @@ export const REFUSALS: Record<Refusal, string> = {
   'not-owned': 'The realm has none to sell.',
   locked: 'The realm must grow to a higher rank first.',
   poor: 'Not enough crowns in the treasury.',
+  season: 'That ware sells only in its season.',
 }

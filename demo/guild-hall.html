@@ -282,6 +282,7 @@ dialog.shop { width: min(820px, calc(100vw - 32px)); }
             <button type="button" data-place="armory">ARMORY</button>
             <button type="button" data-place="cauldron">CAULDRON</button>
           </div>
+          <div class="srow" id="seasonRow"><span class="hint">SEASON</span></div>
           <div class="srow sim"><span class="hint">REPLAY</span>
             <button id="play" type="button">PAUSE</button>
             <button id="restart" type="button">RESTART</button>
@@ -330,6 +331,7 @@ dialog.shop { width: min(820px, calc(100vw - 32px)); }
         <div class="rank"><span id="rankName">HAMLET</span><small id="rankNext"></small></div>
         <div class="qbar" aria-hidden="true"><i id="rankBar" style="width:0%"></i></div>
         <small class="hint" id="streak"></small>
+        <small class="hint" id="seasonEvent" hidden></small>
       </div>
       <div class="card px inspect" id="inspect" hidden aria-live="polite"></div>
       <div class="card px">
@@ -734,6 +736,7 @@ var GuildWorld = (() => {
     ROADS: () => ROADS,
     ROADS_RAW: () => ROADS_RAW,
     Recorder: () => Recorder,
+    SEASONS: () => SEASONS,
     SoftCanvas: () => SoftCanvas,
     TIERS: () => TIERS,
     VOLCANO: () => VOLCANO,
@@ -747,6 +750,7 @@ var GuildWorld = (() => {
     paintWorld: () => paintWorld,
     px: () => px,
     rankOf: () => rankOf,
+    seasonOf: () => seasonOf,
     shade: () => shade,
     smooth: () => smooth,
     trade: () => trade,
@@ -1483,6 +1487,10 @@ var GuildWorld = (() => {
     }
   }
 
+  // hooks/packs/art.js
+  var PACK_ART = {};
+  var PACK_ESTATES = {};
+
   // hooks/world.js
   var W = 512;
   var H = 320;
@@ -1776,7 +1784,8 @@ var GuildWorld = (() => {
       }
     },
     hound: { at: { x: 168, y: 200 }, clears: [] },
-    rainbow: { at: { x: 256, y: 160 }, clears: [] }
+    rainbow: { at: { x: 256, y: 160 }, clears: [] },
+    ...PACK_ESTATES
   };
   var CELL = 2;
   var GW = W / CELL;
@@ -1929,15 +1938,16 @@ var GuildWorld = (() => {
     }
     return best;
   }
-  function paintWorld(owned = []) {
+  function paintWorld(owned = [], season = null) {
+    var _a;
     resetMarks();
     const built = owned.filter((id) => {
-      var _a;
-      return (_a = ESTATES[id]) == null ? void 0 : _a.paint;
-    }), estates = {};
-    SEASON.snow = false;
-    SEASON.crops = true;
-    const PAL = Object.fromEntries(Object.entries(PAL_HEX).map(([k, v]) => [k, parseColor(v)]));
+      var _a2;
+      return (_a2 = ESTATES[id]) == null ? void 0 : _a2.paint;
+    }), estates = {}, art = season && PACK_ART[season] || {};
+    SEASON.snow = !!art.snow;
+    SEASON.crops = !art.snow;
+    const PAL = Object.fromEntries(Object.entries({ ...PAL_HEX, ...art.ground }).map(([k, v]) => [k, parseColor(v)]));
     const KIND = new Uint8Array(GW * GH), BIOME = new Uint8Array(GW * GH), SNOWY = new Uint8Array(GW * GH), DEPTH = new Float32Array(GW * GH);
     const cell = (x, y) => Math.max(0, Math.min(GH - 1, Math.floor(y / CELL))) * GW + Math.max(0, Math.min(GW - 1, Math.floor(x / CELL)));
     const stamp = (pts, radius) => {
@@ -2146,8 +2156,54 @@ var GuildWorld = (() => {
     for (const id of built) add(ESTATES[id].at.y, (b) => {
       estates[id] = ESTATES[id].paint(b);
     });
+    const seasonal = art.paint ? (_a = art.paint({ add, px, marks, built, W, H, FOLK, PLACES, ESTATES, SKULL: P.dungeon.at })) != null ? _a : {} : {};
     items.sort((p, q) => p.y - q.y).forEach((it) => it.fn(cv));
-    return { width: W, height: H, data: cv.data, foam, sparks, marks: JSON.parse(JSON.stringify(marks)), estates };
+    return { width: W, height: H, data: cv.data, foam, sparks, marks: JSON.parse(JSON.stringify(marks)), estates, seasonal };
+  }
+
+  // hooks/packs/index.ts
+  var PACK_WARES = [];
+
+  // hooks/seasons.ts
+  var SEASONS = {
+    halloween: {
+      id: "halloween",
+      name: "Hallow's Eve",
+      from: [10, 15],
+      to: [11, 1],
+      event: { name: "Candy pail", every: 5, pays: 25 },
+      boost: { deed: "slay", on: [10, 31], factor: 1.5 }
+    },
+    thanksgiving: {
+      id: "thanksgiving",
+      name: "Harvest Feast",
+      from: [11, 10],
+      to: [11, 30],
+      event: { name: "Feast table", every: 12, pays: 40 }
+    },
+    christmas: {
+      id: "christmas",
+      name: "Midwinter",
+      from: [12, 1],
+      to: [1, 6],
+      event: { name: "Presents under the tree", every: 6, pays: 30 }
+    }
+  };
+  var md = (at) => {
+    const d = new Date(at);
+    return (d.getMonth() + 1) * 100 + d.getDate();
+  };
+  function seasonOf(at) {
+    const now = md(at);
+    for (const s of Object.values(SEASONS)) {
+      const from = s.from[0] * 100 + s.from[1], to = s.to[0] * 100 + s.to[1];
+      if (from <= to ? now >= from && now <= to : now >= from || now <= to) return s.id;
+    }
+    return null;
+  }
+  function boostOf(season, deed, at) {
+    const b = season ? SEASONS[season].boost : void 0;
+    return b && b.deed === deed && md(at) === b.on[0] * 100 + b.on[1] ? b.factor : 1;
   }
 
   // hooks/treasury.ts
@@ -2201,7 +2257,7 @@ var GuildWorld = (() => {
     { name: "Kingdom", at: 1e5, opens: "wonder" }
   ];
   var TIER_ORDER = ["trinket", "fixture", "landmark", "wonder"];
-  var CATALOG = [
+  var BASE_WARES = [
     { id: "lanterns", name: "Road lanterns", region: "town", tier: "trinket", price: 80, desc: "Lamp posts along the roads out of town, lit after dark." },
     { id: "fountain", name: "Square fountain", region: "town", tier: "fixture", price: 350, desc: "A stone fountain on the cobbled square." },
     { id: "bard", name: "Tavern bard", region: "town", tier: "fixture", price: 260, desc: "Plays by the Tavern door, and strikes up when a quest closes." },
@@ -2219,8 +2275,9 @@ var GuildWorld = (() => {
     { id: "hound", name: "Guild hound", region: "heroes", tier: "fixture", price: 450, desc: "A dog that trots after the Guildmaster." },
     { id: "rainbow", name: "Rainbow", region: "realm", tier: "trinket", price: 120, desc: "Every rain ends with a rainbow over the island." }
   ];
+  var CATALOG = [...BASE_WARES, ...PACK_WARES];
   function treasuryOf(saved) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f;
     const s = saved && typeof saved === "object" ? saved : {};
     const num = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
     return {
@@ -2228,29 +2285,45 @@ var GuildWorld = (() => {
       earned: Math.max(num(s.earned), num(s.crowns)),
       owned: Array.isArray(s.owned) ? s.owned.filter((id) => typeof id === "string" && CATALOG.some((w) => w.id === id)) : [],
       hour: { start: num((_a = s.hour) == null ? void 0 : _a.start), paid: num((_b = s.hour) == null ? void 0 : _b.paid) },
-      streak: { day: typeof ((_c = s.streak) == null ? void 0 : _c.day) === "string" ? s.streak.day : "", count: num((_d = s.streak) == null ? void 0 : _d.count) }
+      streak: { day: typeof ((_c = s.streak) == null ? void 0 : _c.day) === "string" ? s.streak.day : "", count: num((_d = s.streak) == null ? void 0 : _d.count) },
+      event: { season: typeof ((_e = s.event) == null ? void 0 : _e.season) === "string" ? s.event.season : "", step: num((_f = s.event) == null ? void 0 : _f.step) }
     };
   }
   function dayOf(at) {
     const d = new Date(at);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
-  function earn(t, deed, times, at) {
+  function earn(t, deed, times, at, season = null) {
+    return pay(t, Math.round(REWARDS[deed] * Math.max(0, Math.floor(times)) * boostOf(season, deed, at)), at);
+  }
+  function pay(t, want, at) {
     const hour = at - t.hour.start >= HOUR || at < t.hour.start ? { start: at, paid: 0 } : t.hour;
-    const want = REWARDS[deed] * Math.max(0, Math.floor(times));
     const paid = Math.max(0, Math.min(want, HOURLY_CAP - hour.paid));
     if (paid === 0) return { treasury: hour === t.hour ? t : { ...t, hour }, paid };
     return { treasury: { ...t, crowns: t.crowns + paid, earned: t.earned + paid, hour: { start: hour.start, paid: hour.paid + paid } }, paid };
   }
-  function closeQuest(t, at) {
-    const quest = earn(t, "quest", 1, at);
+  function closeQuest(t, at, season = null) {
+    const quest = earn(t, "quest", 1, at, season);
+    let after = quest.treasury, paid = quest.paid, bonus = 0, event = 0;
     const today = dayOf(at);
-    if (t.streak.day === today) return { ...quest, bonus: 0 };
-    const missed = t.streak.day ? Math.max(0, Math.round((Date.parse(today) - Date.parse(t.streak.day)) / 864e5) - 1) : 0;
-    const count = Math.max(1, t.streak.count - missed + 1);
-    const bonus = STREAK_BONUS[Math.min(count, STREAK_BONUS.length) - 1];
-    const after = quest.treasury;
-    return { treasury: { ...after, crowns: after.crowns + bonus, earned: after.earned + bonus, streak: { day: today, count } }, paid: quest.paid + bonus, bonus };
+    if (t.streak.day !== today) {
+      const missed = t.streak.day ? Math.max(0, Math.round((Date.parse(today) - Date.parse(t.streak.day)) / 864e5) - 1) : 0;
+      const count = Math.max(1, t.streak.count - missed + 1);
+      bonus = STREAK_BONUS[Math.min(count, STREAK_BONUS.length) - 1];
+      after = { ...after, crowns: after.crowns + bonus, earned: after.earned + bonus, streak: { day: today, count } };
+      paid += bonus;
+    }
+    if (season) {
+      const spec = SEASONS[season].event;
+      const step = (after.event.season === season ? after.event.step : 0) + 1;
+      if (step >= spec.every) {
+        const filled = pay(after, spec.pays, at);
+        after = { ...filled.treasury, event: { season, step: 0 } };
+        event = filled.paid;
+        paid += event;
+      } else after = { ...after, event: { season, step } };
+    }
+    return { treasury: after, paid, bonus, event };
   }
   function rankOf(earned) {
     let index = 0;
@@ -2264,10 +2337,11 @@ var GuildWorld = (() => {
     return RANKS[rankOf(earned).index].opens;
   }
   var isOpen = (tier, earned) => TIER_ORDER.indexOf(tier) <= TIER_ORDER.indexOf(openTier(earned));
-  function buy(t, id) {
+  function buy(t, id, season = null) {
     const ware = CATALOG.find((w) => w.id === id);
     if (!ware) return { refusal: "unknown" };
     if (t.owned.includes(id)) return { refusal: "owned" };
+    if (ware.season && ware.season !== season) return { refusal: "season" };
     if (!isOpen(ware.tier, t.earned)) return { refusal: "locked" };
     if (t.crowns < ware.price) return { refusal: "poor" };
     return { treasury: { ...t, crowns: t.crowns - ware.price, owned: [...t.owned, id] } };
@@ -2278,18 +2352,21 @@ var GuildWorld = (() => {
     if (!t.owned.includes(id)) return { refusal: "not-owned" };
     return { treasury: { ...t, crowns: t.crowns + Math.floor(ware.price / 2), owned: t.owned.filter((o) => o !== id) } };
   }
-  function trade(t, order) {
-    return order.action === "buy" ? buy(t, order.item) : sell(t, order.item);
+  function trade(t, order, season = null) {
+    return order.action === "buy" ? buy(t, order.item, season) : sell(t, order.item);
   }
   var REFUSALS = {
     unknown: "The merchant has no such ware.",
     owned: "The realm already has one.",
     "not-owned": "The realm has none to sell.",
     locked: "The realm must grow to a higher rank first.",
-    poor: "Not enough crowns in the treasury."
+    poor: "Not enough crowns in the treasury.",
+    season: "That ware sells only in its season."
   };
   return __toCommonJS(world_entry_exports);
 })();
+
+window.GuildPacks = window.GuildPacks || {};
 
 </script>
 <script>
@@ -2375,14 +2452,16 @@ for (const [name, def] of Object.entries(BODIES)) {
   SPR[name] = LEGS.map(legs => [makeSprite([...def.rows, ...legs], pal, false), makeSprite([...def.rows, ...legs], pal, true)]);
 }
 const SLIME = ['...kkkk...', '.kkggggkk.', 'kgggggggGk', 'kgwkggwkGk', 'kggggggggk', 'kgggmmgggk', '.kggggggk.', '..kkkkkk..'];
-const MON = [['#d1495b', '#9e2f3f'], ['#9b59d0', '#6d3a99'], ['#e07a2f', '#a8541c']].map(([g, G]) =>
+const MON_PALS = [['#d1495b', '#9e2f3f'], ['#9b59d0', '#6d3a99'], ['#e07a2f', '#a8541c']];
+const monSprites = ([g, G]) =>
   [0, 1].map(f => { const c = document.createElement('canvas'); c.width = 10; c.height = 8; const x = c.getContext('2d');
-    SLIME.forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '.') return; x.fillStyle = { k: '#1b1424', g, G, w: '#fff', m: '#2b1b14' }[ch]; x.fillRect(i, j + (f && j < 2 ? 1 : 0), 1, 1); })); return c; }));
+    SLIME.forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '.') return; x.fillStyle = { k: '#1b1424', g, G, w: '#fff', m: '#2b1b14' }[ch]; x.fillRect(i, j + (f && j < 2 ? 1 : 0), 1, 1); })); return c; });
+const MON = MON_PALS.map(monSprites);
 
 
 // ───────────────────────── the painted world ─────────────────────────
-function paintBackground(owned = []) {
-  const w = GuildWorld.paintWorld(owned);
+function paintBackground(owned = [], season = null) {
+  const w = GuildWorld.paintWorld(owned, season);
   const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
   const b = bg.getContext('2d'), img = b.createImageData(W, H); img.data.set(w.data); b.putImageData(img, 0, 0);
   const mini = document.createElement('canvas'); mini.width = 120; mini.height = Math.round(120 * H / W);
@@ -2397,6 +2476,7 @@ function paintBackground(owned = []) {
     sparks: w.sparks.map(sp => ({ ...sp, ph: hash(sp.x, sp.y * 5) * 6.28 })),
     ship: FOLK.ship,
     estates: w.estates,
+    seasonal: w.seasonal,
   };
 }
 
@@ -2810,8 +2890,8 @@ function crownFloat(got, at) {
 function pay(deed, n, at) {
   if (LIVE || n <= 0) return;
   const before = purse.crowns, rank = rankOf(purse.earned).index;
-  if (deed === 'quest') for (let i = 0; i < n; i++) purse = closeQuest(purse, demoNow()).treasury;
-  else purse = earn(purse, deed, n, demoNow()).treasury;
+  if (deed === 'quest') for (let i = 0; i < n; i++) { const r = closeQuest(purse, demoNow(), season()); purse = r.treasury; if (r.event) { banner(null, `${SEASONS[season()].event.name.toUpperCase()}: +${r.event}`, true); fx.onEvent?.(); } }
+  else purse = earn(purse, deed, n, demoNow(), season()).treasury;
   crownFloat(purse.crowns - before, at);
   if (rankOf(purse.earned).index > rank) banner(null, `THE REALM GROWS TO A ${rankOf(purse.earned).name.toUpperCase()}`, true);
   dirty();
@@ -2823,7 +2903,51 @@ function ringBell() {
   if (b) FX.floats.push({ x: b.x, y: b.y - 6, text: 'DONG!', color: '#f2b84b', life: 1.6 });
 }
 /** Paint the island again with what the treasury has built. */
-function rebuild() { WORLD = paintBackground(purse.owned); }
+function rebuild() { WORLD = paintBackground(purse.owned, season()); }
+
+// ───────────────────────── seasons ─────────────────────────
+// A theme pack (hooks/packs, demo/packs) dresses the realm for its season. The calendar picks
+// the season (live, the session's calendar); SETTINGS can show any pack by hand, or none. A pack
+// is a factory in window.GuildPacks that takes PACK_API and returns the hooks it draws through:
+//   grade, minDark, update(dt), drawGround(), folk(), drawSky(), lights(dark), drawBirds(),
+//   drawMonster(m), villager(v), dragon {palette}, monsters [[light, dark]...], crown {rows, pal},
+//   banner, onEvent(), css.
+const { SEASONS, seasonOf } = GuildWorld;
+let PACKS = {}, fx = {}, liveSeason = null, shownSeason;
+let seasonMode = (() => { try { return localStorage.getItem('guild-season') || 'auto'; } catch { return 'auto'; } })();
+const calendarSeason = () => LIVE ? liveSeason : seasonOf(Date.now());
+// A season picked by hand whose pack this page doesn't carry falls back to the calendar.
+const season = () => { const s = seasonMode === 'off' ? null : seasonMode === 'auto' || !PACKS[seasonMode] ? calendarSeason() : seasonMode; return s && SEASONS[s] ? s : null; };
+// Built at start, once every helper it lends is defined.
+const packApi = () => ({
+  get g() { return g; }, get clock() { return clock; }, get sky() { return sky; }, get WORLD() { return WORLD; },
+  get VOLC() { return VOLC; }, get TOWER() { return TOWER; }, get SKULL() { return SKULL; }, get purse() { return purse; }, get season() { return season(); },
+  px, hash, glow, tri, burst, emit, smoke, outdoors, drawVillager, makeSprite, owns, busyAt, everyone, allMonsters,
+  LIGHT: (...a) => LIGHT(...a), darkness: () => baseDarkness(), flick: (x, y) => flick(x, y), banner: (t, gold) => banner(null, t, gold),
+  ROOMS, PLACES, FOLK, ESTATES, CHEST, CAULDRON, DOORWAY, BOARD, SEASONS, W, H, reduced,
+});
+function applySeason(force) {
+  const s = season();
+  if (s === shownSeason && !force) return;
+  shownSeason = s;
+  fx = (s && PACKS[s]) || {};
+  document.body.dataset.season = s ?? '';
+  for (const [i, pal] of (fx.monsters ?? MON_PALS).entries()) MON[i] = monSprites(pal);
+  drawCrowns();
+  rebuild();
+  if (s && fx.banner && WORLD) banner(null, fx.banner, true);
+  renderSeasonRow(); dirty(); renderShop();
+}
+function renderSeasonRow() {
+  const modes = [['auto', 'AUTO'], ['off', 'OFF'], ...Object.values(SEASONS).filter(x => PACKS[x.id]).map(x => [x.id, x.name.toUpperCase()])];
+  $('seasonRow').innerHTML = '<span class="hint">SEASON</span>' + modes.map(([m, label]) => `<button type="button" data-season="${m}" aria-pressed="${seasonMode === m}">${esc(label)}</button>`).join('');
+}
+document.getElementById('seasonRow').addEventListener('click', e => {
+  const b = e.target.closest('[data-season]'); if (!b) return;
+  seasonMode = b.dataset.season;
+  try { localStorage.setItem('guild-season', seasonMode); } catch {}
+  applySeason();
+});
 
 // ───────────────────────── waiting on the person ─────────────────────────
 const waitingActors = () => everyone().filter(a => a.waiting && !a.fading);
@@ -2969,7 +3093,7 @@ function drawLife() {
   // the town: villagers, a cat and chickens by the wheat; folk at their chores go home in shelter
   DOORS.forEach((d, i) => { if (doorOpen[i] > 0) { px(g, '#120c10', d.x - 3, d.y - 11, 6, 10); px(g, '#ffd27a', d.x - 2, d.y - 9, 2, 6); } });
   outdoors(drawChores);
-  for (const v of VILLAGERS) if (!(v.inside > 0)) drawVillager(v);
+  for (const v of VILLAGERS) if (!(v.inside > 0) && !fx.villager?.(v)) drawVillager(v);
   // the meadow west of town: a fenced flock and the dog that minds it
   g.strokeStyle = '#6b4426'; g.lineWidth = 1; g.beginPath(); g.ellipse(PEN.x, PEN.y, PEN.rx + 6, PEN.ry + 6, 0, 0, Math.PI * 2); g.stroke();
   for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; px(g, '#4a2f1d', Math.round(PEN.x + Math.cos(a) * (PEN.rx + 6)), Math.round(PEN.y + Math.sin(a) * (PEN.ry + 6)) - 2, 1, 3); }
@@ -3164,8 +3288,10 @@ function tri(ax, ay, bx, by, cx, cy, color) {
     if (w0 >= 0 && w1 >= 0 && w0 + w1 <= 1) g.fillRect(x, y, 1, 1);
   }
 }
+const DRAGON_PAL = { far: '#6a1a22', tail: '#8e2a20', body: '#b8323f', belly: '#e39a4d', hi: '#d1495b', spine: '#f2b84b', eye: '#f7dd5b', fire: '#ffd27a', tip: '#e8606f' };
 function drawDragon() {
   if (DRAGON.mode === 'lair') return;
+  const P = { ...DRAGON_PAL, ...fx.dragon };
   const D = DRAGON, gx = Math.round(D.x), gy = Math.round(D.y), top = Math.round(D.y - D.alt), y = 0;
   // its shadow on the ground, smaller the higher it flies
   const sw = Math.round(30 - D.alt * 0.25); g.globalAlpha = .25; px(g, '#000', gx - (sw >> 1), gy + 6, sw, 3); g.globalAlpha = 1;
@@ -3173,28 +3299,28 @@ function drawDragon() {
   g.save(); g.translate(gx, top); g.scale(D.dir * 1.4, 1.4);
   const up = D.mode === 'rest' ? -1 : Math.sin(D.flap) > 0 ? 1 : 0;
   // far wing
-  if (up === 1) { tri(-3, y - 4, 6, y - 4, -10, y - 20, '#6a1a22'); tri(-10, y - 20, 6, y - 4, 2, y - 18, '#6a1a22'); }
-  else if (up === 0) { tri(-3, y - 3, 6, y - 3, -8, y + 10, '#6a1a22'); tri(-8, y + 10, 6, y - 3, 3, y + 8, '#6a1a22'); }
+  if (up === 1) { tri(-3, y - 4, 6, y - 4, -10, y - 20, P.far); tri(-10, y - 20, 6, y - 4, 2, y - 18, P.far); }
+  else if (up === 0) { tri(-3, y - 3, 6, y - 3, -8, y + 10, P.far); tri(-8, y + 10, 6, y - 3, 3, y + 8, P.far); }
   // tail
   for (let i = 0; i < 9; i++) px(g, '#1b1424', -9 - i, y - 2 + Math.round(Math.sin(i * .7 + clock * 4) * 1.5) + (i >> 2), 2, 3);
-  for (let i = 0; i < 9; i++) px(g, '#8e2a20', -9 - i, y - 1 + Math.round(Math.sin(i * .7 + clock * 4) * 1.5) + (i >> 2), 2, 1);
-  px(g, '#1b1424', -20, y - 1, 3, 3); px(g, '#e8606f', -19, y, 1, 1);
+  for (let i = 0; i < 9; i++) px(g, P.tail, -9 - i, y - 1 + Math.round(Math.sin(i * .7 + clock * 4) * 1.5) + (i >> 2), 2, 1);
+  px(g, '#1b1424', -20, y - 1, 3, 3); px(g, P.tip, -19, y, 1, 1);
   // body and belly
-  px(g, '#1b1424', -10, y - 6, 20, 9); px(g, '#b8323f', -9, y - 5, 18, 6); px(g, '#e39a4d', -7, y - 1, 14, 2); px(g, '#d1495b', -9, y - 5, 18, 1);
-  for (let i = -8; i < 8; i += 3) px(g, '#f2b84b', i, y - 7, 2, 2); // spines
+  px(g, '#1b1424', -10, y - 6, 20, 9); px(g, P.body, -9, y - 5, 18, 6); px(g, P.belly, -7, y - 1, 14, 2); px(g, P.hi, -9, y - 5, 18, 1);
+  for (let i = -8; i < 8; i += 3) px(g, P.spine, i, y - 7, 2, 2); // spines
   // legs
   px(g, '#1b1424', -6, y + 2, 3, D.alt > 0 ? 3 : 5); px(g, '#1b1424', 4, y + 2, 3, D.alt > 0 ? 3 : 5);
   // neck and head
-  px(g, '#1b1424', 8, y - 10, 5, 7); px(g, '#b8323f', 9, y - 9, 3, 6);
-  px(g, '#1b1424', 10, y - 14, 9, 6); px(g, '#b8323f', 11, y - 13, 7, 4); px(g, '#e39a4d', 15, y - 11, 4, 2);
-  px(g, '#f7dd5b', 13, y - 13, 1, 1); px(g, '#1b1424', 11, y - 17, 1, 3); px(g, '#f3e6c0', 12, y - 17, 1, 2);
-  if (D.mode === 'rest' && D.fire > 2.2) px(g, '#ffd27a', 19, y - 11, 2, 2);
+  px(g, '#1b1424', 8, y - 10, 5, 7); px(g, P.body, 9, y - 9, 3, 6);
+  px(g, '#1b1424', 10, y - 14, 9, 6); px(g, P.body, 11, y - 13, 7, 4); px(g, P.belly, 15, y - 11, 4, 2);
+  px(g, P.eye, 13, y - 13, 1, 1); px(g, '#1b1424', 11, y - 17, 1, 3); px(g, '#f3e6c0', 12, y - 17, 1, 2);
+  if (D.mode === 'rest' && D.fire > 2.2) px(g, P.fire, 19, y - 11, 2, 2);
   // near wing
   // the near wing: a bat's wing, membrane between three long fingers
   const wing = (tips, color, edge) => { for (let i = 0; i < tips.length - 1; i++) { tri(-1, y - 5, tips[i][0], tips[i][1], tips[i + 1][0], tips[i + 1][1], edge); } for (let i = 0; i < tips.length - 1; i++) { const a = tips[i], b2 = tips[i + 1]; tri(0, y - 5, a[0] * .92, y - 5 + (a[1] - y + 5) * .92, b2[0] * .92, y - 5 + (b2[1] - y + 5) * .92, color); } };
-  if (up === 1) { const tips = [[8, y - 6], [6, y - 22], [-4, y - 28], [-14, y - 20], [-8, y - 6]]; wing(tips, '#d1495b', '#1b1424'); for (const t of tips.slice(1, 4)) { g.strokeStyle = '#6a1a22'; g.lineWidth = .5; g.beginPath(); g.moveTo(0, y - 5); g.lineTo(t[0], t[1]); g.stroke(); } }
-  else if (up === 0) { const tips = [[8, y - 4], [6, y + 10], [-2, y + 15], [-12, y + 9], [-8, y - 4]]; wing(tips, '#d1495b', '#1b1424'); for (const t of tips.slice(1, 4)) { g.strokeStyle = '#6a1a22'; g.lineWidth = .5; g.beginPath(); g.moveTo(0, y - 5); g.lineTo(t[0], t[1]); g.stroke(); } }
-  else { tri(-6, y - 6, 6, y - 6, -10, y - 12, '#6a1a22'); }
+  if (up === 1) { const tips = [[8, y - 6], [6, y - 22], [-4, y - 28], [-14, y - 20], [-8, y - 6]]; wing(tips, P.hi, '#1b1424'); for (const t of tips.slice(1, 4)) { g.strokeStyle = P.far; g.lineWidth = .5; g.beginPath(); g.moveTo(0, y - 5); g.lineTo(t[0], t[1]); g.stroke(); } }
+  else if (up === 0) { const tips = [[8, y - 4], [6, y + 10], [-2, y + 15], [-12, y + 9], [-8, y - 4]]; wing(tips, P.hi, '#1b1424'); for (const t of tips.slice(1, 4)) { g.strokeStyle = P.far; g.lineWidth = .5; g.beginPath(); g.moveTo(0, y - 5); g.lineTo(t[0], t[1]); g.stroke(); } }
+  else { tri(-6, y - 6, 6, y - 6, -10, y - 12, P.far); }
   g.restore();
 }
 
@@ -3248,6 +3374,7 @@ function update(dt) {
   updateLife(dt);
   updateRavens(dt);
   updateEstates(dt);
+  fx.update?.(dt);
   for (const c of CLOUDS) { c.x += c.v * dt * (1 + sky.storm * 1.5); if (c.x > W + 60) c.x = -c.c.width - 60; }
   updateSky(dt);
   // The fire mountain smokes always, and every so often it erupts.
@@ -3459,6 +3586,7 @@ function drawDynamicProps(w) {
   }
 }
 function drawMonster(m) {
+  if (fx.drawMonster?.(m)) return;
   const pop = m.born < 1 ? m.born : 1; const bob = reduced ? 0 : Math.round(Math.sin(m.t * 5) * 1);
   const spr = MON[m.kind][Math.floor(m.t * 3) % 2];
   g.fillStyle = 'rgba(0,0,0,.4)'; g.fillRect(m.x - 5, m.y - 1, 10, 2);
@@ -3537,7 +3665,8 @@ function pickWeather() {
   return 'sun';
 }
 const sunHeight = () => Math.sin((sky.tod - 0.25) * Math.PI * 2); // 1 at noon, -1 at midnight
-const darkness = () => Math.max(0, Math.min(1, (0.2 - sunHeight()) / 0.55));
+const baseDarkness = () => Math.max(0, Math.min(1, (0.2 - sunHeight()) / 0.55));
+const darkness = () => Math.max(fx.minDark ?? 0, baseDarkness());
 function updateSky(dt) {
   if (sky.timeMode === 'auto') { const before = sky.tod; sky.tod = (sky.tod + dt / DAY_LENGTH) % 1; if (sky.tod < before) sky.day++; }
   else { const goal = sky.timeMode === 'day' ? 0.42 : 0.92; let d = goal - sky.tod; if (d > .5) d -= 1; if (d < -.5) d += 1; sky.tod = (sky.tod + d * Math.min(1, dt * 1.5) + 1) % 1; }
@@ -3556,6 +3685,7 @@ function drawNight() {
   if (warm > 0.01) { g.fillStyle = `rgba(255,120,60,${0.16 * warm})`; g.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y); }
   const wet = Math.max(sky.rain, sky.snow * .6) * .22 + sky.cloud * .06;
   if (wet > 0.01) { g.fillStyle = `rgba(40,50,72,${wet})`; g.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y); }
+  if (fx.grade) { g.fillStyle = fx.grade; g.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y); }
   if (dark < 0.02) return;
   g.fillStyle = `rgba(10,14,44,${0.7 * dark})`; g.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
   g.globalCompositeOperation = 'lighter';
@@ -3573,6 +3703,7 @@ function drawNight() {
   for (const a of everyone()) if (!(a.delay > 0) && a.alpha > .3) LIGHT(a.x, a.y - 8, 20, 'rgba(255,214,140,.45)', dark * a.alpha); // everyone carries a lantern
   if (anyChest()) LIGHT(CHEST.x, CHEST.y - 6, 14, 'rgba(255,210,90,.6)', dark);
   estateLights(dark);
+  fx.lights?.(dark);
   g.globalCompositeOperation = 'source-over';
   for (const w of WINDOWS) px(g, '#ffd27a', w.x - 2, w.y - 2, 4, 4);
   for (const ff of FIREFLIES) { const v = Math.sin(clock * 2 + ff.ph); if (v > .3) { g.globalAlpha = v * dark; px(g, '#e9ff8a', Math.round(ff.x + Math.sin(clock * .7 + ff.ph) * 6), Math.round(ff.y + Math.cos(clock * .9 + ff.ph) * 4)); g.globalAlpha = 1; } }
@@ -3872,11 +4003,13 @@ function draw() {
   drawTrails();
   drawDynamicProps(WORLD);
   drawEstates();
+  fx.drawGround?.();
   const people = everyone();
   const things = people.map(a => ({ y: a.y + (focusP && a.proj === focusP ? .1 : 0), d: () => drawActor(a) }))
     .concat(allMonsters().map(m => ({ y: m.y, d: () => drawMonster(m) })))
     .concat([{ y: 0, d: () => drawLife() }])
-    .concat(estateFolk());
+    .concat(estateFolk())
+    .concat(fx.folk?.() ?? []);
   things.sort((p, q) => p.y - q.y).forEach(t => t.d());
   for (const p of FX.particles) { g.globalAlpha = Math.max(0, Math.min(1, p.life * (p.fade ? .5 : 2))); g.fillStyle = p.color; const s = p.s ?? 1; g.fillRect(Math.round(p.x), Math.round(p.y), s, s); }
   g.globalAlpha = 1;
@@ -3884,10 +4017,11 @@ function draw() {
   drawFog();
   drawDragon();
   drawWeatherWorld();
-  if (sky.rain < .5) drawBirds();
+  if (sky.rain < .5) (fx.drawBirds ?? drawBirds)();
   drawRavens();
   drawClouds(false);
   drawNight();
+  fx.drawSky?.();
   g.setTransform(1, 0, 0, 1, 0, 0);
   drawWeatherScreen();
   drawVignette();
@@ -4008,6 +4142,9 @@ function renderPurse() {
   $('rankName').textContent = rank.name.toUpperCase();
   $('rankNext').textContent = rank.next ? `${(rank.next.at - purse.earned).toLocaleString('en-US')} to ${rank.next.name}` : 'the realm is a kingdom';
   $('rankBar').style.width = `${rank.next ? Math.round((purse.earned - base) / (rank.next.at - base) * 100) : 100}%`;
+  const now = season(), ev = now && SEASONS[now].event;
+  $('seasonEvent').hidden = !ev;
+  if (ev) { const step = purse.event.season === now ? purse.event.step : 0; $('seasonEvent').textContent = `${ev.name}: ${'■'.repeat(step)}${'□'.repeat(ev.every - step)} · fills for +${ev.pays}`; }
   $('streak').textContent = `${purse.streak.count ? `Streak: day ${purse.streak.count}` : 'No streak yet: close a quest today'} · ${purse.owned.length} of ${CATALOG.length} wares built`;
 }
 function renderShop() {
@@ -4016,12 +4153,19 @@ function renderShop() {
   const rank = rankOf(purse.earned);
   $('shopNote').textContent = `Your realm is a ${rank.name}.${rank.next ? ` At ${rank.next.at.toLocaleString('en-US')} crowns earned it grows to a ${rank.next.name}, and the merchant brings finer wares.` : ''} What you buy rises on its own patch of the island; sell it back for half.`;
   const lockedName = tier => (GuildWorld.RANKS.find(r => r.opens === tier)?.name ?? '').toUpperCase();
-  $('shopBody').innerHTML = Object.entries(REGIONS).map(([key, reg]) => {
-    const wares = CATALOG.filter(w => w.region === key);
+  // In season, its wares lead the stall; out of season, only the ones already built are shown.
+  const now = season(), sellable = LIVE ? calendarSeason() : now;
+  const groups = [
+    ...(now ? [[`IN SEASON · ${SEASONS[now].name.toUpperCase()}`, fx.color ?? '#f2b84b', CATALOG.filter(w => w.season === now)]] : []),
+    ...Object.entries(REGIONS).map(([key, reg]) => [reg.name.toUpperCase(), reg.color, CATALOG.filter(w => w.region === key && (!w.season || (w.season !== now && owns(w.id))))]),
+  ];
+  $('shopBody').innerHTML = groups.map(([title, color, wares]) => {
     if (!wares.length) return '';
-    return `<h3><i style="background:${reg.color}"></i>${esc(reg.name.toUpperCase())}</h3><ul class="wares">${wares.map(w => {
+    const reg = { color };
+    return `<h3><i style="background:${reg.color}"></i>${esc(title)}</h3><ul class="wares">${wares.map(w => {
       const own = owns(w.id), open = isOpen(w.tier, purse.earned), afford = purse.crowns >= w.price, busy = shopPending === w.id;
       const btn = own ? `<button type="button" data-ware="${w.id}" data-action="sell"${busy ? ' disabled' : ''} aria-label="Sell ${esc(w.name)} for ${Math.floor(w.price / 2)} crowns">SELL · ${Math.floor(w.price / 2)}</button>`
+        : w.season && w.season !== sellable ? `<button type="button" disabled>FROM ${esc(SEASONS[w.season].from.join('/'))}</button>`
         : !open ? `<button type="button" disabled>RANK: ${lockedName(w.tier)}</button>`
         : `<button type="button" class="${afford ? 'buy' : ''}" data-ware="${w.id}" data-action="buy"${afford && !busy ? '' : ' disabled'} aria-label="Buy ${esc(w.name)} for ${w.price} crowns">${busy ? 'SENDING…' : `BUY · ${w.price.toLocaleString('en-US')}`}</button>`;
       return `<li class="ware${own ? ' owned' : ''}" style="--c:${reg.color}"><span class="wname"><b>${esc(w.name)}</b><span class="tier" style="background:${TIERS[w.tier].color}">${esc(TIERS[w.tier].name.toUpperCase())}</span>${own ? '<span class="hint">BUILT</span>' : ''}</span><small>${esc(w.desc)}</small>${btn}</li>`;
@@ -4041,7 +4185,7 @@ async function order(action, id) {
     if (action === 'buy') { $('shop').close(); setCam('free', ESTATES[id].at); }
     return;
   }
-  const done = trade(purse, { action, item: id });
+  const done = trade(purse, { action, item: id }, season());
   if ('refusal' in done) { banner(null, REFUSALS[done.refusal].toUpperCase()); return; }
   purse = done.treasury; rebuild(); dirty(); renderShop();
   if (action === 'buy') { $('shop').close(); banner(null, `${w.name.toUpperCase()} IS BUILT`, true); setCam('free', ESTATES[id].at); burst(null, ESTATES[id].at.x, ESTATES[id].at.y - 10, '#f2b84b', 30); }
@@ -4054,11 +4198,14 @@ $('shop').addEventListener('click', e => {
   const b = e.target.closest('button[data-ware]'); if (b && !b.disabled) order(b.dataset.action, b.dataset.ware);
 });
 // The crown beside every purse, drawn in pixels.
-for (const c of document.querySelectorAll('canvas.crown')) {
-  const x = c.getContext('2d');
-  ['k.k..k..k.k', 'kykkyykkyk.', 'kyyyyyyyyyk', 'kyRyyByyRyk', 'kyyyyyyyyyk', 'kkkkkkkkkkk'].forEach((row, j) => [...row].forEach((ch, i) => {
-    const col = { k: '#1b1424', y: '#f2b84b', R: '#e8606f', B: '#5fd3f3' }[ch]; if (col) { x.fillStyle = col; x.fillRect(i, j + 1, 1, 1); }
-  }));
+// A pack may dress it for the season.
+function drawCrowns() {
+  const rows = fx.crown?.rows ?? ['k.k..k..k.k', 'kykkyykkyk.', 'kyyyyyyyyyk', 'kyRyyByyRyk', 'kyyyyyyyyyk', 'kkkkkkkkkkk'];
+  const pal = { k: '#1b1424', y: '#f2b84b', R: '#e8606f', B: '#5fd3f3', ...fx.crown?.pal };
+  for (const c of document.querySelectorAll('canvas.crown')) {
+    const x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height);
+    rows.forEach((row, j) => [...row].forEach((ch, i) => { const col = pal[ch]; if (col) { x.fillStyle = col; x.fillRect(i, j + (rows.length < 8 ? 1 : 0), 1, 1); } }));
+  }
 }
 function renderQuota() {
   if (LIVE) {
@@ -4458,6 +4605,7 @@ function applyLive(s) {
   const five = liveQuota.find(q => /^five_hour/.test(q.kind)) ?? liveQuota[0], week = liveQuota.find(q => /^seven_day/.test(q.kind));
   for (const m of Object.values(MODELS)) { m.hour = 100 - (five?.percentLeft ?? 100); m.week = 100 - (week?.percentLeft ?? 100); }
   Object.assign(xp, s.xp ?? {});
+  if ((s.season ?? null) !== liveSeason) { liveSeason = s.season ?? null; applySeason(); }
   if (s.treasury) {
     const t = treasuryOf(s.treasury), built = t.owned.join() !== purse.owned.join();
     if (purseSeen) crownFloat(t.crowns - purse.crowns, ROOMS.tavern.at);
@@ -4551,7 +4699,10 @@ function setIcon() {
 }
 async function start() {
   setIcon();
-  WORLD = paintBackground(purse.owned);
+  const api = packApi();
+  PACKS = Object.fromEntries(Object.entries(window.GuildPacks ?? {}).map(([id, make]) => [id, make(api)]));
+  for (const p of Object.values(PACKS)) if (p.css) { const st = document.createElement('style'); st.textContent = p.css; document.head.append(st); }
+  applySeason(true);
   if (LIVE) {
     document.body.classList.add('live');
     $('liveBadge').textContent = 'LIVE';
