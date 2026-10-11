@@ -937,7 +937,8 @@ const { SEASONS, seasonOf } = GuildWorld;
 let PACKS = {}, fx = {}, liveSeason = null, shownSeason;
 let seasonMode = (() => { try { return localStorage.getItem('guild-season') || 'auto'; } catch { return 'auto'; } })();
 const calendarSeason = () => LIVE ? liveSeason : seasonOf(Date.now());
-const season = () => { const s = seasonMode === 'auto' ? calendarSeason() : seasonMode === 'off' ? null : seasonMode; return s && SEASONS[s] ? s : null; };
+// A season picked by hand whose pack this page doesn't carry falls back to the calendar.
+const season = () => { const s = seasonMode === 'off' ? null : seasonMode === 'auto' || !PACKS[seasonMode] ? calendarSeason() : seasonMode; return s && SEASONS[s] ? s : null; };
 // Built at start, once every helper it lends is defined.
 const packApi = () => ({
   get g() { return g; }, get clock() { return clock; }, get sky() { return sky; }, get WORLD() { return WORLD; },
