@@ -322,6 +322,9 @@ export function paintWorld(owned = [], season = null) {
   resetMarks()
   const built = owned.filter(id => ESTATES[id]?.paint), estates = {}, art = (season && PACK_ART[season]) || {}
   SEASON.snow = !!art.snow; SEASON.crops = !art.snow
+  // a season may turn the leaves: its tree colours stand in for the year-round ones while it paints
+  const kept = Object.fromEntries(Object.keys(PALETTES).map(k => [k, [...PALETTES[k]]]))
+  for (const [k, cols] of Object.entries(art.trees ?? {})) if (PALETTES[k]) PALETTES[k].splice(0, cols.length, ...cols)
   const PAL = Object.fromEntries(Object.entries({ ...PAL_HEX, ...art.ground }).map(([k, v]) => [k, parseColor(v)]))
   const KIND = new Uint8Array(GW * GH), BIOME = new Uint8Array(GW * GH), SNOWY = new Uint8Array(GW * GH), DEPTH = new Float32Array(GW * GH)
   const cell = (x, y) => Math.max(0, Math.min(GH - 1, Math.floor(y / CELL))) * GW + Math.max(0, Math.min(GW - 1, Math.floor(x / CELL)))
@@ -499,6 +502,7 @@ export function paintWorld(owned = [], season = null) {
   // the season's dress, painted in among the rest
   const seasonal = art.paint ? art.paint({ add, px, marks, built, W, H, FOLK, PLACES, ESTATES, SKULL: P.dungeon.at }) ?? {} : {}
   items.sort((p, q) => p.y - q.y).forEach(it => it.fn(cv))
+  for (const [k, cols] of Object.entries(kept)) PALETTES[k].splice(0, cols.length, ...cols)
   return { width: W, height: H, data: cv.data, foam, sparks, marks: JSON.parse(JSON.stringify(marks)), estates, seasonal }
 }
 

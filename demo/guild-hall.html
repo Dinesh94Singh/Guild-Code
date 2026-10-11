@@ -1664,9 +1664,183 @@ var GuildWorld = (() => {
     }
   };
 
+  // hooks/packs/thanksgiving-art.js
+  var bale = (px2, b, x, y, w = 7, h = 5) => {
+    px2(b, "#1b1424", x - 1, y - h - 1, w + 2, h + 1);
+    px2(b, "#e8cf7a", x, y - h, w, h);
+    px2(b, "#c9a84e", x, y - 2, w, 1);
+    px2(b, "#a8843a", x + 2, y - h, 1, h);
+    px2(b, "#a8843a", x + w - 3, y - h, 1, h);
+  };
+  var THANKSGIVING_ART = {
+    ground: {
+      grassA: "#7a8a3a",
+      grassB: "#718034",
+      grassHi: "#94a24c",
+      grassLo: "#5e6c2c",
+      forestA: "#4f5e2a",
+      forestB: "#475526",
+      forestHi: "#5f6e34",
+      forestLo: "#3a4620",
+      swampA: "#5a5e34",
+      swampB: "#52562e",
+      swampHi: "#6a6e3e",
+      swampLo: "#444828"
+    },
+    // the leaves turn: oaks to amber and red, the dark oaks to maple, the willows to gold
+    trees: {
+      OAK: ["#4a1e10", "#a8441e", "#d8742a", "#f2a24a"],
+      DARK_OAK: ["#3a1810", "#8e2a20", "#b8503a", "#d8742a"],
+      WILLOW: ["#3a2a10", "#8a6a20", "#b08a2a", "#d8b04a"]
+    },
+    paint({ add, px: px2, FOLK: FOLK2, PLACES: PLACES2 }) {
+      const T = PLACES2.tavern.at, F = FOLK2.field, S = FOLK2.stall;
+      for (const [dx, dy] of [[5, 6], [17, 8], [32, 6], [24, 16]]) add(F.y + dy + 0.5, (b) => bale(px2, b, F.x + dx, F.y + dy));
+      add(T.y + 0.4, (b) => {
+        const x = T.x - 22, y = T.y + 1;
+        px2(b, "#1b1424", x - 1, y - 7, 10, 7);
+        px2(b, "#a8743a", x, y - 6, 8, 5);
+        px2(b, "#7a4a2a", x, y - 3, 8, 1);
+        px2(b, "#1b1424", x + 8, y - 4, 2, 2);
+        px2(b, "#b8323f", x - 4, y - 4, 3, 3);
+        px2(b, "#e39a4d", x - 6, y - 2, 3, 3);
+        px2(b, "#84a83a", x - 3, y - 1, 3, 2);
+        px2(b, "#7a4fc9", x - 7, y - 4, 2, 2);
+        px2(b, "#f2b84b", x - 5, y - 6, 2, 2);
+      });
+      add(S.y + 0.2, (b) => {
+        for (const [dx, c] of [[-9, "#e39a4d"], [-5, "#c9a03a"], [-1, "#84a83a"], [3, "#e8913a"], [7, "#d9b85a"]]) {
+          px2(b, "#1b1424", S.x + dx - 1, S.y - 11, 4, 4);
+          px2(b, c, S.x + dx, S.y - 10, 2, 3);
+          px2(b, "#4f8a3c", S.x + dx + 1, S.y - 12, 1, 1);
+        }
+      });
+      const table = { x: T.x - 17, y: T.y + 16, w: 34 };
+      add(table.y + 2, (b) => {
+        px2(b, "rgba(0,0,0,.3)", table.x + 1, table.y + 2, table.w, 3);
+        px2(b, "#1b1424", table.x - 1, table.y - 5, table.w + 2, 6);
+        px2(b, "#8a5a34", table.x, table.y - 4, table.w, 4);
+        px2(b, "#efe6d2", table.x, table.y - 4, table.w, 1);
+        px2(b, "#b8323f", table.x, table.y - 3, table.w, 1);
+        for (const lx of [table.x + 1, table.x + table.w - 2]) px2(b, "#4a2f1d", lx, table.y, 1, 3);
+      });
+      for (let i = 0; i < 70; i++) {
+        const a = hash(i, 91) * Math.PI * 2, r = 30 + hash(i, 92) * 80, x = Math.round(FOLK2.town.x + Math.cos(a) * r * 1.4), y = Math.round(FOLK2.town.y + Math.sin(a) * r * 0.8);
+        if (y > 278 || x > 276 && x < 304 || x < 4) continue;
+        const c = ["#d8742a", "#b8503a", "#f2a24a", "#c9a03a"][i % 4];
+        add(y - 30, (b) => {
+          px2(b, c, x, y, 2, 1);
+          if (i % 3 === 0) px2(b, c, x + 1, y - 1, 1, 1);
+        });
+      }
+      return { table };
+    }
+  };
+  var THANKSGIVING_ESTATES = {
+    haymaze: {
+      at: { x: 198, y: 262 },
+      clears: [{ x: 198, y: 258, r: 12 }],
+      paint(b) {
+        const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
+          b.fillStyle = c;
+          b.fillRect(a, d, w, h);
+        };
+        shadow(b, x, y + 1, 26);
+        for (const [dx, dy, w] of [[-12, -12, 24], [-12, -7, 6], [0, -7, 12], [-6, -2, 18], [-12, -2, 3]]) {
+          p("#1b1424", x + dx - 1, y + dy - 1, w + 2, 6);
+          p("#e8cf7a", x + dx, y + dy, w, 4);
+          p("#c9a84e", x + dx, y + dy + 3, w, 1);
+        }
+        return { entry: { x: x - 12, y: y + 2 } };
+      }
+    },
+    applepress: {
+      at: { x: 84, y: 214 },
+      clears: [{ x: 80, y: 208, r: 17 }],
+      paint(b) {
+        const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
+          b.fillStyle = c;
+          b.fillRect(a, d, w, h);
+        };
+        shadow(b, x - 8, y - 4, 14);
+        p("#3a2414", x - 9, y - 12, 2, 8);
+        for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) if (Math.hypot(dx, dy * 1.1) < 6.5) p(Math.hypot(dx, dy * 1.1) > 5.6 ? "#14301a" : dx + dy < -3 ? "#4f8a3c" : "#2f6a2c", x - 8 + dx, y - 18 + dy);
+        for (const [dx, dy] of [[-3, -3], [2, -1], [-1, 3], [4, 2], [-5, 1]]) p("#d1495b", x - 8 + dx, y - 18 + dy);
+        shadow(b, x + 6, y, 14);
+        p("#1b1424", x, y - 10, 12, 10);
+        p("#7a4a2a", x + 1, y - 9, 10, 9);
+        p("#4a2f1d", x + 1, y - 6, 10, 1);
+        p("#5a3720", x + 5, y - 14, 2, 5);
+        p("#5a3720", x + 2, y - 14, 8, 1);
+        p("#1b1424", x + 13, y - 7, 6, 7);
+        p("#8a5a34", x + 14, y - 6, 4, 6);
+        p("#4a2f1d", x + 14, y - 4, 4, 1);
+        return { barrel: { x: x + 16, y: y - 6 } };
+      }
+    },
+    market: {
+      at: { x: 316, y: 226 },
+      clears: [{ x: 316, y: 218, r: 18 }],
+      paint(b) {
+        const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
+          b.fillStyle = c;
+          b.fillRect(a, d, w, h);
+        }, lamps = [];
+        [["#e39a4d", "#fff3d0", ["#b8323f", "#e39a4d", "#84a83a"]], ["#3f8f4f", "#fff3d0", ["#d9b85a", "#c9a03a", "#e8913a"]], ["#8e2a20", "#fff3d0", ["#7a4fc9", "#d1495b", "#efe6d2"]]].forEach(([a, c, goods], k) => {
+          const sx = x - 14 + k * 14;
+          shadow(b, sx, y, 14);
+          p("#3a2414", sx - 6, y - 12, 1, 12);
+          p("#3a2414", sx + 5, y - 12, 1, 12);
+          p("#1b1424", sx - 7, y - 6, 14, 6);
+          p("#8a5a34", sx - 6, y - 5, 12, 4);
+          goods.forEach((g, i) => p(g, sx - 5 + i * 4, y - 8, 3, 3));
+          for (let i = 0; i < 14; i += 2) {
+            p("#1b1424", sx - 7 + i, y - 16, 2, 5);
+            p(i / 2 % 2 ? c : a, sx - 7 + i, y - 15, 2, 3);
+          }
+          lamps.push({ x: sx + 5, y: y - 12 });
+        });
+        return { lamps };
+      }
+    },
+    granary: {
+      at: { x: 318, y: 264 },
+      clears: [{ x: 318, y: 254, r: 16 }],
+      paint(b) {
+        const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
+          b.fillStyle = c;
+          b.fillRect(a, d, w, h);
+        };
+        shadow(b, x + 2, y, 32);
+        p("#1b1424", x - 15, y - 16, 22, 16);
+        p("#a8341e", x - 14, y - 15, 20, 15);
+        for (let i = 0; i < 20; i += 3) p("#8e2a1a", x - 14 + i, y - 15, 1, 15);
+        p("#efe6d2", x - 8, y - 9, 8, 9);
+        p("#a8341e", x - 7, y - 8, 6, 8);
+        p("#efe6d2", x - 7, y - 8, 6, 1);
+        p("#efe6d2", x - 4, y - 8, 1, 8);
+        for (let i = 0; i < 8; i++) {
+          const hw = 12 - i * 1.4;
+          p("#1b1424", x - 4 - hw - 1, y - 17 - i, hw * 2 + 2, 1);
+          p("#5a3a2a", x - 4 - hw, y - 17 - i, hw * 2, 1);
+        }
+        p("#1b1424", x - 6, y - 21, 5, 4);
+        p("#e8cf7a", x - 5, y - 20, 3, 2);
+        p("#1b1424", x + 7, y - 30, 10, 30);
+        p("#b0a99c", x + 8, y - 29, 8, 29);
+        p("#8a8478", x + 13, y - 29, 3, 29);
+        for (let i = 0; i < 29; i += 5) p("#8a8478", x + 8, y - 29 + i, 8, 1);
+        p("#1b1424", x + 7, y - 34, 10, 4);
+        p("#6e6880", x + 8, y - 33, 8, 3);
+        p("#1b1424", x + 10, y - 24, 4, 18);
+        return { silo: { x: x + 11, y: y - 23, h: 16 } };
+      }
+    }
+  };
+
   // hooks/packs/art.js
-  var PACK_ART = { halloween: HALLOWEEN_ART };
-  var PACK_ESTATES = { ...HALLOWEEN_ESTATES };
+  var PACK_ART = { halloween: HALLOWEEN_ART, thanksgiving: THANKSGIVING_ART };
+  var PACK_ESTATES = { ...HALLOWEEN_ESTATES, ...THANKSGIVING_ESTATES };
 
   // hooks/world.js
   var W = 512;
@@ -2116,7 +2290,7 @@ var GuildWorld = (() => {
     return best;
   }
   function paintWorld(owned = [], season = null) {
-    var _a;
+    var _a, _b;
     resetMarks();
     const built = owned.filter((id) => {
       var _a2;
@@ -2124,6 +2298,8 @@ var GuildWorld = (() => {
     }), estates = {}, art = season && PACK_ART[season] || {};
     SEASON.snow = !!art.snow;
     SEASON.crops = !art.snow;
+    const kept = Object.fromEntries(Object.keys(PALETTES).map((k) => [k, [...PALETTES[k]]]));
+    for (const [k, cols] of Object.entries((_a = art.trees) != null ? _a : {})) if (PALETTES[k]) PALETTES[k].splice(0, cols.length, ...cols);
     const PAL = Object.fromEntries(Object.entries({ ...PAL_HEX, ...art.ground }).map(([k, v]) => [k, parseColor(v)]));
     const KIND = new Uint8Array(GW * GH), BIOME = new Uint8Array(GW * GH), SNOWY = new Uint8Array(GW * GH), DEPTH = new Float32Array(GW * GH);
     const cell = (x, y) => Math.max(0, Math.min(GH - 1, Math.floor(y / CELL))) * GW + Math.max(0, Math.min(GW - 1, Math.floor(x / CELL)));
@@ -2333,8 +2509,9 @@ var GuildWorld = (() => {
     for (const id of built) add(ESTATES[id].at.y, (b) => {
       estates[id] = ESTATES[id].paint(b);
     });
-    const seasonal = art.paint ? (_a = art.paint({ add, px, marks, built, W, H, FOLK, PLACES, ESTATES, SKULL: P.dungeon.at })) != null ? _a : {} : {};
+    const seasonal = art.paint ? (_b = art.paint({ add, px, marks, built, W, H, FOLK, PLACES, ESTATES, SKULL: P.dungeon.at })) != null ? _b : {} : {};
     items.sort((p, q) => p.y - q.y).forEach((it) => it.fn(cv));
+    for (const [k, cols] of Object.entries(kept)) PALETTES[k].splice(0, cols.length, ...cols);
     return { width: W, height: H, data: cv.data, foam, sparks, marks: JSON.parse(JSON.stringify(marks)), estates, seasonal };
   }
 
@@ -2346,8 +2523,16 @@ var GuildWorld = (() => {
     { id: "coven", name: "Coven circle", region: "swamp", tier: "wonder", price: 3300, season: "halloween", desc: "Standing stones in the swamp around a green fire that roars while a brew bubbles." }
   ];
 
+  // hooks/packs/thanksgiving.ts
+  var THANKSGIVING_WARES = [
+    { id: "haymaze", name: "Hay maze", region: "town", tier: "trinket", price: 80, season: "thanksgiving", desc: "Bales stacked into a maze by the chickens; townsfolk wander lost in it." },
+    { id: "applepress", name: "Apple press", region: "forest", tier: "fixture", price: 280, season: "thanksgiving", desc: "An orchard press that fills a barrel of cider while a brew bubbles." },
+    { id: "market", name: "Harvest market", region: "coast", tier: "landmark", price: 1100, season: "thanksgiving", desc: "A row of stalls east of the river, their lamps lit for every open quest." },
+    { id: "granary", name: "Great granary", region: "coast", tier: "wonder", price: 3200, season: "thanksgiving", desc: "A barn and silo whose grain rises as the feast table fills." }
+  ];
+
   // hooks/packs/index.ts
-  var PACK_WARES = [...HALLOWEEN_WARES];
+  var PACK_WARES = [...HALLOWEEN_WARES, ...THANKSGIVING_WARES];
 
   // hooks/seasons.ts
   var SEASONS = {
@@ -2785,6 +2970,137 @@ GuildPacks.halloween = api => {
         P('#4f8a3c', 0, -11, 1, 2); P('#4f8a3c', 1, -11, 2, 1)
         P(blink ? o : '#ffd27a', -3, -6, 2, 2); P(blink ? o : '#ffd27a', 1, -6, 2, 2); P('#1b1424', -3, -3, 6, 1); P('#ffd27a', -2, -3, 1, 1); P('#ffd27a', 1, -3, 1, 1)
       }
+      g.restore()
+      return true
+    },
+  }
+}
+
+// The Harvest Feast on the page: what moves, fills and glows. The still parts are painted by
+// hooks/packs/thanksgiving-art.js; the hooks below are the ones demo/src.html's seasons section lists.
+GuildPacks.thanksgiving = api => {
+  const { px, hash, glow, burst, reduced } = api
+  const P = (c, x, y, w = 1, h = 1) => px(api.g, c, Math.round(x), Math.round(y), w, h)
+  const LEAVES = Array.from({ length: 34 }, (_, i) => ({ x: hash(i, 41) * 512, y: hash(i, 42) * 300, v: 6 + hash(i, 43) * 8, ph: hash(i, 44) * 6.28, c: ['#d8742a', '#b8503a', '#f2a24a', '#c9a03a'][i % 4] }))
+  const GEESE = [{ y: 70, v: -16, off: 0, n: 7 }, { y: 180, v: -12, off: 420, n: 5 }]
+  const TURKEYS = [{ x: 214, y: 254, ph: 0 }, { x: 226, y: 260, ph: 2.1 }, { x: 206, y: 266, ph: 4.2 }]
+  const HATS = { '#3b5fa8': true, '#e39a4d': true, '#f3e6c0': true }
+  let feast = 0
+  // how full the feast table is: the season's event, as the treasury counts it
+  const dishes = () => { const p = api.purse, every = api.SEASONS.thanksgiving.event.every; return feast > 0 ? every : p.event.season === 'thanksgiving' ? p.event.step : 0 }
+
+  // a turkey: a fan of tail feathers, a red wattle, and a strut
+  const turkey = (x, y, f, t, scale = 1) => {
+    const g = api.g; g.save(); g.translate(Math.round(x), Math.round(y)); g.scale(f * scale, scale)
+    const fan = ['#8e2a20', '#c9a03a', '#5a3720', '#e39a4d']
+    for (let i = 0; i < 4; i++) P(fan[i], -7 + i, -10 + Math.abs(i - 1.5), 2, 8 - Math.abs(i - 1.5) * 2)
+    P('#1b1424', -4, -7, 8, 6); P('#6b4426', -3, -6, 6, 4); P('#8a5a34', -3, -6, 6, 1)
+    P('#1b1424', 3, -11, 3, 6); P('#a8743a', 3, -10, 2, 4); P('#e8606f', 5, -9, 1, 3); P('#f2b84b', 6, -10, 1, 1); P('#1b1424', 4, -10, 1, 1)
+    const step = Math.floor(t * 4) % 2
+    P('#e39a4d', -1 + step, -1, 1, 2); P('#e39a4d', 1 - step, -1, 1, 2)
+    g.restore()
+  }
+  // the dishes, in the order they come to the table; the roast turkey comes last
+  const DISH = [
+    (x, y) => { P('#c9a03a', x - 2, y - 2, 4, 2); P('#e8cf7a', x - 1, y - 2, 2, 1) },
+    (x, y) => { P('#efe6d2', x - 2, y - 1, 5, 1); P('#e39a4d', x - 2, y - 3, 5, 2); P('#c9a03a', x - 1, y - 3, 1, 1) },
+    (x, y) => { P('#84a83a', x - 2, y - 3, 4, 3); P('#4f8a3c', x, y - 4, 1, 1) },
+    (x, y) => { P('#efe6d2', x - 2, y - 1, 5, 1); P('#b8323f', x - 1, y - 3, 3, 2) },
+    (x, y) => { P('#d9b85a', x - 2, y - 3, 4, 3); P('#e8913a', x - 1, y - 2, 2, 1) },
+  ]
+
+  return {
+    color: '#e39a4d',
+    banner: 'THE HARVEST IS IN',
+    // long golden afternoons
+    grade: 'rgba(255,160,60,.07)',
+    monsters: [['#e39a4d', '#a8541c'], ['#c9a03a', '#8a6a20'], ['#84a83a', '#4f6e2a']],
+    dragon: { far: '#5a3720', tail: '#7a4a2a', body: '#a8743a', belly: '#e8cf7a', hi: '#c98a4a', spine: '#d8742a', eye: '#f2b84b', fire: '#ffd27a', tip: '#e39a4d' },
+    crown: {
+      // the crown, wreathed in wheat
+      rows: ['w.k.k..k.k.w', 'wkykkyykkykw', 'wkyyyyyyyykw', '.kyRyyByyRk.', 'wkyyyyyyyykw', '.wkkkkkkkkw.'],
+      pal: { w: '#e8cf7a', y: '#f2b84b', R: '#b8323f', B: '#e39a4d', k: '#1b1424' },
+    },
+    css: `
+      body[data-season="thanksgiving"] h1 { color: #f2a24a; text-shadow: 3px 3px 0 #4a2210; }
+      body[data-season="thanksgiving"] .card h2 { color: #f2a24a; }
+      body[data-season="thanksgiving"] .px { border-color: #5a3a20; }
+      body[data-season="thanksgiving"] .card.px { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Cpath d='M19 3l2 4 4-1-2 4 3 2-4 1 1 4-4-2-1 4-2-4-3 2 1-4-4-1 3-2-2-4 4 1z' fill='%23b8503a' fill-opacity='.55'/%3E%3Cpath d='M19 9v12' stroke='%235a3720' stroke-opacity='.6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: top 4px right 4px; }
+      body[data-season="thanksgiving"] .badge { background: #e39a4d; }
+    `,
+
+    update(dt) { feast = Math.max(0, feast - dt) },
+    // the twelfth dish: the town sits down to feast
+    onEvent() { feast = 8; const t = api.WORLD?.seasonal?.table; if (t) for (const c of ['#f2b84b', '#d8742a', '#b8503a']) burst(null, t.x + t.w / 2, t.y - 8, c, 18) },
+
+    drawGround() {
+      const c = api.clock, S = api.WORLD?.seasonal ?? {}, E = api.WORLD?.estates ?? {}
+      // the dishes on the feast table
+      const t = S.table
+      if (t) {
+        const n = dishes(), every = api.SEASONS.thanksgiving.event.every
+        for (let i = 0; i < Math.min(n, every); i++) {
+          const x = t.x + 3 + i * ((t.w - 6) / (every - 1)), y = t.y - 3
+          if (i === every - 1) { P('#efe6d2', x - 3, y, 7, 1); P('#b8642a', x - 3, y - 3, 6, 3); P('#d98a4a', x - 2, y - 3, 3, 1); P('#efe6d2', x + 3, y - 3, 1, 1) }
+          else DISH[i % DISH.length](x, y)
+        }
+        if (feast > 0 && !reduced) for (let i = 0; i < 4; i++) { const k = (c * .8 + i / 4) % 1; api.g.globalAlpha = 1 - k; P('#efe6d2', t.x + 6 + i * 7 + Math.sin(c * 3 + i) * 2, t.y - 8 - k * 10, 1, 2); api.g.globalAlpha = 1 }
+      }
+      // leaves drifting down across the island
+      if (!reduced) for (const l of LEAVES) {
+        const y = (l.y + c * l.v) % 320, x = l.x + Math.sin(c * 1.3 + l.ph) * 8 + c * 3 % 512, flip = Math.floor(c * 3 + l.ph) % 2
+        P(l.c, x % 512, y, flip ? 2 : 1, flip ? 1 : 2)
+      }
+      // the apple press's barrel froths while a brew bubbles
+      if (E.applepress && api.busyAt('cauldron')) { const b = E.applepress.barrel; for (let i = 0; i < 2; i++) P('#f3e6c0', b.x - 1 + i * 2, b.y - 1 - (Math.floor(c * 4 + i) % 2), 1, 1) }
+      // the granary's grain rises as the feast table fills
+      if (E.granary) { const s = E.granary.silo, f = Math.round(s.h * dishes() / api.SEASONS.thanksgiving.event.every); if (f > 0) { P('#e8cf7a', s.x - 1, s.y + s.h - f, 2, f); P('#f2dc7a', s.x - 1, s.y + s.h - f, 1, 1) } }
+    },
+
+    // turkeys strut by the pen where the chickens peck
+    folk() {
+      return TURKEYS.map(tk => ({ y: tk.y, d: () => api.outdoors(() => { const t = api.clock + tk.ph, x = tk.x + Math.sin(t * .35) * 7; turkey(x, tk.y, Math.cos(t * .35) > 0 ? 1 : -1, t) }) }))
+    },
+
+    // geese flying south in a V instead of the birds
+    drawBirds() {
+      if (reduced) return
+      const c = api.clock, span = api.W + 400
+      for (const f of GEESE) {
+        const u = ((c * Math.abs(f.v) + f.off) % span) - 200, x0 = f.v > 0 ? u : api.W - u
+        for (let i = 0; i < f.n; i++) {
+          const side = i % 2 ? 1 : -1, rank = Math.ceil(i / 2), x = x0 - Math.sign(f.v) * rank * 7, y = f.y + side * rank * 4, up = Math.floor(c * 6 + i) % 2
+          P('#3a2a1e', x - 2, y - up, 2, 1); P('#3a2a1e', x + 1, y - up, 2, 1); P('#3a2a1e', x, y, 1, 1); P('#efe6d2', x - 1, y + 1, 1, 1)
+        }
+      }
+    },
+
+    lights(dark) {
+      const S = api.WORLD?.seasonal ?? {}, E = api.WORLD?.estates ?? {}
+      if (S.table) for (const dx of [6, 17, 28]) api.LIGHT(S.table.x + dx, S.table.y - 6, 12, 'rgba(255,200,110,.6)', dark)
+      if (E.market) { const open = api.everyone().filter(a => a.busy).length; E.market.lamps.forEach((l, i) => { if (i < Math.max(1, open)) api.LIGHT(l.x, l.y, 14, 'rgba(255,190,90,.6)', dark) }) }
+    },
+
+    // a few townsfolk in wide-brimmed harvest hats
+    villager(v) {
+      if (!HATS[v.shirt]) return false
+      api.drawVillager(v)
+      const x = Math.round(v.x), y = Math.round(v.y)
+      P('#1b1424', x - 4, y - 12, 8, 1); P('#5a3720', x - 3, y - 12, 6, 1); P('#1b1424', x - 2, y - 15, 4, 3); P('#5a3720', x - 1, y - 14, 2, 2); P('#c9a03a', x - 2, y - 13, 4, 1)
+      return true
+    },
+
+    // failing tests break loose as runaway turkeys and gourds
+    drawMonster(m) {
+      const pop = m.born < 1 ? m.born : 1, x = Math.round(m.x), y = Math.round(m.y)
+      P('rgba(0,0,0,.4)', x - 5, m.y - 1, 10, 2)
+      if (m.dying !== undefined && Math.floor(m.dying * 20) % 2) return true
+      if (m.kind % 3 === 0) { turkey(x + Math.sin(m.t * 6) * 2, y, Math.sin(m.t * .8) > 0 ? 1 : -1, m.t * 2, pop); return true }
+      const g = api.g, bob = reduced ? 0 : Math.round(Math.sin(m.t * 5)); g.save(); g.translate(x, y + bob); g.scale(pop, pop)
+      const [o, d] = m.kind % 3 === 1 ? ['#c9a03a', '#8a6a20'] : ['#84a83a', '#4f6e2a']
+      P('#1b1424', -4, -9, 8, 9); P('#1b1424', -5, -6, 10, 6); P(o, -3, -8, 6, 8); P(o, -4, -5, 8, 4); P(d, -1, -8, 1, 8); P(d, 2, -6, 1, 5)
+      P('#5a3720', 0, -11, 1, 3); P('#4f8a3c', 1, -11, 2, 1)
+      P('#1b1424', -2, -5, 1, 2); P('#1b1424', 1, -5, 1, 2); P('#1b1424', -1, -2, 2, 1)
       g.restore()
       return true
     },

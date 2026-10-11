@@ -2,5 +2,6 @@
 // its own file here and one line below; its art lives beside it in art.js.
 import type { Ware } from '../treasury'
 import { HALLOWEEN_WARES } from './halloween'
+import { THANKSGIVING_WARES } from './thanksgiving'
 
-export const PACK_WARES: Ware[] = [...HALLOWEEN_WARES]
+export const PACK_WARES: Ware[] = [...HALLOWEEN_WARES, ...THANKSGIVING_WARES]
