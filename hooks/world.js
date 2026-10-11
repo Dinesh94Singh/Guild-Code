@@ -8,7 +8,7 @@
 // the one bridge, where the road forks north up to the Armory in the snowy mountains and east to
 // the Dungeon in the volcanic badlands, under the fire mountain.
 import {
-  PALETTES, SEASON, Recorder, alchemistHut, cookfire, deadTree, dungeonCave, field, flowers, forgeHall, gravestone, hash,
+  PALETTES, SEASON, Recorder, alchemistHut, shade, shadow, cookfire, deadTree, dungeonCave, field, flowers, forgeHall, gravestone, hash,
   house, lamp, lavaCrack, marks, volcano, mineEntrance, mountain, mushroom, oak, palm, pine, px, questBoard, reeds, resetMarks, rock, stall,
   tavern, tuft, washingLine, well, willow, windmill, wizardTower, woodyard,
 } from './pixelart.js'
@@ -93,6 +93,161 @@ export const FOLK = {
   ship: { y: 314, from: 230, to: 490 },
 }
 
+// ── the estates: what the treasury buys (hooks/treasury.ts) and where each one stands ──
+// `clears` keeps the trees off its ground; `paint` draws its still part into the realm and returns
+// the marks the page's overlays animate. Wares with no `paint` live only in the overlays (the owl,
+// the bard, the wisps, the hound, the rainbow), around `at`.
+const stone = (b, L, T, w, h, light, mid, dark) => {
+  px(b, '#1b1424', L - 1, T - 1, w + 2, h + 1)
+  for (let yy = T; yy < T + h; yy++) for (let xx = 0; xx < w; xx++) {
+    const row = Math.floor((yy - T) / 4), seam = (yy - T) % 4 === 0 || (xx + (row % 2) * 2) % 5 === 0
+    px(b, seam ? shade(dark, -16) : xx < 2 ? light : xx < w - 3 ? mid : dark, L + xx, yy)
+  }
+}
+const spire = (b, x, top, rows, half, a, dark) => {
+  for (let i = 0; i < rows; i++) {
+    const hw = Math.max(1, Math.round((rows - i) / rows * half))
+    px(b, '#1b1424', x - hw - 1, top - 1 - i, hw * 2 + 2, 1); px(b, a, x - hw, top - 1 - i, hw, 1); px(b, dark, x, top - 1 - i, hw, 1)
+  }
+}
+export const ESTATES = {
+  lanterns: {
+    at: { x: 214, y: 190 }, lamps: [{ x: 222, y: 124 }, { x: 116, y: 130 }, { x: 212, y: 240 }, { x: 262, y: 188 }, { x: 314, y: 182 }],
+    get clears() { return this.lamps.map(l => ({ ...l, r: 4 })) },
+    paint(b) { for (const l of this.lamps) lamp(b, l.x, l.y); return {} },
+  },
+  fountain: {
+    at: { x: 138, y: 194 }, clears: [{ x: 138, y: 194, r: 10 }],
+    paint(b) {
+      const { x, y } = this.at
+      shadow(b, x, y + 1, 24)
+      px(b, '#1b1424', x - 11, y - 8, 22, 8); px(b, '#b0a99c', x - 10, y - 7, 20, 6); px(b, '#7a7266', x - 10, y - 2, 20, 1)
+      px(b, '#2a6fa0', x - 9, y - 6, 18, 3); px(b, '#3f97c9', x - 9, y - 6, 18, 2); px(b, '#5aaed8', x - 6, y - 6, 5, 1)
+      px(b, '#1b1424', x - 2, y - 16, 5, 11); px(b, '#b0a99c', x - 1, y - 15, 3, 10); px(b, '#8a8478', x + 1, y - 15, 1, 10)
+      px(b, '#1b1424', x - 6, y - 18, 13, 3); px(b, '#b0a99c', x - 5, y - 17, 11, 1); px(b, '#3f97c9', x - 4, y - 18, 9, 1)
+      return { jet: { x, y: y - 19 }, pool: { x, y: y - 6 } }
+    },
+  },
+  bard: { at: { x: 147, y: 182 }, clears: [] },
+  belltower: {
+    at: { x: 252, y: 160 }, clears: [{ x: 252, y: 156, r: 14 }],
+    paint(b) {
+      const { x, y } = this.at, top = y - 30
+      shadow(b, x + 2, y, 18)
+      stone(b, x - 6, top, 12, 30, '#b0a99c', '#9a938a', '#7a7266')
+      px(b, '#1b1424', x - 2, y - 7, 4, 7); px(b, '#5a3720', x - 1, y - 6, 2, 6)
+      px(b, '#1b1424', x - 4, top + 3, 8, 9); px(b, '#2a2233', x - 3, top + 4, 6, 7)
+      px(b, '#5a3720', x - 4, top + 3, 8, 1)
+      spire(b, x, top, 14, 8, '#b8503a', '#8e3a2a')
+      px(b, '#3a2414', x, top - 20, 1, 6); px(b, '#f2b84b', x + 1, top - 20, 3, 2)
+      return { bell: { x, y: top + 5 } }
+    },
+  },
+  fairyring: {
+    at: { x: 34, y: 150 }, clears: [{ x: 34, y: 150, r: 13 }],
+    paint(b) {
+      const { x, y } = this.at
+      for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; mushroom(b, Math.round(x + Math.cos(a) * 9), Math.round(y + Math.sin(a) * 4) + 2, k % 2 ? '#a593ff' : '#e8606f') }
+      return { ring: { x, y } }
+    },
+  },
+  owl: { at: { x: 56, y: 62 }, clears: [] },
+  obelisk: {
+    at: { x: 100, y: 96 }, clears: [{ x: 100, y: 102, r: 18 }],
+    paint(b) {
+      const { x, y } = this.at
+      shadow(b, x + 1, y, 12)
+      px(b, '#1b1424', x - 5, y - 3, 11, 3); px(b, '#9a938a', x - 4, y - 2, 9, 2)
+      px(b, '#1b1424', x - 3, y - 21, 7, 18); px(b, '#6e6880', x - 2, y - 20, 5, 17); px(b, '#8a839a', x - 2, y - 20, 1, 17); px(b, '#4f4a60', x + 2, y - 20, 1, 17)
+      px(b, '#1b1424', x - 2, y - 24, 5, 3); px(b, '#8a839a', x - 1, y - 23, 3, 2); px(b, '#1b1424', x, y - 25, 1, 1)
+      const runes = [{ x, y: y - 17 }, { x: x - 1, y: y - 12 }, { x, y: y - 7 }]
+      for (const r of runes) px(b, '#3a3550', r.x, r.y, 2, 2)
+      return { runes }
+    },
+  },
+  dummies: {
+    at: { x: 452, y: 118 }, clears: [{ x: 452, y: 116, r: 14 }],
+    paint(b) {
+      for (const [x, y] of [[446, 117], [459, 119]]) {
+        shadow(b, x, y, 8)
+        px(b, '#5a3720', x, y - 14, 1, 14); px(b, '#5a3720', x - 5, y - 10, 11, 1)
+        px(b, '#1b1424', x - 3, y - 12, 7, 9); px(b, '#d9b85a', x - 2, y - 11, 5, 7); px(b, '#b8323f', x - 1, y - 9, 3, 2); px(b, '#fff3d0', x, y - 9, 1, 1)
+        px(b, '#1b1424', x - 2, y - 17, 5, 5); px(b, '#e8cf7a', x - 1, y - 16, 3, 3)
+      }
+      return {}
+    },
+  },
+  watchtower: {
+    at: { x: 318, y: 110 }, clears: [{ x: 318, y: 104, r: 16 }],
+    paint(b) {
+      const { x, y } = this.at, top = y - 34
+      shadow(b, x + 2, y, 20)
+      stone(b, x - 7, top, 14, 34, '#9a958c', '#86817a', '#66615a')
+      px(b, '#1b1424', x - 9, top - 4, 18, 5); px(b, '#86817a', x - 8, top - 3, 16, 3)
+      for (let k = 0; k < 4; k++) { px(b, '#1b1424', x - 9 + k * 5, top - 7, 4, 4); px(b, '#9a958c', x - 8 + k * 5, top - 6, 2, 2) }
+      px(b, '#1b1424', x - 1, top + 8, 2, 6); px(b, '#1b1424', x - 1, top + 20, 2, 6)
+      px(b, '#1b1424', x - 3, y - 9, 6, 9); px(b, '#5a3720', x - 2, y - 8, 4, 8)
+      px(b, '#3a2414', x - 3, top - 9, 6, 3); px(b, '#5a3720', x - 2, top - 9, 4, 1)
+      return { beacon: { x, y: top - 10 } }
+    },
+  },
+  pikes: {
+    at: { x: 474, y: 272 }, clears: [{ x: 474, y: 268, r: 12 }],
+    paint(b) {
+      const { x, y } = this.at
+      ;['#d1495b', '#9b59d0', '#e07a2f'].forEach((c, i) => {
+        const p = x - 8 + i * 8, yy = y + (i === 1 ? -2 : 0)
+        px(b, 'rgba(0,0,0,.3)', p - 1, yy - 1, 4, 2)
+        px(b, '#3a2414', p, yy - 18, 1, 18); px(b, '#c4cfdc', p, yy - 20, 1, 2)
+        px(b, '#1b1424', p + 1, yy - 17, 6, 6); px(b, c, p + 1, yy - 16, 5, 4); px(b, '#fff', p + 2, yy - 15, 1, 1); px(b, '#fff', p + 4, yy - 15, 1, 1)
+      })
+      return {}
+    },
+  },
+  wisps: { at: { x: 470, y: 246 }, clears: [] },
+  shelf: {
+    at: { x: 24, y: 252 }, clears: [{ x: 24, y: 248, r: 11 }],
+    paint(b) {
+      const { x, y } = this.at
+      shadow(b, x, y, 18)
+      px(b, '#1b1424', x - 8, y - 15, 16, 15); px(b, '#7a4a2a', x - 7, y - 14, 14, 14)
+      px(b, '#4a2f1d', x - 7, y - 9, 14, 1); px(b, '#4a2f1d', x - 7, y - 4, 14, 1)
+      const bottles = []
+      for (const [row, cs] of [[y - 13, ['#84d488', '#a593ff', '#e8606f']], [y - 8, ['#5fd3f3', '#f2b84b', '#84d488']]])
+        cs.forEach((c, i) => { const bx = x - 5 + i * 4; px(b, '#1b1424', bx, row, 3, 4); px(b, c, bx + 1, row + 1, 1, 3); px(b, '#efe6d2', bx + 1, row, 1, 1); bottles.push({ x: bx + 1, y: row + 2, c }) })
+      return { bottles }
+    },
+  },
+  cauldron2: {
+    at: { x: 152, y: 252 }, clears: [{ x: 152, y: 250, r: 10 }],
+    paint(b) {
+      const { x, y } = this.at
+      shadow(b, x, y + 2, 16)
+      px(b, '#1b1424', x - 5, y - 1, 2, 3); px(b, '#1b1424', x + 3, y - 1, 2, 3)
+      px(b, '#1b1424', x - 7, y - 9, 14, 9); px(b, '#2e2a36', x - 6, y - 8, 12, 7); px(b, '#4a4556', x - 6, y - 8, 12, 1)
+      px(b, '#7a5fd9', x - 5, y - 9, 10, 2)
+      return { brew: { x, y: y - 9 } }
+    },
+  },
+  lighthouse: {
+    at: { x: 338, y: 280 }, clears: [{ x: 338, y: 274, r: 13 }],
+    paint(b) {
+      const { x, y } = this.at
+      shadow(b, x + 2, y, 18)
+      px(b, '#1b1424', x - 8, y - 4, 16, 4); px(b, '#7a7266', x - 7, y - 3, 14, 3)
+      for (let i = 4; i < 34; i++) {
+        const hw = 5 - Math.round((i - 4) * 2 / 30), band = Math.floor((i - 4) / 6) % 2 ? '#b8323f' : '#efe6d2'
+        px(b, '#1b1424', x - hw - 1, y - i, hw * 2 + 2, 1); px(b, band, x - hw, y - i, hw * 2, 1); px(b, 'rgba(0,0,0,.18)', x + 1, y - i, hw - 1, 1)
+      }
+      px(b, '#1b1424', x - 5, y - 41, 10, 8); px(b, '#ffd27a', x - 3, y - 39, 6, 4); px(b, '#fff3c0', x - 3, y - 39, 2, 2)
+      px(b, '#1b1424', x - 4, y - 44, 8, 3); px(b, '#b8323f', x - 3, y - 43, 6, 1); px(b, '#1b1424', x, y - 46, 1, 2)
+      return { lamp: { x, y: y - 37 } }
+    },
+  },
+  hound: { at: { x: 168, y: 200 }, clears: [] },
+  rainbow: { at: { x: 256, y: 160 }, clears: [] },
+}
+
 // ── the painter ──
 const CELL = 2, GW = W / CELL, GH = H / CELL
 const SEA = 0, LAND = 1, FRESH = 2
@@ -161,8 +316,9 @@ function biomeAt(x, y) {
 }
 
 /** Paints the whole realm. Returns the RGBA pixels and where the lights, smoke and water are. */
-export function paintWorld() {
+export function paintWorld(owned = []) {
   resetMarks()
+  const built = owned.filter(id => ESTATES[id]?.paint), estates = {}
   SEASON.snow = false; SEASON.crops = true
   const PAL = Object.fromEntries(Object.entries(PAL_HEX).map(([k, v]) => [k, parseColor(v)]))
   const KIND = new Uint8Array(GW * GH), BIOME = new Uint8Array(GW * GH), SNOWY = new Uint8Array(GW * GH), DEPTH = new Float32Array(GW * GH)
@@ -249,6 +405,7 @@ export function paintWorld() {
     { ...P.study.at, r: 30 }, { x: P.armory.at.x, y: P.armory.at.y - 20, r: 60 }, { x: P.dungeon.at.x, y: P.dungeon.at.y - 14, r: 48 }, { ...P.cauldron.at, r: 44 },
     { ...FOLK.mine, r: 30 }, { ...FOLK.woodyard, r: 18 }, { ...FOLK.fishing, r: 12 }, { ...FOLK.glade, r: 18 }, { ...FOLK.windmill, r: 18 }, { x: FOLK.pen.x, y: FOLK.pen.y, r: 30 }, { ...FOLK.laundry, r: 18 }, { ...FOLK.dock, r: 18 },
     { ...CAULDRON, r: 16 }, { ...CHEST, r: 10 }, { x: VOLCANO.x, y: VOLCANO.y - 30, r: 52 }, ...MONSTER_SLOTS.map(s => ({ ...s, r: 6 })), ...P.dungeon.spots.map(s => ({ ...s, r: 10 })), ...P.armory.spots.map(s => ({ ...s, r: 9 })), ...P.cauldron.spots.map(s => ({ ...s, r: 9 })), ...P.study.spots.map(s => ({ ...s, r: 9 })),
+    ...built.flatMap(id => ESTATES[id].clears),
   ]
   const F = FOLK.field
   const inTown = (x, y) => ((x - 168) / 92) ** 2 + ((y - 206) / 60) ** 2 < 1
@@ -335,8 +492,10 @@ export function paintWorld() {
   add(P.cauldron.at.y, b => alchemistHut(b, P.cauldron.at.x, P.cauldron.at.y))
   // the sheep pen's fence and the field
   add(F.y, b => field(b, { ...F, crop: 'wheat' }))
+  // what the treasury has built
+  for (const id of built) add(ESTATES[id].at.y, b => { estates[id] = ESTATES[id].paint(b) })
   items.sort((p, q) => p.y - q.y).forEach(it => it.fn(cv))
-  return { width: W, height: H, data: cv.data, foam, sparks, marks: JSON.parse(JSON.stringify(marks)) }
+  return { width: W, height: H, data: cv.data, foam, sparks, marks: JSON.parse(JSON.stringify(marks)), estates }
 }
 
 export { Recorder }

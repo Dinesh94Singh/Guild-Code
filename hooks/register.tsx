@@ -20,6 +20,8 @@ import { classifyTool, readBattle } from './classify'
 import type { Placement } from './classify'
 import { CLASSES, LANGS, LOCATIONS, ORDER, PROJECT_COLORS, TEAMS, classOf, classOfAgentType, windowLabel } from './lore'
 import { describeMap, drawMap } from './map'
+import { CATALOG, DEED_NAMES, NEW_TREASURY, REFUSALS, closeQuest, earn, isShopOrder, rankOf, trade, treasuryOf } from './treasury'
+import type { Deed, ShopOrder, Treasury } from './treasury'
 
 const PANE = 'guild-hall'
 const MAIN = 'main'
@@ -44,6 +46,61 @@ const quota = atom({ plugin: 'guild-code', key: 'quota' } as const, [] as GuildQ
 const realms = atom({ plugin: 'guild-code', key: 'realms' } as const, [] as GuildRealm[])
 const teams = atom({ plugin: 'guild-code', key: 'teams' } as const, 0)
 const hallUrl = atom({ plugin: 'guild-code', key: 'hall' } as const, '')
+const treasury = atom({ plugin: 'guild-code', key: 'treasury' } as const, NEW_TREASURY as Treasury)
+const spoiled = atom({ plugin: 'guild-code', key: 'spoiled' } as const, false)
+
+// ───────────── the treasury ─────────────
+// One purse per machine, kept in the plugin's store that every session shares: each payment
+// reads it fresh, adds to it and writes it back, so sessions never pay over one another for long.
+const TREASURY_KEY = 'treasury'
+
+async function readTreasury($: EngineInterface): Promise<Treasury> {
+  const t = treasuryOf(await $.store.get(TREASURY_KEY).catch(() => undefined))
+  await update($, treasury, cur => (JSON.stringify(cur) === JSON.stringify(t) ? cur : t))
+  return t
+}
+
+async function keepTreasury($: EngineInterface, t: Treasury) {
+  await $.store.set(TREASURY_KEY, t)
+  await update($, treasury, () => t)
+}
+
+/** Pay a deed into the treasury, `times` over: within the hour's cap, and the day's streak for a quest. */
+async function pay($: EngineInterface, deed: Deed, times = 1) {
+  if (times <= 0) return
+  const at = await $.clock.now()
+  const cur = await readTreasury($)
+  if (deed === 'quest') {
+    let t = cur
+    for (let i = 0; i < times; i++) {
+      const r = closeQuest(t, at)
+      t = r.treasury
+      if (r.bonus) $.ui.toast(`👑 Day ${t.streak.count} of your streak: +${r.bonus} crowns.`)
+    }
+    if (t !== cur) await keepTreasury($, t)
+    return
+  }
+  const { treasury: t, paid } = earn(cur, deed, times, at)
+  if (t !== cur) await keepTreasury($, t)
+  if (paid > 0) {
+    const before = rankOf(cur.earned), after = rankOf(t.earned)
+    if (after.index > before.index) $.ui.toast(`👑 ${DEED_NAMES[deed]}: the realm grows to a ${after.name}! New wares at the merchant.`)
+  }
+}
+
+/** A shop order from the Guild Hall page: buy or sell, against the purse as it stands now. */
+async function shop($: EngineInterface, order: ShopOrder) {
+  const cur = await readTreasury($)
+  const done = trade(cur, order)
+  const ware = CATALOG.find(w => w.id === order.item)
+  if ('refusal' in done) {
+    $.ui.toast(`👑 ${ware?.name ?? 'That ware'}: ${REFUSALS[done.refusal]}`)
+    return
+  }
+  await keepTreasury($, done.treasury)
+  await log($, { who: 'Guildmaster', cls: 'guildmaster', location: 'tavern', text: order.action === 'buy' ? `👑 Bought ${ware!.name} for ${ware!.price} crowns` : `👑 Sold ${ware!.name} for ${Math.floor(ware!.price / 2)} crowns`, outcome: 'ok' })
+  await share($)
+}
 
 /**
  * A quest from the Guild Hall page reaches Claude as a petition drafted into the prompt box
@@ -149,7 +206,7 @@ async function writeLive($: EngineInterface, mine: GuildRealm, others: GuildReal
   // Mana is the account's: a session billed by API key has no windows, so the page takes the
   // freshest reading any open session has.
   const reading = [mine, ...[...others].sort((a, b) => b.updatedAt - a.updatedAt)].find(r => r.quota?.length)
-  const live = { at, self: mine.id, realms: list, quota: reading?.quota ?? [], xp: await read($, xp) }
+  const live = { at, self: mine.id, realms: list, quota: reading?.quota ?? [], xp: await read($, xp), treasury: await readTreasury($) }
   await $.fs.write(`${await hallFolder($)}/live.json`, JSON.stringify(live))
 }
 
@@ -182,7 +239,7 @@ function startHall($: EngineInterface, preferred = HALL_PORT): Promise<number> {
             for (let nl = buf.indexOf('\n'); nl >= 0; nl = buf.indexOf('\n')) {
               const line = buf.slice(0, nl)
               buf = buf.slice(nl + 1)
-              let msg: { ready?: number; petition?: unknown }
+              let msg: { ready?: number; petition?: unknown; shop?: unknown }
               try {
                 msg = JSON.parse(line)
               } catch {
@@ -196,6 +253,8 @@ function startHall($: EngineInterface, preferred = HALL_PORT): Promise<number> {
                 resolve(hallPort)
               } else if (msg.petition) {
                 await receive($, msg.petition).catch(() => undefined)
+              } else if (isShopOrder(msg.shop)) {
+                await shop($, msg.shop).catch(() => undefined)
               }
             }
           }
@@ -322,13 +381,14 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'guild', description: 'Open the Guild Hall in the browser: your party at work, live' })
     await $.command.register({ name: 'guild-map', description: 'Open the Guild Code map pane beside the conversation' })
-    await $.command.register({ name: 'guild-stats', description: 'Show Guild Code XP per class and the dungeon record' })
+    await $.command.register({ name: 'guild-stats', description: 'Show Guild Code XP per class, the dungeon record and the treasury' })
     try {
       const saved = (await $.store.get('xp')) as Partial<GuildXp> | undefined
       if (saved && typeof saved === 'object') await update($, xp, () => ({ ...NO_XP, ...saved }))
     } catch {
       // A fresh guild: no XP yet.
     }
+    await readTreasury($).catch(() => undefined)
     try {
       const usage = await $.session.usage()
       await update($, quota, () => toQuota(usage.rateLimits))
@@ -393,8 +453,11 @@ export const register: Register = on => {
     const points = await read($, xp)
     const d = await read($, dungeon)
     const rows = (Object.keys(CLASSES) as GuildClass[]).map(c => `${CLASSES[c].icon} ${CLASSES[c].name}: ${points[c] ?? 0} XP (level ${1 + Math.floor((points[c] ?? 0) / 50)})`)
+    const t = await readTreasury($)
+    const rank = rankOf(t.earned)
+    const purse = `👑 Treasury: ${t.crowns} crowns · ${rank.name}${rank.next ? ` (${rank.next.at - t.earned} more to ${rank.next.name})` : ''} · streak ${t.streak.count} day${t.streak.count === 1 ? '' : 's'} · ${t.owned.length} of ${CATALOG.length} wares built`
     const record = d.hasRun ? `💀 Dungeon: ${d.monsters} monsters left, ${d.slain} slain${d.framework ? ` (${d.framework})` : ''}` : '💀 Dungeon: no trials yet this session'
-    return { text: ['🏰 Guild record', ...rows, record].join('\n') }
+    return { text: ['🏰 Guild record', ...rows, record, purse].join('\n') }
   })
 
   // An agent stuck on the person: a permission to grant, or a question to answer.
@@ -457,6 +520,7 @@ export const register: Register = on => {
           const names = [...out.map(m => m.label), label].join(', ')
           await update($, party, list => list.map(m => (m.id !== MAIN ? { ...m, team } : m)))
           await log($, { who: 'Guildmaster', cls: 'guildmaster', location: 'tavern', text: `🚩 The ${team.name} forms: ${names}`, outcome: 'ok' })
+          await pay($, 'team')
         }
         if (team) member.team = team
         await update($, party, list => [...list.filter(m => m.id !== member.id), member])
@@ -527,7 +591,9 @@ export const register: Register = on => {
               hasRun: true,
             }))
             await gainXp($, cls, 2 + Math.max(0, before.monsters - battle.failed) * 5)
+            await pay($, 'slay', Math.max(0, before.monsters - battle.failed))
             if (battle.failed === 0 && before.monsters > 0) {
+              await pay($, 'clear')
               $.ui.toast(`🏆 Dungeon cleared! ${before.monsters} monster${before.monsters === 1 ? '' : 's'} vanquished.`)
             }
           } else {
@@ -535,6 +601,24 @@ export const register: Register = on => {
           }
         } else if (!failed) {
           await gainXp($, cls, 1)
+        }
+
+        // Crowns for the forge and the cauldron: a clean check, a commit, a brew, a rescue.
+        const command = typeof input.command === 'string' ? input.command : ''
+        if (command && (String(e.tool) === 'Bash' || String(e.tool) === 'PowerShell')) {
+          // A clean check tempers the blade; a commit is scribed; other git chores pay nothing.
+          if (place.location === 'armory' && !failed) {
+            if (/\bgit\s+commit\b/.test(command)) await pay($, 'commit')
+            else if (!/\bgit\b/.test(command)) await pay($, 'temper')
+          }
+          if (place.location === 'cauldron') {
+            const wasSpoiled = await read($, spoiled)
+            if (failed) await update($, spoiled, () => true)
+            else {
+              await pay($, wasSpoiled ? 'rescue' : 'brew')
+              if (wasSpoiled) await update($, spoiled, () => false)
+            }
+          }
         }
 
         // The Tavern's quest board follows the task list.
@@ -546,12 +630,18 @@ export const register: Register = on => {
         if (!failed && e.tool === 'TaskUpdate') {
           const id = String(input.taskId ?? '')
           const status = String(input.status ?? '')
+          const wasDone = (await read($, quests)).find(q => q.id === id)?.isDone ?? false
           if (status === 'deleted') await update($, quests, list => list.filter(q => q.id !== id))
           else if (status) await update($, quests, list => list.map(q => (q.id === id ? { ...q, isDone: status === 'completed', title: typeof input.subject === 'string' ? input.subject : q.title } : q)))
-          if (status === 'completed') await gainXp($, 'guildmaster', 10)
+          if (status === 'completed') {
+            await gainXp($, 'guildmaster', 10)
+            if (!wasDone) await pay($, 'quest')
+          }
         }
         if (!failed && e.tool === 'TodoWrite' && Array.isArray(input.todos)) {
           const todos = input.todos as { content?: string; status?: string }[]
+          const doneBefore = new Set((await read($, quests)).filter(q => q.isDone).map(q => q.title))
+          await pay($, 'quest', todos.filter(t => t.status === 'completed' && !doneBefore.has(String(t.content ?? 'A quest'))).length)
           await update($, quests, () => todos.map((t, i) => ({ id: `todo-${i}`, title: String(t.content ?? 'A quest'), isDone: t.status === 'completed' })))
         }
 
@@ -573,6 +663,7 @@ export const register: Register = on => {
         const m = roster.find(one => one.id === e.agentId)
         if (m) {
           await log($, { who: m.label, cls: classOf(m), location: 'tavern', text: `🍺 ${m.label} returns with the spoils`, outcome: e.isAborted ? 'fail' : 'ok' })
+          if (!e.isAborted) await pay($, 'return')
           await update($, party, list => list.filter(one => one.id !== e.agentId))
         }
       }

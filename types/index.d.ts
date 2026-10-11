@@ -91,6 +91,19 @@ export type GuildQuest = { id: string; title: string; isDone: boolean }
 
 export type GuildXp = Record<GuildClass, number>
 
+/** The machine's purse of Guild Crowns (hooks/treasury.ts): earned by deeds, spent on the realm. */
+export type GuildTreasury = {
+  crowns: number
+  /** Every crown ever earned: sets the rank. */
+  earned: number
+  /** The wares bought, by id. */
+  owned: string[]
+  /** Crowns paid in the current hour, for the cap. */
+  hour: { start: number; paid: number }
+  /** The streak of days with a closed quest. `day` is the local date, YYYY-MM-DD. */
+  streak: { day: string; count: number }
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'guild-code': {
@@ -102,6 +115,10 @@ declare module 'claude-code' {
       quota: GuildQuota[]
       realms: GuildRealm[]
       teams: number
+      /** The machine's purse of Guild Crowns, as last read from the shared store. */
+      treasury: GuildTreasury
+      /** Set while this session's last build failed: fixing it pays a rescue. */
+      spoiled: boolean
       /** The Guild Hall page this session serves, once its server is up; '' before. */
       hall: string
     }
