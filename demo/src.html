@@ -2376,7 +2376,17 @@ function frame(now) {
   if (panelAcc > 0.4) { panelAcc = 0; updateRealmCards(); renderQuota(); if (sideDirty) renderSide(); else if (selected) renderInspect(); }
   requestAnimationFrame(frame);
 }
+// The tab's icon: the Guildmaster, crown and cape, drawn from its own sprite.
+function setIcon() {
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+  x.drawImage(SPR.guildmaster[0][0], 4, 0, 24, 32);
+  let link = document.querySelector('link[rel="icon"]');
+  if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.append(link); }
+  link.href = c.toDataURL('image/png');
+}
 async function start() {
+  setIcon();
   WORLD = paintBackground();
   if (LIVE) {
     document.body.classList.add('live');

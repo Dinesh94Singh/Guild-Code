@@ -76,6 +76,8 @@ const toQuota = (limits: readonly SessionRateLimit[]): GuildQuota[] =>
 const PETITION_PREFIX = 'petition:'
 const HALL_PREFIX = 'hall:'
 const HALL_PORT = 8790
+// The hall's address: every *.localhost name reaches this machine, so it needs no setup.
+const hallAddress = (port: number) => `http://guildmaster.localhost:${port}/`
 
 let ticker: { cancel: () => void } | undefined
 let published = ''
@@ -189,7 +191,7 @@ function startHall($: EngineInterface, preferred = HALL_PORT): Promise<number> {
               if (typeof msg.ready === 'number') {
                 hallPort = msg.ready
                 await $.store.set(`${HALL_PREFIX}${await $.session.id()}`, hallPort)
-                await update($, hallUrl, () => `http://127.0.0.1:${hallPort}/`)
+                await update($, hallUrl, () => hallAddress(hallPort))
                 await share($)
                 resolve(hallPort)
               } else if (msg.petition) {
@@ -370,10 +372,12 @@ export const register: Register = on => {
     void $.ui.open({ id: PANE, title: 'Guild Hall' })
     try {
       const port = await startHall($)
-      const url = `http://127.0.0.1:${port}/`
-      if (await openInBuiltInBrowser($, url)) return { text: `🏰 The Guild Hall is open in the browser pane: ${url}` }
+      const url = hallAddress(port)
+      // A browser that does not resolve *.localhost still reaches it by number.
+      const also = ` (also at http://127.0.0.1:${port}/)`
+      if (await openInBuiltInBrowser($, url)) return { text: `🏰 The Guild Hall is open in the browser pane: ${url}${also}` }
       const opened = await openInBrowser($, url)
-      return { text: opened ? `🏰 The Guild Hall is open in your browser: ${url}` : `🏰 The Guild Hall is ready: open ${url}` }
+      return { text: opened ? `🏰 The Guild Hall is open in your browser: ${url}${also}` : `🏰 The Guild Hall is ready: open ${url}${also}` }
     } catch (err) {
       return { text: `🏰 The map is in the pane, but the full Guild Hall could not start: ${err instanceof Error ? err.message : String(err)}` }
     }

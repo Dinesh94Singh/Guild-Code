@@ -27,7 +27,8 @@ class Hall(http.server.SimpleHTTPRequestHandler):
 
     def local(self):
         port = self.server.server_address[1]
-        return self.headers.get('Host', '') in (f'127.0.0.1:{port}', f'localhost:{port}')
+        # guildmaster.localhost is the hall's own name: browsers send every *.localhost to this machine.
+        return self.headers.get('Host', '') in (f'127.0.0.1:{port}', f'localhost:{port}', f'guildmaster.localhost:{port}')
 
     def do_GET(self):
         if not self.local():
