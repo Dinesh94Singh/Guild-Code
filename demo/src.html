@@ -945,6 +945,7 @@ const packApi = () => ({
   get VOLC() { return VOLC; }, get TOWER() { return TOWER; }, get SKULL() { return SKULL; }, get purse() { return purse; }, get season() { return season(); },
   px, hash, glow, tri, burst, emit, smoke, outdoors, drawVillager, makeSprite, owns, busyAt, everyone, allMonsters,
   LIGHT: (...a) => LIGHT(...a), darkness: () => baseDarkness(), flick: (x, y) => flick(x, y), banner: (t, gold) => banner(null, t, gold),
+  float: (x, y, text, color) => FX.floats.push({ x, y, text, color, life: 1.8 }),
   ROOMS, PLACES, FOLK, ESTATES, CHEST, CAULDRON, DOORWAY, BOARD, SEASONS, W, H, reduced,
 });
 function applySeason(force) {
