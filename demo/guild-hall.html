@@ -2557,8 +2557,8 @@ window.GuildPacks = window.GuildPacks || {};
 GuildPacks.halloween = api => {
   const { px, hash, glow, burst, reduced } = api
   const P = (c, x, y, w = 1, h = 1) => px(api.g, c, Math.round(x), Math.round(y), w, h)
-  // the moon hangs in the sky, not on the land: pinned to the view's top-right corner
-  const MOON = { dx: 46, y: 50, r: 14 }
+  // the harvest moon is seen in the sea south of the island: its reflection, fixed on the water
+  const MOON = { x: 436, y: 306 }
   const BATS = Array.from({ length: 9 }, (_, i) => ({ y: 30 + hash(i, 3) * 200, v: (hash(i, 4) > .5 ? 1 : -1) * (14 + hash(i, 5) * 14), off: hash(i, 6) * 900, ph: hash(i, 7) * 6 }))
   const FOGS = Array.from({ length: 7 }, (_, i) => ({ x: 360 + hash(i, 11) * 150, y: 200 + hash(i, 12) * 80, r: 22 + hash(i, 13) * 18, v: 3 + hash(i, 14) * 4 }))
   const COSTUME = { '#b8323f': 'ghost', '#84d488': 'ghost', '#3b5fa8': 'witch', '#7a4fc9': 'witch' }
@@ -2605,7 +2605,7 @@ GuildPacks.halloween = api => {
   }
 
 
-  // a witch on her broom, black against whatever is behind her
+  // a witch on her broom, black against whatever is below her
   const witch = (x, y, dir) => {
     const k = '#1b1424', f = d => x + d * dir
     P(k, f(-9), y + 2, 1, 1); P('#8a6a44', Math.min(f(-8), f(6)), y + 1, 15, 1)
@@ -2679,7 +2679,7 @@ GuildPacks.halloween = api => {
       }
     },
 
-    // after dark: ghosts and glinting eyes, hands from the graves, a haze, and the moon
+    // after dark: ghosts and glinting eyes, hands from the graves, the witch, the moon on the sea, a haze
     drawSky() {
       const n = night(), d = deep(), g = api.g, c = api.clock, S = api.WORLD?.seasonal ?? {}
       if (d > 0) {
@@ -2698,27 +2698,30 @@ GuildPacks.halloween = api => {
         }
       }
       if (n < .2) return
-      // the rest belongs to the sky, so it is drawn on the view, not the land
+      const k = Math.min(1, (n - .2) * 2.5)
+      // the harvest moon's reflection, broken by the swell
+      g.globalAlpha = k
+      glow(MOON.x, MOON.y, 26, 'rgba(255,170,80,.45)', .5)
+      for (let r = 0; r < 7; r++) {
+        const w = Math.round((7 - Math.abs(r - 3) * 1.8) * 2 + Math.sin(c * 1.6 + r) * 2), off = reduced ? 0 : Math.round(Math.sin(c * 1.1 + r * 1.7) * 2)
+        P(r % 2 ? '#e8913a' : '#ffb347', MOON.x - (w >> 1) + off, MOON.y - 6 + r * 2, w, 1)
+      }
+      // the witch rides over the island, her shadow sliding over the land beneath her
+      if (!reduced) {
+        const t = (c % 52) / 52, wx = -30 + t * (api.W + 60), wy = 70 + Math.sin(t * Math.PI * 2) * 40 + t * 60
+        g.globalAlpha = .22 * k; P('#000', wx - 7, wy + 30, 14, 2); P('#000', wx - 1, wy + 28, 4, 2)
+        g.globalAlpha = k; witch(wx, wy, 1)
+      }
+      g.globalAlpha = 1
+      // a violet haze rolling slowly over everything, on the view
       g.save(); g.setTransform(1, 0, 0, 1, 0, 0)
-      const VW = g.canvas.width, VH = g.canvas.height, k = Math.min(1, (n - .2) * 2.5)
-      // a violet haze rolling slowly over everything
+      const VW = g.canvas.width, VH = g.canvas.height
       for (let i = 0; i < 5; i++) {
         const x = ((c * (4 + i) + i * 140) % (VW + 300)) - 150, y = VH * (.2 + i * .17), r = 110 + i * 14
         const h = g.createRadialGradient(x, y, 0, x, y, r); h.addColorStop(0, `rgba(150,130,190,${.16 * k})`); h.addColorStop(1, 'rgba(150,130,190,0)')
         g.fillStyle = h; g.fillRect(x - r, y - r, r * 2, r * 2)
       }
       g.fillStyle = `rgba(16,6,32,${.14 * k})`; g.fillRect(0, 0, VW, VH)
-      // the harvest moon, and the witch who crosses it
-      const mx = VW - MOON.dx, my = MOON.y
-      g.globalAlpha = k
-      const halo = g.createRadialGradient(mx, my, MOON.r * .6, mx, my, MOON.r * 3); halo.addColorStop(0, 'rgba(255,170,80,.45)'); halo.addColorStop(1, 'rgba(255,170,80,0)')
-      g.fillStyle = halo; g.fillRect(mx - MOON.r * 3, my - MOON.r * 3, MOON.r * 6, MOON.r * 6)
-      g.fillStyle = '#ffb347'; g.beginPath(); g.arc(mx, my, MOON.r, 0, Math.PI * 2); g.fill()
-      P('#e8913a', mx - 6, my - 5, 4, 3); P('#e8913a', mx + 4, my + 2, 3, 3); P('#e8913a', mx - 2, my + 6, 3, 2)
-      g.fillStyle = 'rgba(40,20,60,.55)'; g.fillRect(mx - MOON.r - 4, my + 3, MOON.r * 2 + 8, 2)
-      const t = (c % 40) / 40, wx = mx - 110 + t * 200, wy = my + 4 - Math.sin(t * Math.PI) * 12
-      if (!reduced) witch(wx, wy, 1)
-      g.globalAlpha = 1
       g.restore()
     },
 
