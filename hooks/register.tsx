@@ -22,6 +22,7 @@ import { CLASSES, LANGS, LOCATIONS, ORDER, PROJECT_COLORS, TEAMS, classOf, class
 import { describeMap, drawMap } from './map'
 import { CATALOG, DEED_NAMES, NEW_TREASURY, REFUSALS, closeQuest, earn, isShopOrder, rankOf, trade, treasuryOf } from './treasury'
 import type { Deed, ShopOrder, Treasury } from './treasury'
+import { SEASONS, seasonOf } from './seasons'
 
 const PANE = 'guild-hall'
 const MAIN = 'main'
@@ -72,15 +73,17 @@ async function pay($: EngineInterface, deed: Deed, times = 1) {
   const cur = await readTreasury($)
   if (deed === 'quest') {
     let t = cur
+    const season = seasonOf(at)
     for (let i = 0; i < times; i++) {
-      const r = closeQuest(t, at)
+      const r = closeQuest(t, at, season)
       t = r.treasury
       if (r.bonus) $.ui.toast(`👑 Day ${t.streak.count} of your streak: +${r.bonus} crowns.`)
+      if (r.event && season) $.ui.toast(`👑 ${SEASONS[season].event.name} filled: +${r.event} crowns.`)
     }
     if (t !== cur) await keepTreasury($, t)
     return
   }
-  const { treasury: t, paid } = earn(cur, deed, times, at)
+  const { treasury: t, paid } = earn(cur, deed, times, at, seasonOf(at))
   if (t !== cur) await keepTreasury($, t)
   if (paid > 0) {
     const before = rankOf(cur.earned), after = rankOf(t.earned)
@@ -91,7 +94,7 @@ async function pay($: EngineInterface, deed: Deed, times = 1) {
 /** A shop order from the Guild Hall page: buy or sell, against the purse as it stands now. */
 async function shop($: EngineInterface, order: ShopOrder) {
   const cur = await readTreasury($)
-  const done = trade(cur, order)
+  const done = trade(cur, order, seasonOf(await $.clock.now()))
   const ware = CATALOG.find(w => w.id === order.item)
   if ('refusal' in done) {
     $.ui.toast(`👑 ${ware?.name ?? 'That ware'}: ${REFUSALS[done.refusal]}`)
@@ -206,7 +209,7 @@ async function writeLive($: EngineInterface, mine: GuildRealm, others: GuildReal
   // Mana is the account's: a session billed by API key has no windows, so the page takes the
   // freshest reading any open session has.
   const reading = [mine, ...[...others].sort((a, b) => b.updatedAt - a.updatedAt)].find(r => r.quota?.length)
-  const live = { at, self: mine.id, realms: list, quota: reading?.quota ?? [], xp: await read($, xp), treasury: await readTreasury($) }
+  const live = { at, self: mine.id, realms: list, quota: reading?.quota ?? [], xp: await read($, xp), treasury: await readTreasury($), season: seasonOf(at) }
   await $.fs.write(`${await hallFolder($)}/live.json`, JSON.stringify(live))
 }
 

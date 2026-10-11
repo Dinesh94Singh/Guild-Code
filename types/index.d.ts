@@ -102,6 +102,8 @@ export type GuildTreasury = {
   hour: { start: number; paid: number }
   /** The streak of days with a closed quest. `day` is the local date, YYYY-MM-DD. */
   streak: { day: string; count: number }
+  /** The season's event: which season it counts for, and how far it has filled. */
+  event: { season: string; step: number }
 }
 
 declare module 'claude-code' {

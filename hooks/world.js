@@ -12,6 +12,7 @@ import {
   house, lamp, lavaCrack, marks, volcano, mineEntrance, mountain, mushroom, oak, palm, pine, px, questBoard, reeds, resetMarks, rock, stall,
   tavern, tuft, washingLine, well, willow, windmill, wizardTower, woodyard,
 } from './pixelart.js'
+import { PACK_ART, PACK_ESTATES } from './packs/art.js'
 
 export const W = 512, H = 320
 
@@ -246,6 +247,7 @@ export const ESTATES = {
   },
   hound: { at: { x: 168, y: 200 }, clears: [] },
   rainbow: { at: { x: 256, y: 160 }, clears: [] },
+  ...PACK_ESTATES,
 }
 
 // ── the painter ──
@@ -316,11 +318,11 @@ function biomeAt(x, y) {
 }
 
 /** Paints the whole realm. Returns the RGBA pixels and where the lights, smoke and water are. */
-export function paintWorld(owned = []) {
+export function paintWorld(owned = [], season = null) {
   resetMarks()
-  const built = owned.filter(id => ESTATES[id]?.paint), estates = {}
-  SEASON.snow = false; SEASON.crops = true
-  const PAL = Object.fromEntries(Object.entries(PAL_HEX).map(([k, v]) => [k, parseColor(v)]))
+  const built = owned.filter(id => ESTATES[id]?.paint), estates = {}, art = (season && PACK_ART[season]) || {}
+  SEASON.snow = !!art.snow; SEASON.crops = !art.snow
+  const PAL = Object.fromEntries(Object.entries({ ...PAL_HEX, ...art.ground }).map(([k, v]) => [k, parseColor(v)]))
   const KIND = new Uint8Array(GW * GH), BIOME = new Uint8Array(GW * GH), SNOWY = new Uint8Array(GW * GH), DEPTH = new Float32Array(GW * GH)
   const cell = (x, y) => Math.max(0, Math.min(GH - 1, Math.floor(y / CELL))) * GW + Math.max(0, Math.min(GW - 1, Math.floor(x / CELL)))
   // Masks: which cells a road, the river, the lake or the town square covers.
@@ -494,8 +496,10 @@ export function paintWorld(owned = []) {
   add(F.y, b => field(b, { ...F, crop: 'wheat' }))
   // what the treasury has built
   for (const id of built) add(ESTATES[id].at.y, b => { estates[id] = ESTATES[id].paint(b) })
+  // the season's dress, painted in among the rest
+  const seasonal = art.paint ? art.paint({ add, px, marks, built, W, H, FOLK, PLACES, ESTATES, SKULL: P.dungeon.at }) ?? {} : {}
   items.sort((p, q) => p.y - q.y).forEach(it => it.fn(cv))
-  return { width: W, height: H, data: cv.data, foam, sparks, marks: JSON.parse(JSON.stringify(marks)), estates }
+  return { width: W, height: H, data: cv.data, foam, sparks, marks: JSON.parse(JSON.stringify(marks)), estates, seasonal }
 }
 
 export { Recorder }
