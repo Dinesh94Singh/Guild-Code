@@ -3,23 +3,23 @@
 GuildPacks.halloween = api => {
   const { px, hash, glow, burst, reduced } = api
   const P = (c, x, y, w = 1, h = 1) => px(api.g, c, Math.round(x), Math.round(y), w, h)
-  // the harvest moon is seen in the sea south of the island: its reflection, fixed on the water
-  const MOON = { x: 436, y: 306 }
-  const BATS = Array.from({ length: 9 }, (_, i) => ({ y: 30 + hash(i, 3) * 200, v: (hash(i, 4) > .5 ? 1 : -1) * (14 + hash(i, 5) * 14), off: hash(i, 6) * 900, ph: hash(i, 7) * 6 }))
-  const FOGS = Array.from({ length: 7 }, (_, i) => ({ x: 360 + hash(i, 11) * 150, y: 200 + hash(i, 12) * 80, r: 22 + hash(i, 13) * 18, v: 3 + hash(i, 14) * 4 }))
+  // the harvest moon is seen in the bay south of the valley: its reflection, fixed on the water
+  const MOON = { x: 560, y: 410 }
+  const BATS = Array.from({ length: 9 }, (_, i) => ({ y: 30 + hash(i, 3) * 280, v: (hash(i, 4) > .5 ? 1 : -1) * (14 + hash(i, 5) * 14), off: hash(i, 6) * 900, ph: hash(i, 7) * 6 }))
+  const FOGS = Array.from({ length: 7 }, (_, i) => ({ x: 610 + hash(i, 11) * 150, y: 300 + hash(i, 12) * 80, r: 22 + hash(i, 13) * 18, v: 3 + hash(i, 14) * 4 }))
   const COSTUME = { '#b8323f': 'ghost', '#84d488': 'ghost', '#3b5fa8': 'witch', '#7a4fc9': 'witch' }
   const night = () => api.darkness()
   // how far into the night: nothing at dusk, all of it once it is properly dark
   const deep = () => Math.max(0, Math.min(1, (night() - .35) * 2.5))
 
   // the haunts: where ghosts drift after dark
-  const HAUNTS = [[470, 256, 22], [420, 214, 16], [170, 214, 30], [100, 118, 22], [128, 60, 18], [62, 236, 18], [300, 120, 20]]
+  const HAUNTS = [[470, 262, 22], [382, 262, 18], [214, 262, 30], [64, 200, 22], [562, 116, 20], [120, 286, 18], [300, 236, 20]]
   const GHOSTS = HAUNTS.map(([x, y, r], i) => ({ x, y, r, ph: hash(i, 21) * 6.28, v: .25 + hash(i, 22) * .3 }))
   // werewolves prowl the Wizard's forest between these clearings, and stop now and then to howl
-  const DEN = [[20, 40], [32, 100], [90, 30], [100, 110], [16, 140], [130, 100], [170, 40], [60, 150]].map(([x, y]) => ({ x, y }))
+  const DEN = [[20, 120], [34, 214], [120, 110], [150, 160], [18, 300], [60, 250], [190, 130], [30, 360]].map(([x, y]) => ({ x, y }))
   const WOLVES = [0, 5].map((k, i) => ({ x: DEN[k].x, y: DEN[k].y, to: DEN[(k + 2) % DEN.length], wait: 1 + i * 3, facing: 1, howl: 0, dist: 0 }))
   // eyes that glint between the trees
-  const EYES = Array.from({ length: 10 }, (_, i) => ({ x: 8 + hash(i, 31) * 180, y: 20 + hash(i, 32) * 150, ph: hash(i, 33) * 9 }))
+  const EYES = Array.from({ length: 10 }, (_, i) => ({ x: 8 + hash(i, 31) * 170, y: 90 + hash(i, 32) * 260, ph: hash(i, 33) * 9 }))
 
   const ghost = (x, y, a, t) => {
     const g = api.g, wave = Math.floor(t * 4) % 2

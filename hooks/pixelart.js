@@ -141,6 +141,109 @@ export function house(b, x, y, w, wallH, rows, a, dark, chimney) {
   roof(b, x, y - wallH, w, rows, a, dark);
 }
 
+// ───────────────────────── the valley's landmarks ─────────────────────────
+// Laid stone: courses with staggered joints, lit from the left.
+export function masonry(b, L, T, w, h, light = '#b3aa9b', mid = '#9a9184', dark = '#7d766a', seam = '#5e574d') {
+  px(b, '#1b1424', L - 1, T - 1, w + 2, h + 1);
+  for (let yy = T; yy < T + h; yy++) for (let xx = 0; xx < w; xx++) {
+    const row = Math.floor((yy - T) / 4), joint = (yy - T) % 4 === 0 || (xx + (row % 2) * 3) % 6 === 0;
+    px(b, joint ? seam : xx < 2 ? light : xx > w - 3 ? dark : mid, L + xx, yy);
+  }
+}
+// A row of merlons along a wall's top.
+export function battlements(b, L, T, w, light = '#b3aa9b', dark = '#7d766a') {
+  for (let xx = 0; xx < w; xx += 4) { px(b, '#1b1424', L + xx - 1, T - 4, 4, 4); px(b, xx < 4 ? light : dark, L + xx, T - 3, 2, 3); }
+}
+// A round tower with a pointed roof: the keep's corners and its great tower.
+export function turret(b, x, y, w, h, roofA = '#b8503a', roofD = '#8e3a2a', flag) {
+  const L = x - (w >> 1), T = y - h;
+  masonry(b, L, T, w, h);
+  for (let wy = T + 6; wy < y - 8; wy += 12) { px(b, '#1b1424', x - 1, wy, 3, 5); px(b, '#ffd27a', x, wy + 1, 1, 3); marks.windows.push({ x, y: wy + 2 }); }
+  const rows = Math.round(w * 1.1);
+  for (let i = 0; i < rows; i++) {
+    const hw = Math.max(0, Math.round((rows - i) / rows * (w / 2 + 2)));
+    px(b, '#1b1424', x - hw - 1, T - 1 - i, hw * 2 + 2, 1); px(b, i % 3 ? roofA : roofD, x - hw, T - 1 - i, hw, 1); px(b, roofD, x, T - 1 - i, hw, 1);
+  }
+  if (flag) { px(b, '#3a2414', x, T - rows - 7, 1, 7); px(b, '#1b1424', x + 1, T - rows - 7, 6, 4); px(b, flag, x + 1, T - rows - 6, 5, 2); }
+}
+// The castle keep above the town: a curtain wall with a gatehouse, halls behind it and towers.
+export function keep(b, x, y) {
+  shadow(b, x + 4, y + 1, 130);
+  // the halls and the great tower behind the wall
+  for (const [dx, w, h, rows] of [[-36, 34, 26, 12], [30, 38, 30, 13]]) {
+    const L = x + dx - (w >> 1);
+    masonry(b, L, y - 18 - h, w, h, '#c9bfae', '#b3aa9b', '#968d7e');
+    for (let wx = L + 4; wx < L + w - 4; wx += 8) window_(b, wx, y - 18 - h + 6);
+    roof(b, x + dx, y - 18 - h, w, rows, '#b8503a', '#8e3a2a');
+  }
+  turret(b, x - 4, y - 18, 22, 58, '#b8503a', '#8e3a2a', '#f2b84b');
+  // the curtain wall, its gate and the corner towers
+  const L = x - 64, T = y - 22;
+  masonry(b, L, T, 128, 22); battlements(b, L, T, 128);
+  px(b, '#1b1424', x - 9, y - 16, 18, 16); px(b, '#2a1f18', x - 8, y - 15, 16, 15);
+  for (let k = -7; k <= 7; k += 3) px(b, '#5a5048', x + k, y - 15, 1, 15);
+  px(b, '#1b1424', x - 11, y - 20, 22, 3); px(b, '#9a9184', x - 10, y - 19, 20, 1);
+  for (const lx of [x - 13, x + 12]) { px(b, '#ffd27a', lx, y - 12, 2, 2); marks.torches.push({ x: lx + 1, y: y - 11 }); }
+  for (const tx of [x - 64, x + 64]) turret(b, tx, y + 2, 16, 40, '#b8503a', '#8e3a2a', tx < x ? '#b8323f' : undefined);
+  turret(b, x - 30, y - 20, 12, 26); turret(b, x + 36, y - 22, 12, 30);
+}
+// The old ruins above the falls: broken walls, a lone arch, toppled columns and moss.
+export function ruins(b, x, y) {
+  shadow(b, x, y + 1, 60);
+  const grey = ['#a7a196', '#8f897e', '#6f6a61', '#55504a'];
+  masonry(b, x - 30, y - 16, 14, 16, ...grey); masonry(b, x - 30, y - 24, 6, 8, ...grey);
+  masonry(b, x + 14, y - 22, 16, 22, ...grey); masonry(b, x + 24, y - 30, 6, 8, ...grey);
+  // an arch still standing
+  masonry(b, x - 10, y - 30, 4, 30, ...grey); masonry(b, x + 4, y - 30, 4, 30, ...grey); masonry(b, x - 10, y - 34, 18, 5, ...grey);
+  // toppled columns and rubble
+  px(b, '#1b1424', x - 44, y - 5, 16, 5); px(b, grey[0], x - 43, y - 4, 14, 2); px(b, grey[2], x - 43, y - 2, 14, 1);
+  for (let k = 0; k < 9; k++) rock(b, x - 40 + Math.floor(hash(x + k, y) * 80), y + 1 + Math.floor(hash(k, x) * 6), 1 + Math.floor(hash(k, y) * 2), grey[0], grey[2]);
+  for (let k = 0; k < 14; k++) px(b, hash(k, x) > .5 ? '#4f8a3c' : '#3f7431', x - 32 + Math.floor(hash(x, k) * 64), y - 2 - Math.floor(hash(k * 3, y) * 30), 2, 1);
+}
+// A rocky crag, sheer below and grassy on top: the tower stands on it. Its outline is ragged
+// and its face falls in shadowed ledges.
+export function crag(b, x, y, w, h) {
+  const edge = i => Math.round(w / 2 * (0.62 + 0.38 * (i / h)) + (hash(x, i >> 1) - .5) * 5)
+  for (let i = 0; i <= h; i++) {
+    const yy = y - h + i, hl = edge(i), hr = edge(i + 97)
+    px(b, '#1b1424', x - hl - 1, yy, hl + hr + 2, 1)
+    for (let xx = -hl; xx < hr; xx++) {
+      const ledge = (i + Math.floor(hash((x + xx) >> 3, 5) * 6)) % 8 === 0, crack = hash(x + xx, i >> 2) > .93
+      px(b, ledge || crack ? '#3e3a35' : xx < -hl * 0.45 ? '#8a8276' : xx < hr * 0.2 ? '#6e675d' : '#55504a', x + xx, yy)
+    }
+  }
+  const top = y - h, tw = edge(0)
+  for (let xx = -tw; xx < tw; xx++) { const d = 2 + Math.floor(hash(xx, x) * 4); px(b, '#447f30', x + xx, top - 1, 1, d); px(b, '#5c9e3e', x + xx, top - 1, 1, 1) }
+  for (let k = 0; k < 7; k++) tuft(b, x - tw + Math.floor(hash(k, x) * tw * 2), top + 6 + Math.floor(hash(x, k) * h * 0.7), '#4f8a3c')
+}
+// The guild hall: a long timbered hall under blue roofs, with the guild's banners.
+export function guildHall(b, x, y) {
+  const w = 64, wallH = 24, L = x - (w >> 1);
+  px(b, 'rgba(0,0,0,.3)', L + 3, y, w, 5);
+  wall(b, L, y - wallH, w, wallH, true);
+  for (let wx = L + 5; wx < L + w - 6; wx += 10) { window_(b, wx, y - wallH + 4); if (Math.abs(wx + 2 - x) > 8) window_(b, wx, y - 12); }
+  px(b, '#1b1424', x - 6, y - 13, 12, 13); px(b, '#5a3720', x - 5, y - 12, 10, 12); px(b, '#f2b84b', x + 1, y - 6, 1, 1);
+  roof(b, x, y - wallH, w, 20, '#3b5fa8', '#2c4a85');
+  turret(b, L + 4, y, 12, 34, '#3b5fa8', '#2c4a85', '#f2b84b');
+  for (const bx of [x - 18, x + 14]) { px(b, '#1b1424', bx, y - wallH + 2, 5, 12); px(b, '#3b5fa8', bx + 1, y - wallH + 3, 3, 9); px(b, '#f2b84b', bx + 2, y - wallH + 6, 1, 3); }
+}
+// A wooden pier running out to sea on posts, with a landing at its end.
+export function pier(b, x, y, len, wide = 10) {
+  for (let i = 4; i < len; i += 7) for (const px_ of [x - 2, x + wide]) { px(b, '#1b1424', px_, y + i, 2, 7); px(b, '#3a2414', px_, y + i + 4, 2, 3) }
+  px(b, '#1b1424', x - 1, y - 1, wide + 2, len + 2)
+  for (let i = 0; i < len; i++) px(b, i % 3 === 0 ? '#7a4f2c' : i % 3 === 1 ? '#b8834e' : '#a3723f', x, y + i, wide, 1)
+  px(b, '#1b1424', x - 7, y + len - 7, wide + 14, 9)
+  for (let i = 0; i < 7; i++) px(b, i % 3 === 0 ? '#7a4f2c' : '#b8834e', x - 6, y + len - 6 + i, wide + 12, 1)
+  px(b, 'rgba(0,0,0,.3)', x - 6, y + len + 2, wide + 12, 2)
+}
+// A small boat moored by a pier, sail furled or set.
+export function boat(b, x, y, sail = '#efe6d2', hull = '#7a4a2a') {
+  px(b, '#1b1424', x - 9, y - 4, 19, 5); px(b, hull, x - 8, y - 3, 17, 3); px(b, shade(hull, -24), x - 6, y - 1, 13, 1);
+  px(b, 'rgba(255,255,255,.35)', x - 10, y + 1, 21, 1);
+  px(b, '#3a2414', x, y - 22, 1, 18);
+  for (let i = 0; i < 14; i++) { const w = Math.round((14 - i) * 0.6) + 1; px(b, '#1b1424', x + 1, y - 7 - i, w + 1, 1); px(b, sail, x + 1, y - 7 - i, w, 1); }
+}
+
 // ───────────────────────── landmarks ─────────────────────────
 export function tavern(b, x, y) {
   // The guild's great hall: two storeys under a broad roof, a sign, lanterns and barrels.
@@ -228,8 +331,8 @@ export function wizardTower(b, x, y) {
   const TOWER = marks.tower = { x, y, top, windows: [{ x: x - 3, y: y - 30 }, { x: x + 2, y: y - 48 }], tip: { x, y: top - 41 } };
   for (const wdw of TOWER.windows) { px(b, '#1b1424', wdw.x - 1, wdw.y - 1, 5, 8); px(b, '#2a1d45', wdw.x, wdw.y, 3, 6); }
 }
-export function forgeHall(b, x, y) {
-  mountain(b, x - 34, y - 26, 74, 50, 0.3); mountain(b, x + 38, y - 22, 70, 54, 0.3); mountain(b, x + 2, y - 36, 92, 66, 0.34);
+export function forgeHall(b, x, y, inTown = false) {
+  if (!inTown) { mountain(b, x - 34, y - 26, 74, 50, 0.3); mountain(b, x + 38, y - 22, 70, 54, 0.3); mountain(b, x + 2, y - 36, 92, 66, 0.34); }
   const L = x - 26, T = y - 44;
   px(b, '#1b1424', L - 1, T - 1, 54, 46);
   for (let yy = T; yy < y; yy++) for (let xx = 0; xx < 52; xx++) {

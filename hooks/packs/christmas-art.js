@@ -39,7 +39,7 @@ export const CHRISTMAS_ART = {
       for (const [dx, dy, w] of [[-12, -3, 8], [4, 1, 10], [-4, 5, 6]]) px(b, '#ffffff', L.x + dx, L.y + dy, w, 1)
     })
     // the great tree in the square, its foot where the presents will pile
-    const tree = { x: 188, y: 200 }
+    const tree = { x: 404, y: 252 }
     const bulbs = []
     add(tree.y, b => {
       const { x, y } = tree
@@ -62,7 +62,7 @@ export const CHRISTMAS_ART = {
     const eaves = [{ x: T.x - 42, y: T.y - 32, w: 84 }, ...FOLK.houses.map(h => ({ x: h.x - (h.w >> 1), y: h.y - 14, w: h.w }))]
     for (const e of eaves) for (let i = 1; i < e.w; i += 4) lights.push({ x: e.x + i, y: e.y + (i % 8 < 4 ? 0 : 1), c: i % 12 })
     // snowmen about the town
-    for (const [x, y, hat] of [[106, 256, 1], [236, 238, 0], [222, 254, 1]]) add(y, b => snowman(px, b, x, y, hat))
+    for (const [x, y, hat] of [[250, 270, 1], [442, 288, 0], [150, 322, 1]]) add(y, b => snowman(px, b, x, y, hat))
     // snow on the Tavern roof's ridge
     add(T.y + .5, b => { for (let i = 0; i < 70; i += 3) px(b, '#ffffff', T.x - 35 + i, T.y - 58 + Math.round(Math.abs(i - 35) * .7), 3, 1) })
     return { tree, bulbs, lights, presents: { x: tree.x, y: tree.y + 2 } }
@@ -71,20 +71,20 @@ export const CHRISTMAS_ART = {
 
 export const CHRISTMAS_ESTATES = {
   snowmen: {
-    at: { x: 304, y: 200 }, clears: [{ x: 304, y: 196, r: 14 }],
+    at: { x: 580, y: 214 }, clears: [{ x: 580, y: 210, r: 14 }],
     paint(b) { return { slots: [-12, -4, 4, 12, 20, -20, 28].map(dx => ({ x: this.at.x + dx, y: this.at.y })) } },
   },
   rink: {
-    at: { x: 128, y: 70 }, clears: [{ x: 108, y: 70, r: 6 }, { x: 150, y: 70, r: 6 }],
+    at: { x: 452, y: 164 }, clears: [{ x: 432, y: 164, r: 6 }, { x: 474, y: 164, r: 6 }],
     paint(b) {
-      const L = { x: 128, y: 56 }, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }, lanterns = []
+      const L = { x: 452, y: 150 }, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }, lanterns = []
       for (const dx of [-20, 20]) { const x = L.x + dx, y = L.y + 14; p('#1b1424', x, y - 10, 1, 10); p('#1b1424', x - 1, y - 13, 3, 3); p('#ffd27a', x, y - 12, 1, 1); lanterns.push({ x, y: y - 12 }) }
       for (const dx of [-10, 6]) { const x = L.x + dx, y = L.y + 15; p('#1b1424', x - 1, y - 3, 8, 3); p('#8a5a34', x, y - 3, 6, 1); p('#5a3720', x, y - 1, 1, 1); p('#5a3720', x + 5, y - 1, 1, 1) }
       return { lake: L, lanterns }
     },
   },
   gingerbread: {
-    at: { x: 264, y: 130 }, clears: [{ x: 264, y: 124, r: 15 }],
+    at: { x: 536, y: 186 }, clears: [{ x: 536, y: 180, r: 15 }],
     paint(b) {
       const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }
       shadow(b, x + 1, y, 26)
@@ -99,7 +99,7 @@ export const CHRISTMAS_ESTATES = {
     },
   },
   aurora: {
-    at: { x: 262, y: 64 }, clears: [{ x: 262, y: 56, r: 15 }],
+    at: { x: 330, y: 104 }, clears: [{ x: 330, y: 96, r: 15 }],
     paint(b) {
       const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }
       shadow(b, x + 2, y, 18)

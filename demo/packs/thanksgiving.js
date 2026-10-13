@@ -3,7 +3,7 @@
 GuildPacks.thanksgiving = api => {
   const { px, hash, glow, burst, reduced } = api
   const P = (c, x, y, w = 1, h = 1) => px(api.g, c, Math.round(x), Math.round(y), w, h)
-  const LEAVES = Array.from({ length: 34 }, (_, i) => ({ x: hash(i, 41) * 512, y: hash(i, 42) * 300, v: 6 + hash(i, 43) * 8, ph: hash(i, 44) * 6.28, c: ['#d8742a', '#b8503a', '#f2a24a', '#c9a03a'][i % 4] }))
+  const LEAVES = Array.from({ length: 34 }, (_, i) => ({ x: hash(i, 41) * api.W, y: hash(i, 42) * api.H, v: 6 + hash(i, 43) * 8, ph: hash(i, 44) * 6.28, c: ['#d8742a', '#b8503a', '#f2a24a', '#c9a03a'][i % 4] }))
   const GEESE = [{ y: 70, v: -16, off: 0, n: 7 }, { y: 180, v: -12, off: 420, n: 5 }]
   const TURKEYS = [{ x: 214, y: 254, ph: 0 }, { x: 226, y: 260, ph: 2.1 }, { x: 206, y: 266, ph: 4.2 }]
   const HATS = { '#3b5fa8': true, '#e39a4d': true, '#f3e6c0': true }
@@ -70,8 +70,8 @@ GuildPacks.thanksgiving = api => {
       }
       // leaves drifting down across the island
       if (!reduced) for (const l of LEAVES) {
-        const y = (l.y + c * l.v) % 320, x = l.x + Math.sin(c * 1.3 + l.ph) * 8 + c * 3 % 512, flip = Math.floor(c * 3 + l.ph) % 2
-        P(l.c, x % 512, y, flip ? 2 : 1, flip ? 1 : 2)
+        const y = (l.y + c * l.v) % api.H, x = l.x + Math.sin(c * 1.3 + l.ph) * 8 + c * 3 % api.W, flip = Math.floor(c * 3 + l.ph) % 2
+        P(l.c, x % api.W, y, flip ? 2 : 1, flip ? 1 : 2)
       }
       // the apple press's barrel froths while a brew bubbles
       if (E.applepress && api.busyAt('cauldron')) { const b = E.applepress.barrel; for (let i = 0; i < 2; i++) P('#f3e6c0', b.x - 1 + i * 2, b.y - 1 - (Math.floor(c * 4 + i) % 2), 1, 1) }

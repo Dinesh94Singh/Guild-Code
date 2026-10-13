@@ -1,47 +1,70 @@
 // The realm: one world for the dry run and the mod. Its layout, and a painter that draws it
 // into a plain pixel buffer (no browser needed), so the dry run paints the very image the
-// mod's map is built from (see demo/build.mjs, which writes it to hooks/world-art.ts).
+// mod's map is built from (see demo/paint-world.mjs, which writes it to hooks/world-art.ts).
 //
-// Land fills the frame, the sea keeps to the south coast. The guild town sits in the centre-west
-// with a broad river to its east. From the town gate the roads branch like a tree: north-west into
-// the forest to the Wizard's tower, south-west into the swamp to the Alchemist's hut, and east over
-// the one bridge, where the road forks north up to the Armory in the snowy mountains and east to
-// the Dungeon in the volcanic badlands, under the fire mountain.
+// A valley between snowy mountains and the sea. The Wizard's tower stands on a crag in the
+// western woods; the castle keep rises over the town in the middle, with the guild hall to its
+// west, the harbour below it and the Blacksmith's armory on the town's south road. A river
+// falls from the mountains past the old ruins and winds south to the bay; the Riverside Tavern
+// sits on its west bank. Over the bridges lie the Alchemist's forest cave to the east and, on
+// the sea cliffs to the south-east, the cavern where the Dungeon's monsters lurk. The roads
+// run place to place through the town, as real ones do, and the party walks the shortest way.
 import {
-  PALETTES, SEASON, Recorder, alchemistHut, shade, shadow, cookfire, deadTree, dungeonCave, field, flowers, forgeHall, gravestone, hash,
-  house, lamp, lavaCrack, marks, volcano, mineEntrance, mountain, mushroom, oak, palm, pine, px, questBoard, reeds, resetMarks, rock, stall,
+  PALETTES, SEASON, Recorder, alchemistHut, boat, crag, guildHall, keep, pier, ruins, shade, shadow, cookfire, deadTree, dungeonCave, field, flowers, forgeHall, gravestone, hash,
+  house, lamp, marks, mineEntrance, mountain, mushroom, oak, palm, pine, px, questBoard, reeds, resetMarks, rock, stall,
   tavern, tuft, washingLine, well, willow, windmill, wizardTower, woodyard,
 } from './pixelart.js'
 import { PACK_ART, PACK_ESTATES } from './packs/art.js'
 
-export const W = 512, H = 320
+export const W = 768, H = 432
 
 // ── the places ──
 // at: the landmark's foot · tag: where its name plate hangs · spots: where the party stands
 export const PLACES = {
-  tavern: { at: { x: 168, y: 172 }, tag: { x: 168, y: 104 }, spots: [{ x: 152, y: 198 }, { x: 172, y: 204 }, { x: 190, y: 198 }, { x: 160, y: 214 }, { x: 182, y: 214 }, { x: 140, y: 208 }] },
-  study: { at: { x: 56, y: 122 }, tag: { x: 60, y: 14 }, spots: [{ x: 74, y: 136 }, { x: 90, y: 140 }, { x: 62, y: 140 }, { x: 82, y: 148 }, { x: 100, y: 148 }] },
-  armory: { at: { x: 392, y: 96 }, tag: { x: 392, y: 22 }, spots: [{ x: 412, y: 116 }, { x: 392, y: 112 }, { x: 374, y: 118 }, { x: 402, y: 124 }, { x: 384, y: 126 }] },
-  cauldron: { at: { x: 66, y: 266 }, tag: { x: 66, y: 204 }, spots: [{ x: 110, y: 262 }, { x: 124, y: 268 }, { x: 138, y: 262 }, { x: 116, y: 276 }, { x: 132, y: 278 }] },
-  dungeon: { at: { x: 420, y: 236 }, tag: { x: 392, y: 168 }, spots: [{ x: 382, y: 250 }, { x: 370, y: 258 }, { x: 386, y: 264 }, { x: 372, y: 244 }, { x: 362, y: 252 }] },
+  tavern: { at: { x: 468, y: 240 }, tag: { x: 468, y: 168 }, spots: [{ x: 452, y: 260 }, { x: 472, y: 266 }, { x: 492, y: 260 }, { x: 460, y: 274 }, { x: 484, y: 276 }, { x: 440, y: 268 }] },
+  study: { at: { x: 64, y: 150 }, tag: { x: 64, y: 54 }, spots: [{ x: 104, y: 202 }, { x: 118, y: 208 }, { x: 92, y: 210 }, { x: 110, y: 218 }, { x: 126, y: 218 }] },
+  armory: { at: { x: 318, y: 300 }, tag: { x: 318, y: 236 }, spots: [{ x: 300, y: 318 }, { x: 318, y: 322 }, { x: 336, y: 318 }, { x: 308, y: 330 }, { x: 328, y: 330 }] },
+  cauldron: { at: { x: 724, y: 214 }, tag: { x: 724, y: 156 }, spots: [{ x: 672, y: 214 }, { x: 660, y: 222 }, { x: 676, y: 226 }, { x: 664, y: 232 }, { x: 680, y: 236 }] },
+  dungeon: { at: { x: 716, y: 358 }, tag: { x: 700, y: 290 }, spots: [{ x: 660, y: 366 }, { x: 648, y: 374 }, { x: 664, y: 380 }, { x: 650, y: 360 }, { x: 640, y: 368 }] },
 }
-export const HUB = { x: 214, y: 190 } // the town gate, where every road begins
-export const DOORWAY = { x: 168, y: 174 } // the tavern door, where new party members step out
-export const BOARD = { x: 98, y: 198 } // the quest board's top-left
-export const CAULDRON = { x: 124, y: 252 }
-export const CHEST = { x: 456, y: 250 }
-export const VOLCANO = { x: 478, y: 182 }
-export const MONSTER_SLOTS = [[404, 246], [416, 250], [428, 246], [398, 256], [410, 260], [424, 258], [438, 254], [392, 242], [418, 266], [432, 264], [404, 268], [444, 262]].map(([x, y]) => ({ x, y }))
+export const HUB = { x: 470, y: 254 } // before the tavern door, where the roads meet
+export const DOORWAY = { x: 468, y: 242 } // the tavern door, where new party members step out
+export const BOARD = { x: 398, y: 222 } // the quest board's top-left
+export const CAULDRON = { x: 688, y: 210 }
+export const CHEST = { x: 750, y: 376 }
+export const VOLCANO = { x: 708, y: 70 } // no fire mountain in the valley: where the dragon's glow would rise
+export const MONSTER_SLOTS = [[690, 368], [702, 372], [714, 368], [684, 378], [696, 382], [710, 380], [724, 376], [678, 364], [704, 388], [718, 386], [690, 390], [730, 384]].map(([x, y]) => ({ x, y }))
 
-// Roads branch from the town gate; the two eastern roads share the bridge and fork beyond it.
-export const ROADS_RAW = {
-  tavern: [[214, 190], [204, 192], [194, 196]],
-  study: [[214, 190], [228, 166], [224, 138], [204, 118], [170, 110], [134, 114], [106, 128], [88, 136]],
-  cauldron: [[214, 190], [210, 212], [200, 236], [178, 252], [158, 258], [144, 258]],
-  armory: [[214, 190], [240, 182], [268, 176], [298, 174], [322, 158], [346, 138], [366, 120]],
-  dungeon: [[214, 190], [240, 182], [268, 176], [298, 174], [326, 190], [350, 210], [366, 238]],
+// ── the roads ──
+// A network, not a star: crossroads (NODES) joined by winding roads (EDGES, each a list of
+// waypoints from one node to the other). Each place sits at its own node.
+export const NODES = {
+  tavern: { x: 470, y: 254 }, square: { x: 382, y: 262 }, armory: { x: 318, y: 316 }, keep: { x: 300, y: 214 },
+  west: { x: 214, y: 262 }, hall: { x: 120, y: 274 }, harbour: { x: 166, y: 344 }, study: { x: 104, y: 196 },
+  ruins: { x: 562, y: 128 }, ford: { x: 646, y: 238 }, cauldron: { x: 670, y: 220 }, mouth: { x: 628, y: 314 },
+  dungeon: { x: 660, y: 362 }, cliffs: { x: 700, y: 296 },
 }
-export const RIVER_RAW = [[288, -8], [298, 50], [282, 110], [296, 170], [280, 230], [292, 280], [286, 330]]
+export const EDGES = [
+  ['tavern', 'square', [[440, 268], [410, 268]]],
+  ['square', 'armory', [[358, 282], [334, 298]]],
+  ['square', 'keep', [[354, 246], [326, 230]]],
+  ['square', 'west', [[334, 270], [272, 256]]],
+  ['west', 'keep', [[238, 240], [270, 222]]],
+  ['west', 'hall', [[178, 278], [142, 280]]],
+  ['hall', 'study', [[100, 254], [112, 228]]],
+  ['hall', 'harbour', [[132, 302], [154, 324]]],
+  ['armory', 'harbour', [[282, 336], [232, 350], [196, 352]]],
+  ['tavern', 'ruins', [[504, 232], [534, 200], [552, 162]]],
+  ['tavern', 'ford', [[520, 254], [578, 246], [618, 240]]],
+  ['ford', 'cauldron', [[660, 228]]],
+  ['tavern', 'mouth', [[498, 284], [548, 302], [596, 312]]],
+  ['mouth', 'dungeon', [[648, 334]]],
+  ['cauldron', 'cliffs', [[690, 248], [704, 272]]],
+  ['cliffs', 'dungeon', [[692, 324], [676, 346]]],
+]
+// The river: down from the snows, over the falls by the ruins and through the valley to the bay.
+export const RIVER_RAW = [[618, -8], [612, 44], [600, 96], [604, 132], [628, 184], [650, 232], [646, 280], [624, 318], [614, 352], [612, 440]]
+export const FALLS = { x: 602, top: 100, bottom: 136 }
 
 export function smooth(raw, step) {
   const out = []
@@ -58,40 +81,84 @@ export function smooth(raw, step) {
   out.push({ x: last[0], y: last[1] })
   return out
 }
-export const ROADS = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, smooth(r, 2)]))
-export const WALK = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, smooth(r, 3)]))
+const legOf = ([a, b, via]) => [[NODES[a].x, NODES[a].y], ...via, [NODES[b].x, NODES[b].y]]
+// Every road as drawn, by `from-to`.
+export const ROADS = Object.fromEntries(EDGES.map(e => [`${e[0]}-${e[1]}`, smooth(legOf(e), 2)]))
 export const RIVER = smooth(RIVER_RAW, 2)
+
+/** The way from one place (or crossroads) to another along the roads: the shortest, as points. */
+const ways = new Map()
+export function way(from, to, step = 3) {
+  const key = `${from}>${to}>${step}`
+  if (ways.has(key)) return ways.get(key)
+  const len = e => legOf(e).reduce((n, p, i, l) => (i ? n + Math.hypot(p[0] - l[i - 1][0], p[1] - l[i - 1][1]) : 0), 0)
+  const dist = Object.fromEntries(Object.keys(NODES).map(n => [n, Infinity])), prev = {}, open = new Set(Object.keys(NODES))
+  dist[from] = 0
+  while (open.size) {
+    let u = null
+    for (const n of open) if (u === null || dist[n] < dist[u]) u = n
+    open.delete(u)
+    if (u === to || dist[u] === Infinity) break
+    for (const e of EDGES) {
+      const v = e[0] === u ? e[1] : e[1] === u ? e[0] : null
+      if (v && open.has(v) && dist[u] + len(e) < dist[v]) { dist[v] = dist[u] + len(e); prev[v] = { u, e } }
+    }
+  }
+  const legs = []
+  for (let n = to; n !== from && prev[n]; n = prev[n].u) {
+    const { u, e } = prev[n], pts = smooth(legOf(e), step)
+    legs.unshift(e[0] === u ? pts : [...pts].reverse())
+  }
+  const out = legs.flatMap((l, i) => (i ? l.slice(1) : l))
+  if (!out.length) out.push({ ...NODES[from] })
+  ways.set(key, out)
+  return out
+}
+// From the tavern out to each place: the way the travellers and the cart go about the valley.
+export const WALK = Object.fromEntries(Object.keys(PLACES).map(k => [k, way('tavern', k)]))
 
 // ── the folk and their work: anchors the dry run animates and the mod's map dresses ──
 export const FOLK = {
-  mine: { x: 336, y: 66 },
-  woodyard: { x: 30, y: 184 },
-  cookfire: { x: 158, y: 280 },
-  laundry: { x: 14, y: 222 },
-  fishing: { x: 270, y: 122 },
-  field: { x: 228, y: 268, w: 44, h: 20 },
-  windmill: { x: 214, y: 288 },
-  pen: { x: 254, y: 242, rx: 16, ry: 7 },
-  glade: { x: 232, y: 86 },
-  lake: { x: 128, y: 56, rx: 22, ry: 11 },
-  dock: { x: 204, y: 304 },
-  perch: { x: 452, y: 196 },
-  town: { x: 166, y: 198, rx: 46, ry: 24 },
-  houses: [{ x: 108, y: 190, w: 28, roof: ['#3b5fa8', '#2c4a85'], chimney: true }, { x: 124, y: 238, w: 28, roof: ['#b8503a', '#8e3a2a'], chimney: true }, { x: 238, y: 216, w: 28, roof: ['#3f8f4f', '#2c6b3a'], chimney: false }, { x: 176, y: 242, w: 30, roof: ['#7a4fc9', '#5a3a99'], chimney: true }],
-  well: { x: 200, y: 214 },
-  stall: { x: 146, y: 226 },
-  lamps: [{ x: 196, y: 180 }, { x: 130, y: 208 }],
+  mine: { x: 404, y: 84 },
+  woodyard: { x: 30, y: 266 },
+  cookfire: { x: 236, y: 300 },
+  laundry: { x: 196, y: 222 },
+  fishing: { x: 588, y: 206 },
+  field: { x: 498, y: 300, w: 52, h: 22 },
+  windmill: { x: 566, y: 292 },
+  pen: { x: 420, y: 316, rx: 18, ry: 8 },
+  glade: { x: 520, y: 150 },
+  lake: { x: 452, y: 150, rx: 34, ry: 13 },
+  dock: { x: 168, y: 356 },
+  perch: { x: 690, y: 94 },
+  town: { x: 382, y: 262, rx: 38, ry: 18 },
+  harbour: { x: 166, y: 346 },
+  keep: { x: 300, y: 210 },
+  hall: { x: 120, y: 268 },
+  ruins: { x: 560, y: 116 },
+  houses: [
+    { x: 410, y: 244, w: 26, roof: ['#b8503a', '#8e3a2a'], chimney: true }, { x: 352, y: 292, w: 26, roof: ['#b8503a', '#8e3a2a'], chimney: false },
+    { x: 418, y: 292, w: 28, roof: ['#c0623a', '#94452a'], chimney: true }, { x: 352, y: 234, w: 24, roof: ['#b8503a', '#8e3a2a'], chimney: true },
+    { x: 262, y: 284, w: 26, roof: ['#c0623a', '#94452a'], chimney: true }, { x: 238, y: 244, w: 24, roof: ['#3b5fa8', '#2c4a85'], chimney: false },
+    { x: 182, y: 304, w: 26, roof: ['#b8503a', '#8e3a2a'], chimney: true }, { x: 272, y: 324, w: 24, roof: ['#3f8f4f', '#2c6b3a'], chimney: false },
+    { x: 226, y: 330, w: 26, roof: ['#b8503a', '#8e3a2a'], chimney: true }, { x: 512, y: 230, w: 24, roof: ['#c0623a', '#94452a'], chimney: true },
+    { x: 154, y: 246, w: 24, roof: ['#3b5fa8', '#2c4a85'], chimney: true }, { x: 524, y: 274, w: 24, roof: ['#b8503a', '#8e3a2a'], chimney: false },
+  ],
+  well: { x: 384, y: 270 },
+  stall: { x: 362, y: 256 },
+  lamps: [{ x: 444, y: 256 }, { x: 396, y: 254 }, { x: 222, y: 256 }, { x: 330, y: 306 }],
+  boats: [{ x: 144, y: 400 }, { x: 196, y: 396 }, { x: 96, y: 386 }],
   // where the townsfolk, animals and birds go about their day
-  townPoints: [{ x: 136, y: 202 }, { x: 150, y: 216 }, { x: 186, y: 214 }, { x: 200, y: 198 }, { x: 160, y: 192 }, { x: 124, y: 214 }, { x: 108, y: 194 }, { x: 238, y: 220 }, { x: 176, y: 246 }],
-  catPoints: [{ x: 108, y: 194 }, { x: 124, y: 242 }, { x: 238, y: 220 }, { x: 176, y: 246 }, { x: 196, y: 216 }],
-  chickens: [{ x: 200, y: 264 }, { x: 212, y: 266 }, { x: 206, y: 262 }],
-  frogPads: [{ x: 50, y: 270 }, { x: 88, y: 272 }],
-  pools: [{ x: 54, y: 268 }, { x: 84, y: 270 }, { x: 70, y: 274 }],
-  fireflies: { x: 10, y: 226, w: 120, h: 60 },
-  butterflies: { x: 196, y: 96, w: 80, h: 50 },
-  flurries: { x: 300, y: 0, w: 212, h: 130 },
-  gulls: [{ x: 60, y: 308, r: 16, v: 0.9 }, { x: 260, y: 310, r: 20, v: -0.7 }, { x: 440, y: 308, r: 18, v: 0.6 }],
-  ship: { y: 314, from: 230, to: 490 },
+  townPoints: [{ x: 372, y: 266 }, { x: 396, y: 276 }, { x: 410, y: 256 }, { x: 360, y: 280 }, { x: 330, y: 268 }, { x: 290, y: 262 }, { x: 250, y: 266 }, { x: 440, y: 270 }, { x: 214, y: 270 }],
+  catPoints: [{ x: 410, y: 246 }, { x: 352, y: 294 }, { x: 262, y: 286 }, { x: 418, y: 294 }, { x: 384, y: 274 }],
+  chickens: [{ x: 534, y: 288 }, { x: 544, y: 292 }, { x: 538, y: 284 }],
+  frogPads: [{ x: 744, y: 248 }, { x: 726, y: 256 }],
+  pools: [{ x: 742, y: 246 }, { x: 728, y: 254 }, { x: 736, y: 262 }],
+  fireflies: { x: 650, y: 230, w: 110, h: 60 },
+  butterflies: { x: 480, y: 280, w: 90, h: 50 },
+  flurries: { x: 300, y: 0, w: 468, h: 110 },
+  gulls: [{ x: 120, y: 410, r: 18, v: 0.9 }, { x: 420, y: 414, r: 22, v: -0.7 }, { x: 640, y: 404, r: 18, v: 0.6 }],
+  ship: { y: 420, from: 240, to: 600 },
 }
 
 // ── the estates: what the treasury buys (hooks/treasury.ts) and where each one stands ──
@@ -113,12 +180,12 @@ const spire = (b, x, top, rows, half, a, dark) => {
 }
 export const ESTATES = {
   lanterns: {
-    at: { x: 214, y: 190 }, lamps: [{ x: 222, y: 124 }, { x: 116, y: 130 }, { x: 212, y: 240 }, { x: 262, y: 188 }, { x: 314, y: 182 }],
+    at: { x: 470, y: 254 }, lamps: [{ x: 424, y: 276 }, { x: 290, y: 246 }, { x: 172, y: 292 }, { x: 560, y: 256 }, { x: 524, y: 212 }],
     get clears() { return this.lamps.map(l => ({ ...l, r: 4 })) },
     paint(b) { for (const l of this.lamps) lamp(b, l.x, l.y); return {} },
   },
   fountain: {
-    at: { x: 138, y: 194 }, clears: [{ x: 138, y: 194, r: 10 }],
+    at: { x: 354, y: 274 }, clears: [{ x: 354, y: 274, r: 10 }],
     paint(b) {
       const { x, y } = this.at
       shadow(b, x, y + 1, 24)
@@ -129,9 +196,9 @@ export const ESTATES = {
       return { jet: { x, y: y - 19 }, pool: { x, y: y - 6 } }
     },
   },
-  bard: { at: { x: 147, y: 182 }, clears: [] },
+  bard: { at: { x: 444, y: 252 }, clears: [] },
   belltower: {
-    at: { x: 252, y: 160 }, clears: [{ x: 252, y: 156, r: 14 }],
+    at: { x: 198, y: 234 }, clears: [{ x: 198, y: 230, r: 14 }],
     paint(b) {
       const { x, y } = this.at, top = y - 30
       shadow(b, x + 2, y, 18)
@@ -145,16 +212,16 @@ export const ESTATES = {
     },
   },
   fairyring: {
-    at: { x: 34, y: 150 }, clears: [{ x: 34, y: 150, r: 13 }],
+    at: { x: 44, y: 326 }, clears: [{ x: 44, y: 326, r: 13 }],
     paint(b) {
       const { x, y } = this.at
       for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; mushroom(b, Math.round(x + Math.cos(a) * 9), Math.round(y + Math.sin(a) * 4) + 2, k % 2 ? '#a593ff' : '#e8606f') }
       return { ring: { x, y } }
     },
   },
-  owl: { at: { x: 56, y: 62 }, clears: [] },
+  owl: { at: { x: 34, y: 112 }, clears: [] },
   obelisk: {
-    at: { x: 100, y: 96 }, clears: [{ x: 100, y: 102, r: 18 }],
+    at: { x: 144, y: 176 }, clears: [{ x: 144, y: 182, r: 18 }],
     paint(b) {
       const { x, y } = this.at
       shadow(b, x + 1, y, 12)
@@ -167,9 +234,9 @@ export const ESTATES = {
     },
   },
   dummies: {
-    at: { x: 452, y: 118 }, clears: [{ x: 452, y: 116, r: 14 }],
+    at: { x: 362, y: 334 }, clears: [{ x: 362, y: 332, r: 14 }],
     paint(b) {
-      for (const [x, y] of [[446, 117], [459, 119]]) {
+      for (const [x, y] of [[this.at.x - 6, this.at.y - 1], [this.at.x + 7, this.at.y + 1]]) {
         shadow(b, x, y, 8)
         px(b, '#5a3720', x, y - 14, 1, 14); px(b, '#5a3720', x - 5, y - 10, 11, 1)
         px(b, '#1b1424', x - 3, y - 12, 7, 9); px(b, '#d9b85a', x - 2, y - 11, 5, 7); px(b, '#b8323f', x - 1, y - 9, 3, 2); px(b, '#fff3d0', x, y - 9, 1, 1)
@@ -179,7 +246,7 @@ export const ESTATES = {
     },
   },
   watchtower: {
-    at: { x: 318, y: 110 }, clears: [{ x: 318, y: 104, r: 16 }],
+    at: { x: 738, y: 302 }, clears: [{ x: 738, y: 296, r: 16 }],
     paint(b) {
       const { x, y } = this.at, top = y - 34
       shadow(b, x + 2, y, 20)
@@ -193,7 +260,7 @@ export const ESTATES = {
     },
   },
   pikes: {
-    at: { x: 474, y: 272 }, clears: [{ x: 474, y: 268, r: 12 }],
+    at: { x: 744, y: 346 }, clears: [{ x: 744, y: 342, r: 12 }],
     paint(b) {
       const { x, y } = this.at
       ;['#d1495b', '#9b59d0', '#e07a2f'].forEach((c, i) => {
@@ -205,9 +272,9 @@ export const ESTATES = {
       return {}
     },
   },
-  wisps: { at: { x: 470, y: 246 }, clears: [] },
+  wisps: { at: { x: 726, y: 330 }, clears: [] },
   shelf: {
-    at: { x: 24, y: 252 }, clears: [{ x: 24, y: 248, r: 11 }],
+    at: { x: 702, y: 188 }, clears: [{ x: 702, y: 184, r: 11 }],
     paint(b) {
       const { x, y } = this.at
       shadow(b, x, y, 18)
@@ -220,7 +287,7 @@ export const ESTATES = {
     },
   },
   cauldron2: {
-    at: { x: 152, y: 252 }, clears: [{ x: 152, y: 250, r: 10 }],
+    at: { x: 706, y: 240 }, clears: [{ x: 706, y: 238, r: 10 }],
     paint(b) {
       const { x, y } = this.at
       shadow(b, x, y + 2, 16)
@@ -231,7 +298,7 @@ export const ESTATES = {
     },
   },
   lighthouse: {
-    at: { x: 338, y: 280 }, clears: [{ x: 338, y: 274, r: 13 }],
+    at: { x: 246, y: 386 }, clears: [{ x: 246, y: 380, r: 13 }],
     paint(b) {
       const { x, y } = this.at
       shadow(b, x + 2, y, 18)
@@ -245,8 +312,8 @@ export const ESTATES = {
       return { lamp: { x, y: y - 37 } }
     },
   },
-  hound: { at: { x: 168, y: 200 }, clears: [] },
-  rainbow: { at: { x: 256, y: 160 }, clears: [] },
+  hound: { at: { x: 440, y: 262 }, clears: [] },
+  rainbow: { at: { x: 468, y: 170 }, clears: [] },
   ...PACK_ESTATES,
 }
 
@@ -307,11 +374,17 @@ export class SoftCanvas {
   }
 }
 
-function coastY(x) { return 288 + (fbm(x / 38 + 3, 7) - 0.5) * 26 }
+// The south coast, drawn in where the harbour's inlet and the river's bay bite into it.
+const bump = (x, c, w) => Math.exp(-(((x - c) / w) ** 2))
+function coastY(x) { return 398 + (fbm(x / 40 + 3, 7) - 0.5) * 22 - 40 * bump(x, 150, 62) - 50 * bump(x, 606, 52) }
 function biomeAt(x, y) {
   const n = fbm(x / 34 + 50, y / 34 + 50) - 0.5
   const ell = (cx, cy, rx, ry) => 1 - Math.hypot((x - cx) / rx, (y - cy) / ry) + n * 0.6
-  const w = [[PEAKS, ell(390, 26, 180, 74)], [FOREST, ell(50, 90, 120, 100)], [BADLANDS, ell(462, 214, 96, 86)], [SWAMP, ell(56, 268, 104, 56)]]
+  const w = [
+    [PEAKS, ell(540, 6, 300, 96)], [PEAKS, ell(220, -10, 130, 46)],
+    [FOREST, ell(60, 170, 120, 150)], [FOREST, ell(730, 210, 90, 130)], [FOREST, ell(250, 120, 100, 44)],
+    [BADLANDS, ell(716, 368, 70, 34)], [SWAMP, ell(744, 252, 40, 26)],
+  ]
   let best = PLAINS, top = 0
   for (const [b, v] of w) if (v > top) { top = v; best = b }
   return best
@@ -358,8 +431,8 @@ export function paintWorld(owned = [], season = null) {
       if (d < 0.12 && biome !== PEAKS) biome = BEACH
       if (RIV[k] || LAKE[k]) kind = FRESH
       else if (biome === SWAMP && !ROAD_NEAR[k] && fbm(x / 16 + 9, y / 16 + 4) > 0.64 && Math.hypot(x - PLACES.cauldron.at.x, y - PLACES.cauldron.at.y) > 34) kind = FRESH
-      // the mountains around the Armory lie under snow
-      SNOWY[k] = kind === LAND && biome !== BADLANDS && (biome === PEAKS || Math.hypot((x - 392) / 1.6, y - 56) + (fbm(x / 30 + 5, y / 30 + 5) - 0.5) * 50 < 86) ? 1 : 0
+      // the mountains to the north lie under snow
+      SNOWY[k] = kind === LAND && biome !== BADLANDS && (biome === PEAKS || y + (fbm(x / 30 + 5, y / 30 + 5) - 0.5) * 50 < 54) ? 1 : 0
     }
     if (RIV[k] && d <= 0) kind = SEA
     KIND[k] = kind; BIOME[k] = biome
@@ -407,15 +480,17 @@ export function paintWorld(owned = [], season = null) {
   const add = (y, fn) => items.push({ y, fn })
   const P = PLACES
   const clear = [
-    { ...P.study.at, r: 30 }, { x: P.armory.at.x, y: P.armory.at.y - 20, r: 60 }, { x: P.dungeon.at.x, y: P.dungeon.at.y - 14, r: 48 }, { ...P.cauldron.at, r: 44 },
+    { x: P.study.at.x, y: P.study.at.y + 16, r: 40 }, { x: P.armory.at.x, y: P.armory.at.y - 20, r: 44 }, { x: P.dungeon.at.x, y: P.dungeon.at.y - 14, r: 48 }, { ...P.cauldron.at, r: 44 },
+    { x: FOLK.keep.x, y: FOLK.keep.y - 24, r: 74 }, { x: FOLK.hall.x, y: FOLK.hall.y - 14, r: 40 }, { ...FOLK.ruins, r: 46 }, { x: P.tavern.at.x, y: P.tavern.at.y - 16, r: 52 },
+    { x: BOARD.x + 16, y: BOARD.y + 14, r: 22 }, ...FOLK.houses.map(h => ({ x: h.x, y: h.y - 8, r: h.w * 0.7 })),
     { ...FOLK.mine, r: 30 }, { ...FOLK.woodyard, r: 18 }, { ...FOLK.fishing, r: 12 }, { ...FOLK.glade, r: 18 }, { ...FOLK.windmill, r: 18 }, { x: FOLK.pen.x, y: FOLK.pen.y, r: 30 }, { ...FOLK.laundry, r: 18 }, { ...FOLK.dock, r: 18 },
-    { ...CAULDRON, r: 16 }, { ...CHEST, r: 10 }, { x: VOLCANO.x, y: VOLCANO.y - 30, r: 52 }, ...MONSTER_SLOTS.map(s => ({ ...s, r: 6 })), ...P.dungeon.spots.map(s => ({ ...s, r: 10 })), ...P.armory.spots.map(s => ({ ...s, r: 9 })), ...P.cauldron.spots.map(s => ({ ...s, r: 9 })), ...P.study.spots.map(s => ({ ...s, r: 9 })),
+    { ...CAULDRON, r: 16 }, { ...CHEST, r: 10 }, ...MONSTER_SLOTS.map(s => ({ ...s, r: 6 })), ...P.dungeon.spots.map(s => ({ ...s, r: 10 })), ...P.armory.spots.map(s => ({ ...s, r: 9 })), ...P.cauldron.spots.map(s => ({ ...s, r: 9 })), ...P.study.spots.map(s => ({ ...s, r: 9 })),
     ...built.flatMap(id => ESTATES[id].clears),
   ]
   const F = FOLK.field
-  const inTown = (x, y) => ((x - 168) / 92) ** 2 + ((y - 206) / 60) ** 2 < 1
+  const inTown = (x, y) => ((x - 340) / 150) ** 2 + ((y - 280) / 64) ** 2 < 1
   const cleared = (x, y) => clear.some(c => Math.hypot(x - c.x, y - c.y) < c.r) || inTown(x, y) || (x > F.x - 6 && x < F.x + F.w + 6 && y > F.y - 4 && y < F.y + F.h + 10)
-  for (let y = -6; y < 120; y += 9) for (let x = 250; x < W + 20; x += 14) {
+  for (let y = -6; y < 132; y += 9) for (let x = 60; x < W + 20; x += 14) {
     const jx = x + Math.floor(hash(x, y + 99) * 10) - 5, jy = y + Math.floor(hash(y + 99, x) * 7)
     const k = cell(jx, jy)
     if (BIOME[k] !== PEAKS || KIND[k] !== LAND || ROAD_NEAR[k] || cleared(jx, jy)) continue
@@ -461,7 +536,7 @@ export function paintWorld(owned = [], season = null) {
       case BADLANDS:
         if (nearSkull && r < 0.16) add(jy, b => gravestone(b, jx, jy, r < 0.05))
         else if (r < 0.06) add(jy, b => deadTree(b, jx, jy))
-        else if (r < 0.1) add(jy, b => lavaCrack(b, jx, jy))
+        else if (r < 0.1) add(jy, b => rock(b, jx, jy, 2, '#9a9184', '#6d665c'))
         else if (r < 0.15) add(jy, b => rock(b, jx, jy, 1 + Math.floor(r * 14), '#8a8070', '#5e5648'))
         break
       case SWAMP:
@@ -487,12 +562,28 @@ export function paintWorld(owned = [], season = null) {
   add(FOLK.woodyard.y - 1, b => woodyard(b, FOLK.woodyard.x, FOLK.woodyard.y))
   add(FOLK.cookfire.y - 1, b => cookfire(b, FOLK.cookfire.x, FOLK.cookfire.y))
   add(FOLK.laundry.y - 1, b => washingLine(b, FOLK.laundry.x, FOLK.laundry.y))
-  add(FOLK.dock.y, b => { px(b, '#3a2414', FOLK.dock.x - 2, FOLK.dock.y - 14, 6, 22); px(b, '#9a6a3c', FOLK.dock.x - 1, FOLK.dock.y - 14, 4, 22); for (let i = 0; i < 22; i += 3) px(b, '#5a3720', FOLK.dock.x - 1, FOLK.dock.y - 14 + i, 4, 1) })
-  // the fire mountain behind the Dungeon
-  add(VOLCANO.y, b => volcano(b, VOLCANO.x, VOLCANO.y))
-  // the four far places
-  add(P.study.at.y, b => wizardTower(b, P.study.at.x, P.study.at.y))
-  add(P.armory.at.y, b => forgeHall(b, P.armory.at.x, P.armory.at.y))
+  // the harbour: piers out over the inlet and boats moored along them
+  for (const [x, len] of [[120, 44], [164, 52], [208, 40]]) add(coastY(x) - 6, b => pier(b, x - 4, Math.round(coastY(x)) - 8, len))
+  for (const bt of FOLK.boats) add(bt.y, b => boat(b, bt.x, bt.y, hash(bt.x, 1) > .5 ? '#efe6d2' : '#e8d8b0'))
+  // the castle keep over the town, the guild hall to its west, the old ruins by the falls
+  add(FOLK.keep.y, b => keep(b, FOLK.keep.x, FOLK.keep.y))
+  add(FOLK.hall.y, b => guildHall(b, FOLK.hall.x, FOLK.hall.y))
+  add(FOLK.ruins.y, b => ruins(b, FOLK.ruins.x, FOLK.ruins.y))
+  // the falls: white water over a rock ledge, and spray at their foot
+  add(FALLS.bottom + 6, b => {
+    for (let y = FALLS.top; y < FALLS.bottom; y++) {
+      const c = RIVER.reduce((p, q) => (Math.abs(q.y - y) < Math.abs(p.y - y) ? q : p)), hw = 7
+      for (let x = Math.round(c.x) - hw; x <= Math.round(c.x) + hw; x++) px(b, hash(x, y >> 1) > .45 ? '#f4f8fc' : hash(x, y) > .3 ? '#c9e4f2' : '#8fc4e0', x, y)
+    }
+    const top = RIVER.reduce((p, q) => (Math.abs(q.y - FALLS.top) < Math.abs(p.y - FALLS.top) ? q : p))
+    px(b, '#1b1424', Math.round(top.x) - 13, FALLS.top - 3, 27, 4); px(b, '#8a8173', Math.round(top.x) - 12, FALLS.top - 2, 25, 2)
+    const foot = RIVER.reduce((p, q) => (Math.abs(q.y - FALLS.bottom) < Math.abs(p.y - FALLS.bottom) ? q : p))
+    for (let k = 0; k < 26; k++) px(b, 'rgba(255,255,255,.75)', Math.round(foot.x) - 12 + Math.floor(hash(k, 3) * 24), FALLS.bottom - 2 + Math.floor(hash(3, k) * 7), 2, 1)
+  })
+  // the far places
+  add(P.study.at.y + 40, b => crag(b, P.study.at.x, P.study.at.y + 40, 64, 40))
+  add(P.study.at.y + 41, b => wizardTower(b, P.study.at.x, P.study.at.y))
+  add(P.armory.at.y, b => forgeHall(b, P.armory.at.x, P.armory.at.y, true))
   add(P.dungeon.at.y, b => dungeonCave(b, P.dungeon.at.x, P.dungeon.at.y))
   add(P.cauldron.at.y, b => alchemistHut(b, P.cauldron.at.x, P.cauldron.at.y))
   // the sheep pen's fence and the field

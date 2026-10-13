@@ -8,7 +8,7 @@ import type { GuildDungeon, GuildLocation, GuildMember, GuildQuest, GuildQuota }
 import { CLASSES, LANGS, LOCATIONS, PLACE_INFO, classOf } from './lore'
 import { Recorder, dragon, member, slime, villager } from './pixelart.js'
 import type { Pen } from './pixelart.js'
-import { BOARD, CAULDRON, CHEST, FOLK, HUB, MONSTER_SLOTS, PLACES, ROADS, VOLCANO, W, H } from './world.js'
+import { BOARD, CAULDRON, CHEST, FOLK, HUB, MONSTER_SLOTS, PLACES, VOLCANO, W, H, way } from './world.js'
 import { WORLD_ART, WORLD_FOAM, WORLD_MARKS } from './world-art'
 
 export type MapOptions = {
@@ -40,11 +40,9 @@ function sprite(id: string, draw: (b: Pen) => void): string {
 }
 const memberSprite = (cls: string, frame: number) => sprite(`m-${cls}-${frame}`, b => member(b, cls, frame, -6, -16, false, cls === 'guildmaster' ? 'currentColor' : undefined))
 
-/** The road from one place to another: back to the crossroads, then out. */
+/** The road from one place to another: the shortest way along the valley's roads. */
 function route(from: GuildLocation, to: GuildLocation, end: { x: number; y: number }) {
-  const back = from === to ? [] : [...ROADS[from]].reverse()
-  const out = from === to ? [] : ROADS[to]
-  return [...back, HUB, ...out, end]
+  return from === to ? [end] : [...way(from, to, 2), end]
 }
 const length = (list: { x: number; y: number }[]) => list.reduce((n, p, i) => (i ? n + Math.hypot(p.x - list[i - 1]!.x, p.y - list[i - 1]!.y) : 0), 0)
 
@@ -162,7 +160,7 @@ export function drawMap(party: GuildMember[], dungeon: GuildDungeon, quests: Gui
     if (!busyAt(loc)) continue
     const s = PLACES[loc].spots[0]!
     scene.push(`<circle cx="${s.x}" cy="${s.y - 6}" r="30" fill="url(#busy-${loc})"><animate attributeName="opacity" values="1;.55;1" dur="1.6s" repeatCount="indefinite"/></circle>`)
-    if (loc !== 'tavern') scene.push(`<polyline points="${pts(ROADS[loc].filter((_, i) => i % 3 === 0))}" fill="none" stroke="${PLACE_COLOR[loc]}" stroke-width="1.5" stroke-dasharray="2 4" stroke-linecap="round" opacity=".9"><animate attributeName="stroke-dashoffset" from="12" to="0" dur=".8s" repeatCount="indefinite"/></polyline>`)
+    if (loc !== 'tavern') scene.push(`<polyline points="${pts(way('tavern', loc, 2).filter((_, i) => i % 3 === 0))}" fill="none" stroke="${PLACE_COLOR[loc]}" stroke-width="1.5" stroke-dasharray="2 4" stroke-linecap="round" opacity=".9"><animate attributeName="stroke-dashoffset" from="12" to="0" dur=".8s" repeatCount="indefinite"/></polyline>`)
   }
   if (opts.selected) {
     const p = PLACES[opts.selected]

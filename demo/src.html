@@ -250,7 +250,7 @@ dialog.shop { width: min(820px, calc(100vw - 32px)); }
   <div class="stage">
     <section class="screen px" aria-label="Guild realm map">
       <div class="realms" id="realms" role="group" aria-label="Projects"></div>
-      <div class="crt"><canvas id="map" width="512" height="320" tabindex="0" aria-label="Pixel-art world map of the guild realm with the party at work. Drag or use the arrow keys to explore; press M for the whole map."></canvas>
+      <div class="crt"><canvas id="map" width="768" height="432" tabindex="0" aria-label="Pixel-art world map of the guild realm with the party at work. Drag or use the arrow keys to explore; press M for the whole map."></canvas>
         <div class="mapctl">
           <button type="button" id="gear" aria-expanded="false" aria-controls="settings">SETTINGS</button>
           <button type="button" id="shopBtn" aria-haspopup="dialog">SHOP</button>
@@ -401,7 +401,7 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // The realm is the mod's own (hooks/world.js), bundled in as GuildWorld: the same land, roads
 // and places the Guild Hall pane draws. The camera follows whoever is working, two screen
 // pixels to a world pixel; WORLD MAP pulls back to show the whole of it.
-const { W, H, HUB, DOORWAY, BOARD, CAULDRON, CHEST, PLACES, ROADS, WALK, RIVER, FOLK, MONSTER_SLOTS, hash, px, shade } = GuildWorld;
+const { W, H, HUB, DOORWAY, BOARD, CAULDRON, CHEST, PLACES, ROADS, WALK, RIVER, FOLK, MONSTER_SLOTS, way, hash, px, shade } = GuildWorld;
 // The view is the world's own size: the world map shows the whole island at one pixel to one,
 // following zooms in twice. The page scales the view to fit its window (fitMap).
 // A little taller where the window wants it: the extra rows are the sea south of the island.
@@ -516,7 +516,7 @@ const CLOUDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(seed => {
     dx.fillStyle = ['#4a5060', '#6a7080', '#8a90a0'][edge]; dx.fillRect(x, y, 1, 1);
     sx.fillStyle = '#000'; sx.fillRect(x, y, 1, 1);
   }
-  return { c, s, dark, x: hash(seed, 7) * W, y: 6 + (seed % 5) * 58 + hash(seed, 8) * 24, v: 3 + hash(seed, 9) * 3 };
+  return { c, s, dark, x: hash(seed, 7) * W, y: 6 + (seed % 5) * H * .18 + hash(seed, 8) * 24, v: 3 + hash(seed, 9) * 3 };
 });
 const FIREFLIES = Array.from({ length: 14 }, (_, i) => ({ x: FOLK.fireflies.x + hash(i, 51) * FOLK.fireflies.w, y: FOLK.fireflies.y + hash(i, 52) * FOLK.fireflies.h, ph: hash(i, 53) * 6.28 }));
 
@@ -707,15 +707,11 @@ function pickSpot(room, who) {
   const spots = ROOMS[room].spots; const i = spots.findIndex((_, k) => !taken.has(k));
   return i < 0 ? Math.floor(Math.random() * spots.length) : i;
 }
-// Every journey goes by road: back to the town square, then out along the road to the destination.
+// Every journey goes by road: the shortest way along the valley's roads from one place to the next.
 function route(a, to, spot) {
   const from = a.room;
   if (from === to) return [{ ...spot }];
-  const pts = [];
-  if (from !== 'tavern') pts.push(...WALK[from].slice().reverse());
-  if (to !== 'tavern') pts.push(...WALK[to]); else pts.push({ ...HUB });
-  pts.push({ ...spot });
-  return pts;
+  return [...way(from, to), { ...spot }];
 }
 function sendTo(r, a, room) {
   const k = pickSpot(room, a), spot = ROOMS[room].spots[k];
@@ -1004,7 +1000,7 @@ const VILLAGERS = [['#b8323f', '#6b4426'], ['#3b5fa8', '#2b1b14'], ['#84d488', '
 const CAT = { ...FOLK.catPoints[0], tx: FOLK.catPoints[0].x, ty: FOLK.catPoints[0].y, wait: 2, dist: 0, facing: 1 };
 const CHICKENS = FOLK.chickens.map((c, i) => ({ ...c, ph: i * 2 }));
 // A loyal hound trots after the guildmaster; a sheepdog minds the flock west of town.
-const DOG = { x: 120, y: 206, dist: 0, facing: 1, sit: 0 };
+const DOG = { x: HUB.x, y: HUB.y, dist: 0, facing: 1, sit: 0 };
 const PEN = FOLK.pen;
 const SHEEP = Array.from({ length: 6 }, (_, i) => ({ x: PEN.x + Math.cos(i) * 16, y: PEN.y + Math.sin(i * 2) * 8, tx: PEN.x, ty: PEN.y, wait: i * .7, dist: 0, facing: i % 2 ? 1 : -1 }));
 const SHEEPDOG = { a: 0, dist: 0 };
@@ -1013,7 +1009,7 @@ const DEER = [{ ...GLADE[0], tx: GLADE[0].x, ty: GLADE[0].y, wait: 1, dist: 0, f
 // Travellers walk the roads; a merchant's cart plies the road to the Armory.
 const TRAVELLERS = [{ road: 'dungeon', t: .2, dir: 1, shirt: '#7a4fc9', hat: '#3a2414' }, { road: 'study', t: .7, dir: -1, shirt: '#3b5fa8', hat: '#b8323f' }, { road: 'cauldron', t: .4, dir: 1, shirt: '#4f9c5a', hat: '#f2b84b' }];
 const CART = { road: 'armory', t: .1, dir: 1 };
-const FLOCKS = [{ y: 130, v: 16, off: 0, n: 5 }, { y: 50, v: -12, off: 300, n: 4 }, { y: 236, v: 20, off: 500, n: 6 }];
+const FLOCKS = [{ y: 176, v: 16, off: 0, n: 5 }, { y: 70, v: -12, off: 300, n: 4 }, { y: 318, v: 20, off: 500, n: 6 }];
 const GULLS = FOLK.gulls;
 const BUTTERFLIES = Array.from({ length: 6 }, (_, i) => ({ x: FOLK.butterflies.x + hash(i, 61) * FOLK.butterflies.w, y: FOLK.butterflies.y + hash(i, 62) * FOLK.butterflies.h, ph: hash(i, 63) * 6.28, c: ['#f7dd5b', '#e88aa8', '#8ab4f0', '#fff3d0'][i % 4] }));
 const LAKE_FISH = { t: 0 };
@@ -1152,9 +1148,9 @@ function drawLife() {
     g.strokeStyle = '#4a4458'; g.lineWidth = 1; g.beginPath(); g.moveTo(FORGE.x - 10, FORGE.y + 14); g.lineTo(FORGE.x - 52, FORGE.y + 26); g.stroke();
     px(g, '#1b1424', cx - 5, cy - 6, 10, 6); px(g, '#5b6470', cx - 4, cy - 5, 8, 4); px(g, '#e39a4d', cx - 3, cy - 7, 2, 2); px(g, '#ffd27a', cx, cy - 7, 2, 2); px(g, '#1b1424', cx - 4, cy, 2, 2); px(g, '#1b1424', cx + 2, cy, 2, 2); }
   // the dungeon: bats, a ghost among the graves, and treasure once it is cleared
-  for (let i = 0; i < 3; i++) { const a = clock * (0.9 + i * .2) + i * 2, bx = Math.round(SKULL.x + Math.sin(a) * 40 + i * 6), by = Math.round(372 + Math.sin(a * 2) * 12 + i * 5), up = Math.floor(clock * 9 + i) % 2;
+  for (let i = 0; i < 3; i++) { const a = clock * (0.9 + i * .2) + i * 2, bx = Math.round(SKULL.x + Math.sin(a) * 40 + i * 6), by = Math.round(PLACES.dungeon.at.y - 66 + Math.sin(a * 2) * 12 + i * 5), up = Math.floor(clock * 9 + i) % 2;
     px(g, '#2a1d3a', bx - 1, by, 3, 2); px(g, '#2a1d3a', bx - 4, by - up, 3, 1); px(g, '#2a1d3a', bx + 2, by - up, 3, 1); px(g, '#e8606f', bx, by, 1, 1); }
-  { const gx = Math.round(96 + Math.sin(clock * .3) * 26), gy = Math.round(452 + Math.sin(clock * .9) * 4); g.globalAlpha = .35 + Math.sin(clock * .7) * .2;
+  { const gx = Math.round(PLACES.dungeon.at.x - 44 + Math.sin(clock * .3) * 26), gy = Math.round(PLACES.dungeon.at.y + 22 + Math.sin(clock * .9) * 4); g.globalAlpha = .35 + Math.sin(clock * .7) * .2;
     px(g, '#e6f0ff', gx - 3, gy - 9, 7, 7); px(g, '#e6f0ff', gx - 4, gy - 4, 9, 3); px(g, '#e6f0ff', gx - 4, gy - 1, 2, 2); px(g, '#e6f0ff', gx, gy - 1, 2, 2); px(g, '#e6f0ff', gx + 3, gy - 1, 2, 2); px(g, '#1b1424', gx - 2, gy - 7, 1, 2); px(g, '#1b1424', gx + 1, gy - 7, 1, 2); g.globalAlpha = 1; }
   { const { x, y } = CHEST, open = anyChest();
     px(g, 'rgba(0,0,0,.35)', x - 6, y, 13, 2); px(g, '#1b1424', x - 6, y - 7, 13, 8); px(g, '#8a5a34', x - 5, y - 6, 11, 6); px(g, '#f2b84b', x - 5, y - 4, 11, 1);
@@ -1519,7 +1515,7 @@ function hitTest(wx, wy) {
 }
 
 // ───────────────────────── draw ─────────────────────────
-const cv = document.getElementById('map'); const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+const cv = document.getElementById('map'); cv.width = VW; cv.height = VH; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
 const FONT = '8px "Press Start 2P", ui-monospace, monospace';
 function text(s, x, y, color, align = 'left') { g.font = FONT; g.textAlign = align; g.textBaseline = 'top'; g.fillStyle = '#000'; g.fillText(s, x + 1, y + 1); g.fillStyle = color; g.fillText(s, x, y); }
 function glow(x, y, r, color, alpha) {
@@ -1886,7 +1882,7 @@ function drawMarkers() {
     px(g, '#1b1424', x - 3, y - 3, 7, 7); px(g, col, x - 2, y - 2, 5, 5); px(g, '#1b1424', x, y + 4, 1, 2);
   }
 }
-const MM = { x: VW - 126, y: VH - 81, w: 120, h: 75 };
+const MM = { x: VW - 126, y: VH - Math.round(120 * H / W) - 6, w: 120, h: Math.round(120 * H / W) };
 function drawMinimap() {
   if (camMode === 'world' && view.z < 1.4) return;
   const f = toScreen(focusActor().x, focusActor().y);
@@ -2668,7 +2664,7 @@ async function sendLive(r, d, mode) {
 function setViewHeight(vh) {
   if (vh === VH) return;
   VH = vh; cv.height = VH; g.imageSmoothingEnabled = false;
-  vignette = null; MM.y = VH - 81;
+  vignette = null; MM.y = VH - MM.h - 6;
 }
 const CHRONICLE = $('log').closest('.card'), CHRONICLE_HOME = document.createComment('chronicle');
 CHRONICLE.after(CHRONICLE_HOME);

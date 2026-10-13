@@ -43,7 +43,7 @@ export const THANKSGIVING_ART = {
     // leaves fallen about the town and along the roads out of it
     for (let i = 0; i < 70; i++) {
       const a = hash(i, 91) * Math.PI * 2, r = 30 + hash(i, 92) * 80, x = Math.round(FOLK.town.x + Math.cos(a) * r * 1.4), y = Math.round(FOLK.town.y + Math.sin(a) * r * .8)
-      if (y > 278 || (x > 276 && x < 304) || x < 4) continue
+      if (y > 352 || x < 4) continue // not in the sea
       const c = ['#d8742a', '#b8503a', '#f2a24a', '#c9a03a'][i % 4]
       add(y - 30, b => { px(b, c, x, y, 2, 1); if (i % 3 === 0) px(b, c, x + 1, y - 1, 1, 1) })
     }
@@ -53,7 +53,7 @@ export const THANKSGIVING_ART = {
 
 export const THANKSGIVING_ESTATES = {
   haymaze: {
-    at: { x: 198, y: 262 }, clears: [{ x: 198, y: 258, r: 12 }],
+    at: { x: 426, y: 354 }, clears: [{ x: 426, y: 350, r: 12 }],
     paint(b) {
       const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }
       shadow(b, x, y + 1, 26)
@@ -62,7 +62,7 @@ export const THANKSGIVING_ESTATES = {
     },
   },
   applepress: {
-    at: { x: 84, y: 214 }, clears: [{ x: 80, y: 208, r: 17 }],
+    at: { x: 220, y: 206 }, clears: [{ x: 216, y: 200, r: 17 }],
     paint(b) {
       const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }
       // an apple tree heavy with fruit
@@ -78,7 +78,7 @@ export const THANKSGIVING_ESTATES = {
     },
   },
   market: {
-    at: { x: 316, y: 226 }, clears: [{ x: 316, y: 218, r: 18 }],
+    at: { x: 300, y: 278 }, clears: [{ x: 300, y: 270, r: 18 }],
     paint(b) {
       const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }, lamps = []
       ;[['#e39a4d', '#fff3d0', ['#b8323f', '#e39a4d', '#84a83a']], ['#3f8f4f', '#fff3d0', ['#d9b85a', '#c9a03a', '#e8913a']], ['#8e2a20', '#fff3d0', ['#7a4fc9', '#d1495b', '#efe6d2']]].forEach(([a, c, goods], k) => {
@@ -94,7 +94,7 @@ export const THANKSGIVING_ESTATES = {
     },
   },
   granary: {
-    at: { x: 318, y: 264 }, clears: [{ x: 318, y: 254, r: 16 }],
+    at: { x: 470, y: 320 }, clears: [{ x: 470, y: 310, r: 16 }],
     paint(b) {
       const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }
       shadow(b, x + 2, y, 32)

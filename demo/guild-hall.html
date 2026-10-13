@@ -250,7 +250,7 @@ dialog.shop { width: min(820px, calc(100vw - 32px)); }
   <div class="stage">
     <section class="screen px" aria-label="Guild realm map">
       <div class="realms" id="realms" role="group" aria-label="Projects"></div>
-      <div class="crt"><canvas id="map" width="512" height="320" tabindex="0" aria-label="Pixel-art world map of the guild realm with the party at work. Drag or use the arrow keys to explore; press M for the whole map."></canvas>
+      <div class="crt"><canvas id="map" width="768" height="432" tabindex="0" aria-label="Pixel-art world map of the guild realm with the party at work. Drag or use the arrow keys to explore; press M for the whole map."></canvas>
         <div class="mapctl">
           <button type="button" id="gear" aria-expanded="false" aria-controls="settings">SETTINGS</button>
           <button type="button" id="shopBtn" aria-haspopup="dialog">SHOP</button>
@@ -722,11 +722,14 @@ var GuildWorld = (() => {
     CHEST: () => CHEST,
     DEED_NAMES: () => DEED_NAMES,
     DOORWAY: () => DOORWAY,
+    EDGES: () => EDGES,
     ESTATES: () => ESTATES,
+    FALLS: () => FALLS,
     FOLK: () => FOLK,
     H: () => H,
     HUB: () => HUB,
     MONSTER_SLOTS: () => MONSTER_SLOTS,
+    NODES: () => NODES,
     PLACES: () => PLACES,
     RANKS: () => RANKS,
     REFUSALS: () => REFUSALS,
@@ -735,7 +738,6 @@ var GuildWorld = (() => {
     RIVER: () => RIVER,
     RIVER_RAW: () => RIVER_RAW,
     ROADS: () => ROADS,
-    ROADS_RAW: () => ROADS_RAW,
     Recorder: () => Recorder,
     SEASONS: () => SEASONS,
     SoftCanvas: () => SoftCanvas,
@@ -755,7 +757,8 @@ var GuildWorld = (() => {
     shade: () => shade,
     smooth: () => smooth,
     trade: () => trade,
-    treasuryOf: () => treasuryOf
+    treasuryOf: () => treasuryOf,
+    way: () => way
   });
 
   // hooks/pixelart.js
@@ -1004,6 +1007,141 @@ var GuildWorld = (() => {
     }
     roof(b, x, y - wallH, w, rows, a, dark);
   }
+  function masonry(b, L, T, w, h, light = "#b3aa9b", mid = "#9a9184", dark = "#7d766a", seam = "#5e574d") {
+    px(b, "#1b1424", L - 1, T - 1, w + 2, h + 1);
+    for (let yy = T; yy < T + h; yy++) for (let xx = 0; xx < w; xx++) {
+      const row = Math.floor((yy - T) / 4), joint = (yy - T) % 4 === 0 || (xx + row % 2 * 3) % 6 === 0;
+      px(b, joint ? seam : xx < 2 ? light : xx > w - 3 ? dark : mid, L + xx, yy);
+    }
+  }
+  function battlements(b, L, T, w, light = "#b3aa9b", dark = "#7d766a") {
+    for (let xx = 0; xx < w; xx += 4) {
+      px(b, "#1b1424", L + xx - 1, T - 4, 4, 4);
+      px(b, xx < 4 ? light : dark, L + xx, T - 3, 2, 3);
+    }
+  }
+  function turret(b, x, y, w, h, roofA = "#b8503a", roofD = "#8e3a2a", flag) {
+    const L = x - (w >> 1), T = y - h;
+    masonry(b, L, T, w, h);
+    for (let wy = T + 6; wy < y - 8; wy += 12) {
+      px(b, "#1b1424", x - 1, wy, 3, 5);
+      px(b, "#ffd27a", x, wy + 1, 1, 3);
+      marks.windows.push({ x, y: wy + 2 });
+    }
+    const rows = Math.round(w * 1.1);
+    for (let i = 0; i < rows; i++) {
+      const hw = Math.max(0, Math.round((rows - i) / rows * (w / 2 + 2)));
+      px(b, "#1b1424", x - hw - 1, T - 1 - i, hw * 2 + 2, 1);
+      px(b, i % 3 ? roofA : roofD, x - hw, T - 1 - i, hw, 1);
+      px(b, roofD, x, T - 1 - i, hw, 1);
+    }
+    if (flag) {
+      px(b, "#3a2414", x, T - rows - 7, 1, 7);
+      px(b, "#1b1424", x + 1, T - rows - 7, 6, 4);
+      px(b, flag, x + 1, T - rows - 6, 5, 2);
+    }
+  }
+  function keep(b, x, y) {
+    shadow(b, x + 4, y + 1, 130);
+    for (const [dx, w, h, rows] of [[-36, 34, 26, 12], [30, 38, 30, 13]]) {
+      const L2 = x + dx - (w >> 1);
+      masonry(b, L2, y - 18 - h, w, h, "#c9bfae", "#b3aa9b", "#968d7e");
+      for (let wx = L2 + 4; wx < L2 + w - 4; wx += 8) window_(b, wx, y - 18 - h + 6);
+      roof(b, x + dx, y - 18 - h, w, rows, "#b8503a", "#8e3a2a");
+    }
+    turret(b, x - 4, y - 18, 22, 58, "#b8503a", "#8e3a2a", "#f2b84b");
+    const L = x - 64, T = y - 22;
+    masonry(b, L, T, 128, 22);
+    battlements(b, L, T, 128);
+    px(b, "#1b1424", x - 9, y - 16, 18, 16);
+    px(b, "#2a1f18", x - 8, y - 15, 16, 15);
+    for (let k = -7; k <= 7; k += 3) px(b, "#5a5048", x + k, y - 15, 1, 15);
+    px(b, "#1b1424", x - 11, y - 20, 22, 3);
+    px(b, "#9a9184", x - 10, y - 19, 20, 1);
+    for (const lx of [x - 13, x + 12]) {
+      px(b, "#ffd27a", lx, y - 12, 2, 2);
+      marks.torches.push({ x: lx + 1, y: y - 11 });
+    }
+    for (const tx of [x - 64, x + 64]) turret(b, tx, y + 2, 16, 40, "#b8503a", "#8e3a2a", tx < x ? "#b8323f" : void 0);
+    turret(b, x - 30, y - 20, 12, 26);
+    turret(b, x + 36, y - 22, 12, 30);
+  }
+  function ruins(b, x, y) {
+    shadow(b, x, y + 1, 60);
+    const grey = ["#a7a196", "#8f897e", "#6f6a61", "#55504a"];
+    masonry(b, x - 30, y - 16, 14, 16, ...grey);
+    masonry(b, x - 30, y - 24, 6, 8, ...grey);
+    masonry(b, x + 14, y - 22, 16, 22, ...grey);
+    masonry(b, x + 24, y - 30, 6, 8, ...grey);
+    masonry(b, x - 10, y - 30, 4, 30, ...grey);
+    masonry(b, x + 4, y - 30, 4, 30, ...grey);
+    masonry(b, x - 10, y - 34, 18, 5, ...grey);
+    px(b, "#1b1424", x - 44, y - 5, 16, 5);
+    px(b, grey[0], x - 43, y - 4, 14, 2);
+    px(b, grey[2], x - 43, y - 2, 14, 1);
+    for (let k = 0; k < 9; k++) rock(b, x - 40 + Math.floor(hash(x + k, y) * 80), y + 1 + Math.floor(hash(k, x) * 6), 1 + Math.floor(hash(k, y) * 2), grey[0], grey[2]);
+    for (let k = 0; k < 14; k++) px(b, hash(k, x) > 0.5 ? "#4f8a3c" : "#3f7431", x - 32 + Math.floor(hash(x, k) * 64), y - 2 - Math.floor(hash(k * 3, y) * 30), 2, 1);
+  }
+  function crag(b, x, y, w, h) {
+    const edge = (i) => Math.round(w / 2 * (0.62 + 0.38 * (i / h)) + (hash(x, i >> 1) - 0.5) * 5);
+    for (let i = 0; i <= h; i++) {
+      const yy = y - h + i, hl = edge(i), hr = edge(i + 97);
+      px(b, "#1b1424", x - hl - 1, yy, hl + hr + 2, 1);
+      for (let xx = -hl; xx < hr; xx++) {
+        const ledge = (i + Math.floor(hash(x + xx >> 3, 5) * 6)) % 8 === 0, crack = hash(x + xx, i >> 2) > 0.93;
+        px(b, ledge || crack ? "#3e3a35" : xx < -hl * 0.45 ? "#8a8276" : xx < hr * 0.2 ? "#6e675d" : "#55504a", x + xx, yy);
+      }
+    }
+    const top = y - h, tw = edge(0);
+    for (let xx = -tw; xx < tw; xx++) {
+      const d = 2 + Math.floor(hash(xx, x) * 4);
+      px(b, "#447f30", x + xx, top - 1, 1, d);
+      px(b, "#5c9e3e", x + xx, top - 1, 1, 1);
+    }
+    for (let k = 0; k < 7; k++) tuft(b, x - tw + Math.floor(hash(k, x) * tw * 2), top + 6 + Math.floor(hash(x, k) * h * 0.7), "#4f8a3c");
+  }
+  function guildHall(b, x, y) {
+    const w = 64, wallH = 24, L = x - (w >> 1);
+    px(b, "rgba(0,0,0,.3)", L + 3, y, w, 5);
+    wall(b, L, y - wallH, w, wallH, true);
+    for (let wx = L + 5; wx < L + w - 6; wx += 10) {
+      window_(b, wx, y - wallH + 4);
+      if (Math.abs(wx + 2 - x) > 8) window_(b, wx, y - 12);
+    }
+    px(b, "#1b1424", x - 6, y - 13, 12, 13);
+    px(b, "#5a3720", x - 5, y - 12, 10, 12);
+    px(b, "#f2b84b", x + 1, y - 6, 1, 1);
+    roof(b, x, y - wallH, w, 20, "#3b5fa8", "#2c4a85");
+    turret(b, L + 4, y, 12, 34, "#3b5fa8", "#2c4a85", "#f2b84b");
+    for (const bx of [x - 18, x + 14]) {
+      px(b, "#1b1424", bx, y - wallH + 2, 5, 12);
+      px(b, "#3b5fa8", bx + 1, y - wallH + 3, 3, 9);
+      px(b, "#f2b84b", bx + 2, y - wallH + 6, 1, 3);
+    }
+  }
+  function pier(b, x, y, len, wide = 10) {
+    for (let i = 4; i < len; i += 7) for (const px_ of [x - 2, x + wide]) {
+      px(b, "#1b1424", px_, y + i, 2, 7);
+      px(b, "#3a2414", px_, y + i + 4, 2, 3);
+    }
+    px(b, "#1b1424", x - 1, y - 1, wide + 2, len + 2);
+    for (let i = 0; i < len; i++) px(b, i % 3 === 0 ? "#7a4f2c" : i % 3 === 1 ? "#b8834e" : "#a3723f", x, y + i, wide, 1);
+    px(b, "#1b1424", x - 7, y + len - 7, wide + 14, 9);
+    for (let i = 0; i < 7; i++) px(b, i % 3 === 0 ? "#7a4f2c" : "#b8834e", x - 6, y + len - 6 + i, wide + 12, 1);
+    px(b, "rgba(0,0,0,.3)", x - 6, y + len + 2, wide + 12, 2);
+  }
+  function boat(b, x, y, sail = "#efe6d2", hull = "#7a4a2a") {
+    px(b, "#1b1424", x - 9, y - 4, 19, 5);
+    px(b, hull, x - 8, y - 3, 17, 3);
+    px(b, shade(hull, -24), x - 6, y - 1, 13, 1);
+    px(b, "rgba(255,255,255,.35)", x - 10, y + 1, 21, 1);
+    px(b, "#3a2414", x, y - 22, 1, 18);
+    for (let i = 0; i < 14; i++) {
+      const w = Math.round((14 - i) * 0.6) + 1;
+      px(b, "#1b1424", x + 1, y - 7 - i, w + 1, 1);
+      px(b, sail, x + 1, y - 7 - i, w, 1);
+    }
+  }
   function tavern(b, x, y) {
     const w = 84, wallH = 32, L = x - (w >> 1);
     px(b, "rgba(0,0,0,.3)", L + 3, y, w, 5);
@@ -1165,10 +1303,12 @@ var GuildWorld = (() => {
       px(b, "#2a1d45", wdw.x, wdw.y, 3, 6);
     }
   }
-  function forgeHall(b, x, y) {
-    mountain(b, x - 34, y - 26, 74, 50, 0.3);
-    mountain(b, x + 38, y - 22, 70, 54, 0.3);
-    mountain(b, x + 2, y - 36, 92, 66, 0.34);
+  function forgeHall(b, x, y, inTown = false) {
+    if (!inTown) {
+      mountain(b, x - 34, y - 26, 74, 50, 0.3);
+      mountain(b, x + 38, y - 22, 70, 54, 0.3);
+      mountain(b, x + 2, y - 36, 92, 66, 0.34);
+    }
     const L = x - 26, T = y - 44;
     px(b, "#1b1424", L - 1, T - 1, 54, 46);
     for (let yy = T; yy < y; yy++) for (let xx = 0; xx < 52; xx++) {
@@ -1449,44 +1589,6 @@ var GuildWorld = (() => {
     ] }
   };
   BODIES.sellsword = { pal: { g: "#7d7f8c", G: "#5a5c68", c: "#4a4250", m: "#1e1c26", d: "#d6dde6", L: "#2a2533" }, rows: BODIES.rogue.rows };
-  function volcano(b, x, y, w = 96, h = 74) {
-    px(b, "rgba(0,0,0,.3)", x - (w >> 1), y - 1, w, 4);
-    const crater = 9;
-    for (let i = 0; i <= h; i++) {
-      const yy = y - h + i, hw = Math.round(crater + (i / h) ** 0.85 * (w / 2 - crater)), ridge = Math.round(Math.sin(i * 0.5 + x) * 1.5);
-      px(b, "#1b1414", x - hw - 1, yy, hw * 2 + 3, 1);
-      px(b, i % 7 === 3 ? "#4a3a36" : "#3a2c2a", x - hw, yy, hw + ridge, 1);
-      px(b, i % 9 === 4 ? "#2a1e1e" : "#2e2222", x + ridge, yy, hw - ridge + 1, 1);
-    }
-    px(b, "#1b1414", x - crater - 2, y - h - 2, crater * 2 + 5, 4);
-    px(b, "#ff7a2a", x - crater, y - h - 1, crater * 2 + 1, 2);
-    px(b, "#ffd27a", x - crater + 3, y - h - 1, crater * 2 - 5, 1);
-    for (const [sx, len, dir] of [[-4, 0.7, -1], [3, 0.95, 1], [0, 0.5, 0], [-7, 0.4, -1]]) {
-      let lx = x + sx;
-      for (let i = 0; i < h * len; i++) {
-        lx += (hash(i + sx * 7, x) - 0.5 + dir * 0.18) * 1.2;
-        const yy = y - h + 1 + i;
-        px(b, i % 6 < 4 ? "#ff7a2a" : "#c0392b", Math.round(lx), yy, 2, 1);
-        if (i % 5 === 0) px(b, "#ffd27a", Math.round(lx), yy, 1, 1);
-      }
-    }
-    for (let k = 0; k < 10; k++) {
-      const rx = x - w / 2 + 6 + hash(k, x) * (w - 12), ry = y - 2 - hash(x, k) * 5;
-      px(b, "#1b1414", Math.round(rx) - 2, Math.round(ry) - 2, 5, 3);
-      px(b, "#4a3a36", Math.round(rx) - 1, Math.round(ry) - 2, 3, 2);
-      if (k % 3 === 0) px(b, "#ff7a2a", Math.round(rx), Math.round(ry), 1, 1);
-    }
-    marks.volcano = { x, y: y - h - 1, foot: y };
-  }
-  function lavaCrack(b, x, y) {
-    let lx = x;
-    for (let i = 0; i < 8; i++) {
-      lx += hash(i, x + y) > 0.5 ? 1 : 0;
-      px(b, "#1b1414", lx - 1, y + (i >> 1), 3, 1);
-      px(b, i % 3 ? "#ff7a2a" : "#ffd27a", lx, y + (i >> 1), 1, 1);
-      x++;
-    }
-  }
 
   // hooks/packs/christmas-art.js
   var snowman = (px2, b, x, y, s = 1) => {
@@ -1547,7 +1649,7 @@ var GuildWorld = (() => {
         }
         for (const [dx, dy, w] of [[-12, -3, 8], [4, 1, 10], [-4, 5, 6]]) px2(b, "#ffffff", L.x + dx, L.y + dy, w, 1);
       });
-      const tree = { x: 188, y: 200 };
+      const tree = { x: 404, y: 252 };
       const bulbs = [];
       add(tree.y, (b) => {
         const { x, y } = tree;
@@ -1578,7 +1680,7 @@ var GuildWorld = (() => {
       });
       const eaves = [{ x: T.x - 42, y: T.y - 32, w: 84 }, ...FOLK2.houses.map((h) => ({ x: h.x - (h.w >> 1), y: h.y - 14, w: h.w }))];
       for (const e of eaves) for (let i = 1; i < e.w; i += 4) lights.push({ x: e.x + i, y: e.y + (i % 8 < 4 ? 0 : 1), c: i % 12 });
-      for (const [x, y, hat] of [[106, 256, 1], [236, 238, 0], [222, 254, 1]]) add(y, (b) => snowman(px2, b, x, y, hat));
+      for (const [x, y, hat] of [[250, 270, 1], [442, 288, 0], [150, 322, 1]]) add(y, (b) => snowman(px2, b, x, y, hat));
       add(T.y + 0.5, (b) => {
         for (let i = 0; i < 70; i += 3) px2(b, "#ffffff", T.x - 35 + i, T.y - 58 + Math.round(Math.abs(i - 35) * 0.7), 3, 1);
       });
@@ -1587,17 +1689,17 @@ var GuildWorld = (() => {
   };
   var CHRISTMAS_ESTATES = {
     snowmen: {
-      at: { x: 304, y: 200 },
-      clears: [{ x: 304, y: 196, r: 14 }],
+      at: { x: 580, y: 214 },
+      clears: [{ x: 580, y: 210, r: 14 }],
       paint(b) {
         return { slots: [-12, -4, 4, 12, 20, -20, 28].map((dx) => ({ x: this.at.x + dx, y: this.at.y })) };
       }
     },
     rink: {
-      at: { x: 128, y: 70 },
-      clears: [{ x: 108, y: 70, r: 6 }, { x: 150, y: 70, r: 6 }],
+      at: { x: 452, y: 164 },
+      clears: [{ x: 432, y: 164, r: 6 }, { x: 474, y: 164, r: 6 }],
       paint(b) {
-        const L = { x: 128, y: 56 }, p = (c, a, d, w = 1, h = 1) => {
+        const L = { x: 452, y: 150 }, p = (c, a, d, w = 1, h = 1) => {
           b.fillStyle = c;
           b.fillRect(a, d, w, h);
         }, lanterns = [];
@@ -1619,8 +1721,8 @@ var GuildWorld = (() => {
       }
     },
     gingerbread: {
-      at: { x: 264, y: 130 },
-      clears: [{ x: 264, y: 124, r: 15 }],
+      at: { x: 536, y: 186 },
+      clears: [{ x: 536, y: 180, r: 15 }],
       paint(b) {
         const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
           b.fillStyle = c;
@@ -1648,8 +1750,8 @@ var GuildWorld = (() => {
       }
     },
     aurora: {
-      at: { x: 262, y: 64 },
-      clears: [{ x: 262, y: 56, r: 15 }],
+      at: { x: 330, y: 104 },
+      clears: [{ x: 330, y: 96, r: 15 }],
       paint(b) {
         const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
           b.fillStyle = c;
@@ -1744,8 +1846,8 @@ var GuildWorld = (() => {
   };
   var HALLOWEEN_ESTATES = {
     pumpkinpatch: {
-      at: { x: 80, y: 170 },
-      clears: [{ x: 80, y: 172, r: 19 }],
+      at: { x: 476, y: 340 },
+      clears: [{ x: 476, y: 342, r: 19 }],
       paint(b) {
         const { x, y } = this.at, faces = [];
         for (let j = -6; j <= 0; j += 2) {
@@ -1771,7 +1873,7 @@ var GuildWorld = (() => {
       }
     },
     scarecrow: {
-      at: { x: 258, y: 282 },
+      at: { x: 558, y: 318 },
       clears: [],
       paint(b) {
         const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
@@ -1791,8 +1893,8 @@ var GuildWorld = (() => {
       }
     },
     manor: {
-      at: { x: 478, y: 232 },
-      clears: [{ x: 478, y: 222, r: 20 }],
+      at: { x: 178, y: 200 },
+      clears: [{ x: 178, y: 190, r: 20 }],
       paint(b) {
         const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
           b.fillStyle = c;
@@ -1829,8 +1931,8 @@ var GuildWorld = (() => {
       }
     },
     coven: {
-      at: { x: 22, y: 272 },
-      clears: [{ x: 22, y: 268, r: 15 }],
+      at: { x: 72, y: 352 },
+      clears: [{ x: 72, y: 348, r: 15 }],
       paint(b) {
         const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
           b.fillStyle = c;
@@ -1912,7 +2014,7 @@ var GuildWorld = (() => {
       });
       for (let i = 0; i < 70; i++) {
         const a = hash(i, 91) * Math.PI * 2, r = 30 + hash(i, 92) * 80, x = Math.round(FOLK2.town.x + Math.cos(a) * r * 1.4), y = Math.round(FOLK2.town.y + Math.sin(a) * r * 0.8);
-        if (y > 278 || x > 276 && x < 304 || x < 4) continue;
+        if (y > 352 || x < 4) continue;
         const c = ["#d8742a", "#b8503a", "#f2a24a", "#c9a03a"][i % 4];
         add(y - 30, (b) => {
           px2(b, c, x, y, 2, 1);
@@ -1924,8 +2026,8 @@ var GuildWorld = (() => {
   };
   var THANKSGIVING_ESTATES = {
     haymaze: {
-      at: { x: 198, y: 262 },
-      clears: [{ x: 198, y: 258, r: 12 }],
+      at: { x: 426, y: 354 },
+      clears: [{ x: 426, y: 350, r: 12 }],
       paint(b) {
         const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
           b.fillStyle = c;
@@ -1941,8 +2043,8 @@ var GuildWorld = (() => {
       }
     },
     applepress: {
-      at: { x: 84, y: 214 },
-      clears: [{ x: 80, y: 208, r: 17 }],
+      at: { x: 220, y: 206 },
+      clears: [{ x: 216, y: 200, r: 17 }],
       paint(b) {
         const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
           b.fillStyle = c;
@@ -1965,8 +2067,8 @@ var GuildWorld = (() => {
       }
     },
     market: {
-      at: { x: 316, y: 226 },
-      clears: [{ x: 316, y: 218, r: 18 }],
+      at: { x: 300, y: 278 },
+      clears: [{ x: 300, y: 270, r: 18 }],
       paint(b) {
         const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
           b.fillStyle = c;
@@ -1990,8 +2092,8 @@ var GuildWorld = (() => {
       }
     },
     granary: {
-      at: { x: 318, y: 264 },
-      clears: [{ x: 318, y: 254, r: 16 }],
+      at: { x: 470, y: 320 },
+      clears: [{ x: 470, y: 310, r: 16 }],
       paint(b) {
         const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => {
           b.fillStyle = c;
@@ -2029,30 +2131,58 @@ var GuildWorld = (() => {
   var PACK_ESTATES = { ...HALLOWEEN_ESTATES, ...THANKSGIVING_ESTATES, ...CHRISTMAS_ESTATES };
 
   // hooks/world.js
-  var W = 512;
-  var H = 320;
+  var W = 768;
+  var H = 432;
   var PLACES = {
-    tavern: { at: { x: 168, y: 172 }, tag: { x: 168, y: 104 }, spots: [{ x: 152, y: 198 }, { x: 172, y: 204 }, { x: 190, y: 198 }, { x: 160, y: 214 }, { x: 182, y: 214 }, { x: 140, y: 208 }] },
-    study: { at: { x: 56, y: 122 }, tag: { x: 60, y: 14 }, spots: [{ x: 74, y: 136 }, { x: 90, y: 140 }, { x: 62, y: 140 }, { x: 82, y: 148 }, { x: 100, y: 148 }] },
-    armory: { at: { x: 392, y: 96 }, tag: { x: 392, y: 22 }, spots: [{ x: 412, y: 116 }, { x: 392, y: 112 }, { x: 374, y: 118 }, { x: 402, y: 124 }, { x: 384, y: 126 }] },
-    cauldron: { at: { x: 66, y: 266 }, tag: { x: 66, y: 204 }, spots: [{ x: 110, y: 262 }, { x: 124, y: 268 }, { x: 138, y: 262 }, { x: 116, y: 276 }, { x: 132, y: 278 }] },
-    dungeon: { at: { x: 420, y: 236 }, tag: { x: 392, y: 168 }, spots: [{ x: 382, y: 250 }, { x: 370, y: 258 }, { x: 386, y: 264 }, { x: 372, y: 244 }, { x: 362, y: 252 }] }
+    tavern: { at: { x: 468, y: 240 }, tag: { x: 468, y: 168 }, spots: [{ x: 452, y: 260 }, { x: 472, y: 266 }, { x: 492, y: 260 }, { x: 460, y: 274 }, { x: 484, y: 276 }, { x: 440, y: 268 }] },
+    study: { at: { x: 64, y: 150 }, tag: { x: 64, y: 54 }, spots: [{ x: 104, y: 202 }, { x: 118, y: 208 }, { x: 92, y: 210 }, { x: 110, y: 218 }, { x: 126, y: 218 }] },
+    armory: { at: { x: 318, y: 300 }, tag: { x: 318, y: 236 }, spots: [{ x: 300, y: 318 }, { x: 318, y: 322 }, { x: 336, y: 318 }, { x: 308, y: 330 }, { x: 328, y: 330 }] },
+    cauldron: { at: { x: 724, y: 214 }, tag: { x: 724, y: 156 }, spots: [{ x: 672, y: 214 }, { x: 660, y: 222 }, { x: 676, y: 226 }, { x: 664, y: 232 }, { x: 680, y: 236 }] },
+    dungeon: { at: { x: 716, y: 358 }, tag: { x: 700, y: 290 }, spots: [{ x: 660, y: 366 }, { x: 648, y: 374 }, { x: 664, y: 380 }, { x: 650, y: 360 }, { x: 640, y: 368 }] }
   };
-  var HUB = { x: 214, y: 190 };
-  var DOORWAY = { x: 168, y: 174 };
-  var BOARD = { x: 98, y: 198 };
-  var CAULDRON = { x: 124, y: 252 };
-  var CHEST = { x: 456, y: 250 };
-  var VOLCANO = { x: 478, y: 182 };
-  var MONSTER_SLOTS = [[404, 246], [416, 250], [428, 246], [398, 256], [410, 260], [424, 258], [438, 254], [392, 242], [418, 266], [432, 264], [404, 268], [444, 262]].map(([x, y]) => ({ x, y }));
-  var ROADS_RAW = {
-    tavern: [[214, 190], [204, 192], [194, 196]],
-    study: [[214, 190], [228, 166], [224, 138], [204, 118], [170, 110], [134, 114], [106, 128], [88, 136]],
-    cauldron: [[214, 190], [210, 212], [200, 236], [178, 252], [158, 258], [144, 258]],
-    armory: [[214, 190], [240, 182], [268, 176], [298, 174], [322, 158], [346, 138], [366, 120]],
-    dungeon: [[214, 190], [240, 182], [268, 176], [298, 174], [326, 190], [350, 210], [366, 238]]
+  var HUB = { x: 470, y: 254 };
+  var DOORWAY = { x: 468, y: 242 };
+  var BOARD = { x: 398, y: 222 };
+  var CAULDRON = { x: 688, y: 210 };
+  var CHEST = { x: 750, y: 376 };
+  var VOLCANO = { x: 708, y: 70 };
+  var MONSTER_SLOTS = [[690, 368], [702, 372], [714, 368], [684, 378], [696, 382], [710, 380], [724, 376], [678, 364], [704, 388], [718, 386], [690, 390], [730, 384]].map(([x, y]) => ({ x, y }));
+  var NODES = {
+    tavern: { x: 470, y: 254 },
+    square: { x: 382, y: 262 },
+    armory: { x: 318, y: 316 },
+    keep: { x: 300, y: 214 },
+    west: { x: 214, y: 262 },
+    hall: { x: 120, y: 274 },
+    harbour: { x: 166, y: 344 },
+    study: { x: 104, y: 196 },
+    ruins: { x: 562, y: 128 },
+    ford: { x: 646, y: 238 },
+    cauldron: { x: 670, y: 220 },
+    mouth: { x: 628, y: 314 },
+    dungeon: { x: 660, y: 362 },
+    cliffs: { x: 700, y: 296 }
   };
-  var RIVER_RAW = [[288, -8], [298, 50], [282, 110], [296, 170], [280, 230], [292, 280], [286, 330]];
+  var EDGES = [
+    ["tavern", "square", [[440, 268], [410, 268]]],
+    ["square", "armory", [[358, 282], [334, 298]]],
+    ["square", "keep", [[354, 246], [326, 230]]],
+    ["square", "west", [[334, 270], [272, 256]]],
+    ["west", "keep", [[238, 240], [270, 222]]],
+    ["west", "hall", [[178, 278], [142, 280]]],
+    ["hall", "study", [[100, 254], [112, 228]]],
+    ["hall", "harbour", [[132, 302], [154, 324]]],
+    ["armory", "harbour", [[282, 336], [232, 350], [196, 352]]],
+    ["tavern", "ruins", [[504, 232], [534, 200], [552, 162]]],
+    ["tavern", "ford", [[520, 254], [578, 246], [618, 240]]],
+    ["ford", "cauldron", [[660, 228]]],
+    ["tavern", "mouth", [[498, 284], [548, 302], [596, 312]]],
+    ["mouth", "dungeon", [[648, 334]]],
+    ["cauldron", "cliffs", [[690, 248], [704, 272]]],
+    ["cliffs", "dungeon", [[692, 324], [676, 346]]]
+  ];
+  var RIVER_RAW = [[618, -8], [612, 44], [600, 96], [604, 132], [628, 184], [650, 232], [646, 280], [624, 318], [614, 352], [612, 440]];
+  var FALLS = { x: 602, top: 100, bottom: 136 };
   function smooth(raw, step) {
     const out = [];
     for (let i = 0; i < raw.length - 1; i++) {
@@ -2068,38 +2198,87 @@ var GuildWorld = (() => {
     out.push({ x: last[0], y: last[1] });
     return out;
   }
-  var ROADS = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, smooth(r, 2)]));
-  var WALK = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, smooth(r, 3)]));
+  var legOf = ([a, b, via]) => [[NODES[a].x, NODES[a].y], ...via, [NODES[b].x, NODES[b].y]];
+  var ROADS = Object.fromEntries(EDGES.map((e) => [`${e[0]}-${e[1]}`, smooth(legOf(e), 2)]));
   var RIVER = smooth(RIVER_RAW, 2);
+  var ways = /* @__PURE__ */ new Map();
+  function way(from, to, step = 3) {
+    const key = `${from}>${to}>${step}`;
+    if (ways.has(key)) return ways.get(key);
+    const len = (e) => legOf(e).reduce((n, p, i, l) => i ? n + Math.hypot(p[0] - l[i - 1][0], p[1] - l[i - 1][1]) : 0, 0);
+    const dist = Object.fromEntries(Object.keys(NODES).map((n) => [n, Infinity])), prev = {}, open = new Set(Object.keys(NODES));
+    dist[from] = 0;
+    while (open.size) {
+      let u = null;
+      for (const n of open) if (u === null || dist[n] < dist[u]) u = n;
+      open.delete(u);
+      if (u === to || dist[u] === Infinity) break;
+      for (const e of EDGES) {
+        const v = e[0] === u ? e[1] : e[1] === u ? e[0] : null;
+        if (v && open.has(v) && dist[u] + len(e) < dist[v]) {
+          dist[v] = dist[u] + len(e);
+          prev[v] = { u, e };
+        }
+      }
+    }
+    const legs = [];
+    for (let n = to; n !== from && prev[n]; n = prev[n].u) {
+      const { u, e } = prev[n], pts = smooth(legOf(e), step);
+      legs.unshift(e[0] === u ? pts : [...pts].reverse());
+    }
+    const out = legs.flatMap((l, i) => i ? l.slice(1) : l);
+    if (!out.length) out.push({ ...NODES[from] });
+    ways.set(key, out);
+    return out;
+  }
+  var WALK = Object.fromEntries(Object.keys(PLACES).map((k) => [k, way("tavern", k)]));
   var FOLK = {
-    mine: { x: 336, y: 66 },
-    woodyard: { x: 30, y: 184 },
-    cookfire: { x: 158, y: 280 },
-    laundry: { x: 14, y: 222 },
-    fishing: { x: 270, y: 122 },
-    field: { x: 228, y: 268, w: 44, h: 20 },
-    windmill: { x: 214, y: 288 },
-    pen: { x: 254, y: 242, rx: 16, ry: 7 },
-    glade: { x: 232, y: 86 },
-    lake: { x: 128, y: 56, rx: 22, ry: 11 },
-    dock: { x: 204, y: 304 },
-    perch: { x: 452, y: 196 },
-    town: { x: 166, y: 198, rx: 46, ry: 24 },
-    houses: [{ x: 108, y: 190, w: 28, roof: ["#3b5fa8", "#2c4a85"], chimney: true }, { x: 124, y: 238, w: 28, roof: ["#b8503a", "#8e3a2a"], chimney: true }, { x: 238, y: 216, w: 28, roof: ["#3f8f4f", "#2c6b3a"], chimney: false }, { x: 176, y: 242, w: 30, roof: ["#7a4fc9", "#5a3a99"], chimney: true }],
-    well: { x: 200, y: 214 },
-    stall: { x: 146, y: 226 },
-    lamps: [{ x: 196, y: 180 }, { x: 130, y: 208 }],
+    mine: { x: 404, y: 84 },
+    woodyard: { x: 30, y: 266 },
+    cookfire: { x: 236, y: 300 },
+    laundry: { x: 196, y: 222 },
+    fishing: { x: 588, y: 206 },
+    field: { x: 498, y: 300, w: 52, h: 22 },
+    windmill: { x: 566, y: 292 },
+    pen: { x: 420, y: 316, rx: 18, ry: 8 },
+    glade: { x: 520, y: 150 },
+    lake: { x: 452, y: 150, rx: 34, ry: 13 },
+    dock: { x: 168, y: 356 },
+    perch: { x: 690, y: 94 },
+    town: { x: 382, y: 262, rx: 38, ry: 18 },
+    harbour: { x: 166, y: 346 },
+    keep: { x: 300, y: 210 },
+    hall: { x: 120, y: 268 },
+    ruins: { x: 560, y: 116 },
+    houses: [
+      { x: 410, y: 244, w: 26, roof: ["#b8503a", "#8e3a2a"], chimney: true },
+      { x: 352, y: 292, w: 26, roof: ["#b8503a", "#8e3a2a"], chimney: false },
+      { x: 418, y: 292, w: 28, roof: ["#c0623a", "#94452a"], chimney: true },
+      { x: 352, y: 234, w: 24, roof: ["#b8503a", "#8e3a2a"], chimney: true },
+      { x: 262, y: 284, w: 26, roof: ["#c0623a", "#94452a"], chimney: true },
+      { x: 238, y: 244, w: 24, roof: ["#3b5fa8", "#2c4a85"], chimney: false },
+      { x: 182, y: 304, w: 26, roof: ["#b8503a", "#8e3a2a"], chimney: true },
+      { x: 272, y: 324, w: 24, roof: ["#3f8f4f", "#2c6b3a"], chimney: false },
+      { x: 226, y: 330, w: 26, roof: ["#b8503a", "#8e3a2a"], chimney: true },
+      { x: 512, y: 230, w: 24, roof: ["#c0623a", "#94452a"], chimney: true },
+      { x: 154, y: 246, w: 24, roof: ["#3b5fa8", "#2c4a85"], chimney: true },
+      { x: 524, y: 274, w: 24, roof: ["#b8503a", "#8e3a2a"], chimney: false }
+    ],
+    well: { x: 384, y: 270 },
+    stall: { x: 362, y: 256 },
+    lamps: [{ x: 444, y: 256 }, { x: 396, y: 254 }, { x: 222, y: 256 }, { x: 330, y: 306 }],
+    boats: [{ x: 144, y: 400 }, { x: 196, y: 396 }, { x: 96, y: 386 }],
     // where the townsfolk, animals and birds go about their day
-    townPoints: [{ x: 136, y: 202 }, { x: 150, y: 216 }, { x: 186, y: 214 }, { x: 200, y: 198 }, { x: 160, y: 192 }, { x: 124, y: 214 }, { x: 108, y: 194 }, { x: 238, y: 220 }, { x: 176, y: 246 }],
-    catPoints: [{ x: 108, y: 194 }, { x: 124, y: 242 }, { x: 238, y: 220 }, { x: 176, y: 246 }, { x: 196, y: 216 }],
-    chickens: [{ x: 200, y: 264 }, { x: 212, y: 266 }, { x: 206, y: 262 }],
-    frogPads: [{ x: 50, y: 270 }, { x: 88, y: 272 }],
-    pools: [{ x: 54, y: 268 }, { x: 84, y: 270 }, { x: 70, y: 274 }],
-    fireflies: { x: 10, y: 226, w: 120, h: 60 },
-    butterflies: { x: 196, y: 96, w: 80, h: 50 },
-    flurries: { x: 300, y: 0, w: 212, h: 130 },
-    gulls: [{ x: 60, y: 308, r: 16, v: 0.9 }, { x: 260, y: 310, r: 20, v: -0.7 }, { x: 440, y: 308, r: 18, v: 0.6 }],
-    ship: { y: 314, from: 230, to: 490 }
+    townPoints: [{ x: 372, y: 266 }, { x: 396, y: 276 }, { x: 410, y: 256 }, { x: 360, y: 280 }, { x: 330, y: 268 }, { x: 290, y: 262 }, { x: 250, y: 266 }, { x: 440, y: 270 }, { x: 214, y: 270 }],
+    catPoints: [{ x: 410, y: 246 }, { x: 352, y: 294 }, { x: 262, y: 286 }, { x: 418, y: 294 }, { x: 384, y: 274 }],
+    chickens: [{ x: 534, y: 288 }, { x: 544, y: 292 }, { x: 538, y: 284 }],
+    frogPads: [{ x: 744, y: 248 }, { x: 726, y: 256 }],
+    pools: [{ x: 742, y: 246 }, { x: 728, y: 254 }, { x: 736, y: 262 }],
+    fireflies: { x: 650, y: 230, w: 110, h: 60 },
+    butterflies: { x: 480, y: 280, w: 90, h: 50 },
+    flurries: { x: 300, y: 0, w: 468, h: 110 },
+    gulls: [{ x: 120, y: 410, r: 18, v: 0.9 }, { x: 420, y: 414, r: 22, v: -0.7 }, { x: 640, y: 404, r: 18, v: 0.6 }],
+    ship: { y: 420, from: 240, to: 600 }
   };
   var stone = (b, L, T, w, h, light, mid, dark) => {
     px(b, "#1b1424", L - 1, T - 1, w + 2, h + 1);
@@ -2118,8 +2297,8 @@ var GuildWorld = (() => {
   };
   var ESTATES = {
     lanterns: {
-      at: { x: 214, y: 190 },
-      lamps: [{ x: 222, y: 124 }, { x: 116, y: 130 }, { x: 212, y: 240 }, { x: 262, y: 188 }, { x: 314, y: 182 }],
+      at: { x: 470, y: 254 },
+      lamps: [{ x: 424, y: 276 }, { x: 290, y: 246 }, { x: 172, y: 292 }, { x: 560, y: 256 }, { x: 524, y: 212 }],
       get clears() {
         return this.lamps.map((l) => ({ ...l, r: 4 }));
       },
@@ -2129,8 +2308,8 @@ var GuildWorld = (() => {
       }
     },
     fountain: {
-      at: { x: 138, y: 194 },
-      clears: [{ x: 138, y: 194, r: 10 }],
+      at: { x: 354, y: 274 },
+      clears: [{ x: 354, y: 274, r: 10 }],
       paint(b) {
         const { x, y } = this.at;
         shadow(b, x, y + 1, 24);
@@ -2149,10 +2328,10 @@ var GuildWorld = (() => {
         return { jet: { x, y: y - 19 }, pool: { x, y: y - 6 } };
       }
     },
-    bard: { at: { x: 147, y: 182 }, clears: [] },
+    bard: { at: { x: 444, y: 252 }, clears: [] },
     belltower: {
-      at: { x: 252, y: 160 },
-      clears: [{ x: 252, y: 156, r: 14 }],
+      at: { x: 198, y: 234 },
+      clears: [{ x: 198, y: 230, r: 14 }],
       paint(b) {
         const { x, y } = this.at, top = y - 30;
         shadow(b, x + 2, y, 18);
@@ -2169,8 +2348,8 @@ var GuildWorld = (() => {
       }
     },
     fairyring: {
-      at: { x: 34, y: 150 },
-      clears: [{ x: 34, y: 150, r: 13 }],
+      at: { x: 44, y: 326 },
+      clears: [{ x: 44, y: 326, r: 13 }],
       paint(b) {
         const { x, y } = this.at;
         for (let k = 0; k < 9; k++) {
@@ -2180,10 +2359,10 @@ var GuildWorld = (() => {
         return { ring: { x, y } };
       }
     },
-    owl: { at: { x: 56, y: 62 }, clears: [] },
+    owl: { at: { x: 34, y: 112 }, clears: [] },
     obelisk: {
-      at: { x: 100, y: 96 },
-      clears: [{ x: 100, y: 102, r: 18 }],
+      at: { x: 144, y: 176 },
+      clears: [{ x: 144, y: 182, r: 18 }],
       paint(b) {
         const { x, y } = this.at;
         shadow(b, x + 1, y, 12);
@@ -2202,10 +2381,10 @@ var GuildWorld = (() => {
       }
     },
     dummies: {
-      at: { x: 452, y: 118 },
-      clears: [{ x: 452, y: 116, r: 14 }],
+      at: { x: 362, y: 334 },
+      clears: [{ x: 362, y: 332, r: 14 }],
       paint(b) {
-        for (const [x, y] of [[446, 117], [459, 119]]) {
+        for (const [x, y] of [[this.at.x - 6, this.at.y - 1], [this.at.x + 7, this.at.y + 1]]) {
           shadow(b, x, y, 8);
           px(b, "#5a3720", x, y - 14, 1, 14);
           px(b, "#5a3720", x - 5, y - 10, 11, 1);
@@ -2220,8 +2399,8 @@ var GuildWorld = (() => {
       }
     },
     watchtower: {
-      at: { x: 318, y: 110 },
-      clears: [{ x: 318, y: 104, r: 16 }],
+      at: { x: 738, y: 302 },
+      clears: [{ x: 738, y: 296, r: 16 }],
       paint(b) {
         const { x, y } = this.at, top = y - 34;
         shadow(b, x + 2, y, 20);
@@ -2242,8 +2421,8 @@ var GuildWorld = (() => {
       }
     },
     pikes: {
-      at: { x: 474, y: 272 },
-      clears: [{ x: 474, y: 268, r: 12 }],
+      at: { x: 744, y: 346 },
+      clears: [{ x: 744, y: 342, r: 12 }],
       paint(b) {
         const { x, y } = this.at;
         ["#d1495b", "#9b59d0", "#e07a2f"].forEach((c, i) => {
@@ -2259,10 +2438,10 @@ var GuildWorld = (() => {
         return {};
       }
     },
-    wisps: { at: { x: 470, y: 246 }, clears: [] },
+    wisps: { at: { x: 726, y: 330 }, clears: [] },
     shelf: {
-      at: { x: 24, y: 252 },
-      clears: [{ x: 24, y: 248, r: 11 }],
+      at: { x: 702, y: 188 },
+      clears: [{ x: 702, y: 184, r: 11 }],
       paint(b) {
         const { x, y } = this.at;
         shadow(b, x, y, 18);
@@ -2283,8 +2462,8 @@ var GuildWorld = (() => {
       }
     },
     cauldron2: {
-      at: { x: 152, y: 252 },
-      clears: [{ x: 152, y: 250, r: 10 }],
+      at: { x: 706, y: 240 },
+      clears: [{ x: 706, y: 238, r: 10 }],
       paint(b) {
         const { x, y } = this.at;
         shadow(b, x, y + 2, 16);
@@ -2298,8 +2477,8 @@ var GuildWorld = (() => {
       }
     },
     lighthouse: {
-      at: { x: 338, y: 280 },
-      clears: [{ x: 338, y: 274, r: 13 }],
+      at: { x: 246, y: 386 },
+      clears: [{ x: 246, y: 380, r: 13 }],
       paint(b) {
         const { x, y } = this.at;
         shadow(b, x + 2, y, 18);
@@ -2320,8 +2499,8 @@ var GuildWorld = (() => {
         return { lamp: { x, y: y - 37 } };
       }
     },
-    hound: { at: { x: 168, y: 200 }, clears: [] },
-    rainbow: { at: { x: 256, y: 160 }, clears: [] },
+    hound: { at: { x: 440, y: 262 }, clears: [] },
+    rainbow: { at: { x: 468, y: 170 }, clears: [] },
     ...PACK_ESTATES
   };
   var CELL = 2;
@@ -2461,13 +2640,22 @@ var GuildWorld = (() => {
       }
     }
   };
+  var bump = (x, c, w) => Math.exp(-(((x - c) / w) ** 2));
   function coastY(x) {
-    return 288 + (fbm(x / 38 + 3, 7) - 0.5) * 26;
+    return 398 + (fbm(x / 40 + 3, 7) - 0.5) * 22 - 40 * bump(x, 150, 62) - 50 * bump(x, 606, 52);
   }
   function biomeAt(x, y) {
     const n = fbm(x / 34 + 50, y / 34 + 50) - 0.5;
     const ell = (cx, cy, rx, ry) => 1 - Math.hypot((x - cx) / rx, (y - cy) / ry) + n * 0.6;
-    const w = [[PEAKS, ell(390, 26, 180, 74)], [FOREST, ell(50, 90, 120, 100)], [BADLANDS, ell(462, 214, 96, 86)], [SWAMP, ell(56, 268, 104, 56)]];
+    const w = [
+      [PEAKS, ell(540, 6, 300, 96)],
+      [PEAKS, ell(220, -10, 130, 46)],
+      [FOREST, ell(60, 170, 120, 150)],
+      [FOREST, ell(730, 210, 90, 130)],
+      [FOREST, ell(250, 120, 100, 44)],
+      [BADLANDS, ell(716, 368, 70, 34)],
+      [SWAMP, ell(744, 252, 40, 26)]
+    ];
     let best = PLAINS, top = 0;
     for (const [b, v] of w) if (v > top) {
       top = v;
@@ -2521,7 +2709,7 @@ var GuildWorld = (() => {
         if (d < 0.12 && biome !== PEAKS) biome = BEACH;
         if (RIV[k] || LAKE[k]) kind = FRESH;
         else if (biome === SWAMP && !ROAD_NEAR[k] && fbm(x / 16 + 9, y / 16 + 4) > 0.64 && Math.hypot(x - PLACES.cauldron.at.x, y - PLACES.cauldron.at.y) > 34) kind = FRESH;
-        SNOWY[k] = kind === LAND && biome !== BADLANDS && (biome === PEAKS || Math.hypot((x - 392) / 1.6, y - 56) + (fbm(x / 30 + 5, y / 30 + 5) - 0.5) * 50 < 86) ? 1 : 0;
+        SNOWY[k] = kind === LAND && biome !== BADLANDS && (biome === PEAKS || y + (fbm(x / 30 + 5, y / 30 + 5) - 0.5) * 50 < 54) ? 1 : 0;
       }
       if (RIV[k] && d <= 0) kind = SEA;
       KIND[k] = kind;
@@ -2579,10 +2767,16 @@ var GuildWorld = (() => {
     const add = (y, fn) => items.push({ y, fn });
     const P = PLACES;
     const clear = [
-      { ...P.study.at, r: 30 },
-      { x: P.armory.at.x, y: P.armory.at.y - 20, r: 60 },
+      { x: P.study.at.x, y: P.study.at.y + 16, r: 40 },
+      { x: P.armory.at.x, y: P.armory.at.y - 20, r: 44 },
       { x: P.dungeon.at.x, y: P.dungeon.at.y - 14, r: 48 },
       { ...P.cauldron.at, r: 44 },
+      { x: FOLK.keep.x, y: FOLK.keep.y - 24, r: 74 },
+      { x: FOLK.hall.x, y: FOLK.hall.y - 14, r: 40 },
+      { ...FOLK.ruins, r: 46 },
+      { x: P.tavern.at.x, y: P.tavern.at.y - 16, r: 52 },
+      { x: BOARD.x + 16, y: BOARD.y + 14, r: 22 },
+      ...FOLK.houses.map((h) => ({ x: h.x, y: h.y - 8, r: h.w * 0.7 })),
       { ...FOLK.mine, r: 30 },
       { ...FOLK.woodyard, r: 18 },
       { ...FOLK.fishing, r: 12 },
@@ -2593,7 +2787,6 @@ var GuildWorld = (() => {
       { ...FOLK.dock, r: 18 },
       { ...CAULDRON, r: 16 },
       { ...CHEST, r: 10 },
-      { x: VOLCANO.x, y: VOLCANO.y - 30, r: 52 },
       ...MONSTER_SLOTS.map((s) => ({ ...s, r: 6 })),
       ...P.dungeon.spots.map((s) => ({ ...s, r: 10 })),
       ...P.armory.spots.map((s) => ({ ...s, r: 9 })),
@@ -2602,9 +2795,9 @@ var GuildWorld = (() => {
       ...built.flatMap((id) => ESTATES[id].clears)
     ];
     const F = FOLK.field;
-    const inTown = (x, y) => ((x - 168) / 92) ** 2 + ((y - 206) / 60) ** 2 < 1;
+    const inTown = (x, y) => ((x - 340) / 150) ** 2 + ((y - 280) / 64) ** 2 < 1;
     const cleared = (x, y) => clear.some((c) => Math.hypot(x - c.x, y - c.y) < c.r) || inTown(x, y) || x > F.x - 6 && x < F.x + F.w + 6 && y > F.y - 4 && y < F.y + F.h + 10;
-    for (let y = -6; y < 120; y += 9) for (let x = 250; x < W + 20; x += 14) {
+    for (let y = -6; y < 132; y += 9) for (let x = 60; x < W + 20; x += 14) {
       const jx = x + Math.floor(hash(x, y + 99) * 10) - 5, jy = y + Math.floor(hash(y + 99, x) * 7);
       const k = cell(jx, jy);
       if (BIOME[k] !== PEAKS || KIND[k] !== LAND || ROAD_NEAR[k] || cleared(jx, jy)) continue;
@@ -2656,7 +2849,7 @@ var GuildWorld = (() => {
         case BADLANDS:
           if (nearSkull && r < 0.16) add(jy, (b) => gravestone(b, jx, jy, r < 0.05));
           else if (r < 0.06) add(jy, (b) => deadTree(b, jx, jy));
-          else if (r < 0.1) add(jy, (b) => lavaCrack(b, jx, jy));
+          else if (r < 0.1) add(jy, (b) => rock(b, jx, jy, 2, "#9a9184", "#6d665c"));
           else if (r < 0.15) add(jy, (b) => rock(b, jx, jy, 1 + Math.floor(r * 14), "#8a8070", "#5e5648"));
           break;
         case SWAMP:
@@ -2681,14 +2874,25 @@ var GuildWorld = (() => {
     add(FOLK.woodyard.y - 1, (b) => woodyard(b, FOLK.woodyard.x, FOLK.woodyard.y));
     add(FOLK.cookfire.y - 1, (b) => cookfire(b, FOLK.cookfire.x, FOLK.cookfire.y));
     add(FOLK.laundry.y - 1, (b) => washingLine(b, FOLK.laundry.x, FOLK.laundry.y));
-    add(FOLK.dock.y, (b) => {
-      px(b, "#3a2414", FOLK.dock.x - 2, FOLK.dock.y - 14, 6, 22);
-      px(b, "#9a6a3c", FOLK.dock.x - 1, FOLK.dock.y - 14, 4, 22);
-      for (let i = 0; i < 22; i += 3) px(b, "#5a3720", FOLK.dock.x - 1, FOLK.dock.y - 14 + i, 4, 1);
+    for (const [x, len] of [[120, 44], [164, 52], [208, 40]]) add(coastY(x) - 6, (b) => pier(b, x - 4, Math.round(coastY(x)) - 8, len));
+    for (const bt of FOLK.boats) add(bt.y, (b) => boat(b, bt.x, bt.y, hash(bt.x, 1) > 0.5 ? "#efe6d2" : "#e8d8b0"));
+    add(FOLK.keep.y, (b) => keep(b, FOLK.keep.x, FOLK.keep.y));
+    add(FOLK.hall.y, (b) => guildHall(b, FOLK.hall.x, FOLK.hall.y));
+    add(FOLK.ruins.y, (b) => ruins(b, FOLK.ruins.x, FOLK.ruins.y));
+    add(FALLS.bottom + 6, (b) => {
+      for (let y = FALLS.top; y < FALLS.bottom; y++) {
+        const c = RIVER.reduce((p, q) => Math.abs(q.y - y) < Math.abs(p.y - y) ? q : p), hw = 7;
+        for (let x = Math.round(c.x) - hw; x <= Math.round(c.x) + hw; x++) px(b, hash(x, y >> 1) > 0.45 ? "#f4f8fc" : hash(x, y) > 0.3 ? "#c9e4f2" : "#8fc4e0", x, y);
+      }
+      const top = RIVER.reduce((p, q) => Math.abs(q.y - FALLS.top) < Math.abs(p.y - FALLS.top) ? q : p);
+      px(b, "#1b1424", Math.round(top.x) - 13, FALLS.top - 3, 27, 4);
+      px(b, "#8a8173", Math.round(top.x) - 12, FALLS.top - 2, 25, 2);
+      const foot = RIVER.reduce((p, q) => Math.abs(q.y - FALLS.bottom) < Math.abs(p.y - FALLS.bottom) ? q : p);
+      for (let k = 0; k < 26; k++) px(b, "rgba(255,255,255,.75)", Math.round(foot.x) - 12 + Math.floor(hash(k, 3) * 24), FALLS.bottom - 2 + Math.floor(hash(3, k) * 7), 2, 1);
     });
-    add(VOLCANO.y, (b) => volcano(b, VOLCANO.x, VOLCANO.y));
-    add(P.study.at.y, (b) => wizardTower(b, P.study.at.x, P.study.at.y));
-    add(P.armory.at.y, (b) => forgeHall(b, P.armory.at.x, P.armory.at.y));
+    add(P.study.at.y + 40, (b) => crag(b, P.study.at.x, P.study.at.y + 40, 64, 40));
+    add(P.study.at.y + 41, (b) => wizardTower(b, P.study.at.x, P.study.at.y));
+    add(P.armory.at.y, (b) => forgeHall(b, P.armory.at.x, P.armory.at.y, true));
     add(P.dungeon.at.y, (b) => dungeonCave(b, P.dungeon.at.x, P.dungeon.at.y));
     add(P.cauldron.at.y, (b) => alchemistHut(b, P.cauldron.at.x, P.cauldron.at.y));
     add(F.y, (b) => field(b, { ...F, crop: "wheat" }));
@@ -3095,23 +3299,23 @@ GuildPacks.christmas = api => {
 GuildPacks.halloween = api => {
   const { px, hash, glow, burst, reduced } = api
   const P = (c, x, y, w = 1, h = 1) => px(api.g, c, Math.round(x), Math.round(y), w, h)
-  // the harvest moon is seen in the sea south of the island: its reflection, fixed on the water
-  const MOON = { x: 436, y: 306 }
-  const BATS = Array.from({ length: 9 }, (_, i) => ({ y: 30 + hash(i, 3) * 200, v: (hash(i, 4) > .5 ? 1 : -1) * (14 + hash(i, 5) * 14), off: hash(i, 6) * 900, ph: hash(i, 7) * 6 }))
-  const FOGS = Array.from({ length: 7 }, (_, i) => ({ x: 360 + hash(i, 11) * 150, y: 200 + hash(i, 12) * 80, r: 22 + hash(i, 13) * 18, v: 3 + hash(i, 14) * 4 }))
+  // the harvest moon is seen in the bay south of the valley: its reflection, fixed on the water
+  const MOON = { x: 560, y: 410 }
+  const BATS = Array.from({ length: 9 }, (_, i) => ({ y: 30 + hash(i, 3) * 280, v: (hash(i, 4) > .5 ? 1 : -1) * (14 + hash(i, 5) * 14), off: hash(i, 6) * 900, ph: hash(i, 7) * 6 }))
+  const FOGS = Array.from({ length: 7 }, (_, i) => ({ x: 610 + hash(i, 11) * 150, y: 300 + hash(i, 12) * 80, r: 22 + hash(i, 13) * 18, v: 3 + hash(i, 14) * 4 }))
   const COSTUME = { '#b8323f': 'ghost', '#84d488': 'ghost', '#3b5fa8': 'witch', '#7a4fc9': 'witch' }
   const night = () => api.darkness()
   // how far into the night: nothing at dusk, all of it once it is properly dark
   const deep = () => Math.max(0, Math.min(1, (night() - .35) * 2.5))
 
   // the haunts: where ghosts drift after dark
-  const HAUNTS = [[470, 256, 22], [420, 214, 16], [170, 214, 30], [100, 118, 22], [128, 60, 18], [62, 236, 18], [300, 120, 20]]
+  const HAUNTS = [[470, 262, 22], [382, 262, 18], [214, 262, 30], [64, 200, 22], [562, 116, 20], [120, 286, 18], [300, 236, 20]]
   const GHOSTS = HAUNTS.map(([x, y, r], i) => ({ x, y, r, ph: hash(i, 21) * 6.28, v: .25 + hash(i, 22) * .3 }))
   // werewolves prowl the Wizard's forest between these clearings, and stop now and then to howl
-  const DEN = [[20, 40], [32, 100], [90, 30], [100, 110], [16, 140], [130, 100], [170, 40], [60, 150]].map(([x, y]) => ({ x, y }))
+  const DEN = [[20, 120], [34, 214], [120, 110], [150, 160], [18, 300], [60, 250], [190, 130], [30, 360]].map(([x, y]) => ({ x, y }))
   const WOLVES = [0, 5].map((k, i) => ({ x: DEN[k].x, y: DEN[k].y, to: DEN[(k + 2) % DEN.length], wait: 1 + i * 3, facing: 1, howl: 0, dist: 0 }))
   // eyes that glint between the trees
-  const EYES = Array.from({ length: 10 }, (_, i) => ({ x: 8 + hash(i, 31) * 180, y: 20 + hash(i, 32) * 150, ph: hash(i, 33) * 9 }))
+  const EYES = Array.from({ length: 10 }, (_, i) => ({ x: 8 + hash(i, 31) * 170, y: 90 + hash(i, 32) * 260, ph: hash(i, 33) * 9 }))
 
   const ghost = (x, y, a, t) => {
     const g = api.g, wave = Math.floor(t * 4) % 2
@@ -3334,7 +3538,7 @@ GuildPacks.halloween = api => {
 GuildPacks.thanksgiving = api => {
   const { px, hash, glow, burst, reduced } = api
   const P = (c, x, y, w = 1, h = 1) => px(api.g, c, Math.round(x), Math.round(y), w, h)
-  const LEAVES = Array.from({ length: 34 }, (_, i) => ({ x: hash(i, 41) * 512, y: hash(i, 42) * 300, v: 6 + hash(i, 43) * 8, ph: hash(i, 44) * 6.28, c: ['#d8742a', '#b8503a', '#f2a24a', '#c9a03a'][i % 4] }))
+  const LEAVES = Array.from({ length: 34 }, (_, i) => ({ x: hash(i, 41) * api.W, y: hash(i, 42) * api.H, v: 6 + hash(i, 43) * 8, ph: hash(i, 44) * 6.28, c: ['#d8742a', '#b8503a', '#f2a24a', '#c9a03a'][i % 4] }))
   const GEESE = [{ y: 70, v: -16, off: 0, n: 7 }, { y: 180, v: -12, off: 420, n: 5 }]
   const TURKEYS = [{ x: 214, y: 254, ph: 0 }, { x: 226, y: 260, ph: 2.1 }, { x: 206, y: 266, ph: 4.2 }]
   const HATS = { '#3b5fa8': true, '#e39a4d': true, '#f3e6c0': true }
@@ -3401,8 +3605,8 @@ GuildPacks.thanksgiving = api => {
       }
       // leaves drifting down across the island
       if (!reduced) for (const l of LEAVES) {
-        const y = (l.y + c * l.v) % 320, x = l.x + Math.sin(c * 1.3 + l.ph) * 8 + c * 3 % 512, flip = Math.floor(c * 3 + l.ph) % 2
-        P(l.c, x % 512, y, flip ? 2 : 1, flip ? 1 : 2)
+        const y = (l.y + c * l.v) % api.H, x = l.x + Math.sin(c * 1.3 + l.ph) * 8 + c * 3 % api.W, flip = Math.floor(c * 3 + l.ph) % 2
+        P(l.c, x % api.W, y, flip ? 2 : 1, flip ? 1 : 2)
       }
       // the apple press's barrel froths while a brew bubbles
       if (E.applepress && api.busyAt('cauldron')) { const b = E.applepress.barrel; for (let i = 0; i < 2; i++) P('#f3e6c0', b.x - 1 + i * 2, b.y - 1 - (Math.floor(c * 4 + i) % 2), 1, 1) }
@@ -3471,7 +3675,7 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // The realm is the mod's own (hooks/world.js), bundled in as GuildWorld: the same land, roads
 // and places the Guild Hall pane draws. The camera follows whoever is working, two screen
 // pixels to a world pixel; WORLD MAP pulls back to show the whole of it.
-const { W, H, HUB, DOORWAY, BOARD, CAULDRON, CHEST, PLACES, ROADS, WALK, RIVER, FOLK, MONSTER_SLOTS, hash, px, shade } = GuildWorld;
+const { W, H, HUB, DOORWAY, BOARD, CAULDRON, CHEST, PLACES, ROADS, WALK, RIVER, FOLK, MONSTER_SLOTS, way, hash, px, shade } = GuildWorld;
 // The view is the world's own size: the world map shows the whole island at one pixel to one,
 // following zooms in twice. The page scales the view to fit its window (fitMap).
 // A little taller where the window wants it: the extra rows are the sea south of the island.
@@ -3586,7 +3790,7 @@ const CLOUDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(seed => {
     dx.fillStyle = ['#4a5060', '#6a7080', '#8a90a0'][edge]; dx.fillRect(x, y, 1, 1);
     sx.fillStyle = '#000'; sx.fillRect(x, y, 1, 1);
   }
-  return { c, s, dark, x: hash(seed, 7) * W, y: 6 + (seed % 5) * 58 + hash(seed, 8) * 24, v: 3 + hash(seed, 9) * 3 };
+  return { c, s, dark, x: hash(seed, 7) * W, y: 6 + (seed % 5) * H * .18 + hash(seed, 8) * 24, v: 3 + hash(seed, 9) * 3 };
 });
 const FIREFLIES = Array.from({ length: 14 }, (_, i) => ({ x: FOLK.fireflies.x + hash(i, 51) * FOLK.fireflies.w, y: FOLK.fireflies.y + hash(i, 52) * FOLK.fireflies.h, ph: hash(i, 53) * 6.28 }));
 
@@ -3777,15 +3981,11 @@ function pickSpot(room, who) {
   const spots = ROOMS[room].spots; const i = spots.findIndex((_, k) => !taken.has(k));
   return i < 0 ? Math.floor(Math.random() * spots.length) : i;
 }
-// Every journey goes by road: back to the town square, then out along the road to the destination.
+// Every journey goes by road: the shortest way along the valley's roads from one place to the next.
 function route(a, to, spot) {
   const from = a.room;
   if (from === to) return [{ ...spot }];
-  const pts = [];
-  if (from !== 'tavern') pts.push(...WALK[from].slice().reverse());
-  if (to !== 'tavern') pts.push(...WALK[to]); else pts.push({ ...HUB });
-  pts.push({ ...spot });
-  return pts;
+  return [...way(from, to), { ...spot }];
 }
 function sendTo(r, a, room) {
   const k = pickSpot(room, a), spot = ROOMS[room].spots[k];
@@ -4074,7 +4274,7 @@ const VILLAGERS = [['#b8323f', '#6b4426'], ['#3b5fa8', '#2b1b14'], ['#84d488', '
 const CAT = { ...FOLK.catPoints[0], tx: FOLK.catPoints[0].x, ty: FOLK.catPoints[0].y, wait: 2, dist: 0, facing: 1 };
 const CHICKENS = FOLK.chickens.map((c, i) => ({ ...c, ph: i * 2 }));
 // A loyal hound trots after the guildmaster; a sheepdog minds the flock west of town.
-const DOG = { x: 120, y: 206, dist: 0, facing: 1, sit: 0 };
+const DOG = { x: HUB.x, y: HUB.y, dist: 0, facing: 1, sit: 0 };
 const PEN = FOLK.pen;
 const SHEEP = Array.from({ length: 6 }, (_, i) => ({ x: PEN.x + Math.cos(i) * 16, y: PEN.y + Math.sin(i * 2) * 8, tx: PEN.x, ty: PEN.y, wait: i * .7, dist: 0, facing: i % 2 ? 1 : -1 }));
 const SHEEPDOG = { a: 0, dist: 0 };
@@ -4083,7 +4283,7 @@ const DEER = [{ ...GLADE[0], tx: GLADE[0].x, ty: GLADE[0].y, wait: 1, dist: 0, f
 // Travellers walk the roads; a merchant's cart plies the road to the Armory.
 const TRAVELLERS = [{ road: 'dungeon', t: .2, dir: 1, shirt: '#7a4fc9', hat: '#3a2414' }, { road: 'study', t: .7, dir: -1, shirt: '#3b5fa8', hat: '#b8323f' }, { road: 'cauldron', t: .4, dir: 1, shirt: '#4f9c5a', hat: '#f2b84b' }];
 const CART = { road: 'armory', t: .1, dir: 1 };
-const FLOCKS = [{ y: 130, v: 16, off: 0, n: 5 }, { y: 50, v: -12, off: 300, n: 4 }, { y: 236, v: 20, off: 500, n: 6 }];
+const FLOCKS = [{ y: 176, v: 16, off: 0, n: 5 }, { y: 70, v: -12, off: 300, n: 4 }, { y: 318, v: 20, off: 500, n: 6 }];
 const GULLS = FOLK.gulls;
 const BUTTERFLIES = Array.from({ length: 6 }, (_, i) => ({ x: FOLK.butterflies.x + hash(i, 61) * FOLK.butterflies.w, y: FOLK.butterflies.y + hash(i, 62) * FOLK.butterflies.h, ph: hash(i, 63) * 6.28, c: ['#f7dd5b', '#e88aa8', '#8ab4f0', '#fff3d0'][i % 4] }));
 const LAKE_FISH = { t: 0 };
@@ -4222,9 +4422,9 @@ function drawLife() {
     g.strokeStyle = '#4a4458'; g.lineWidth = 1; g.beginPath(); g.moveTo(FORGE.x - 10, FORGE.y + 14); g.lineTo(FORGE.x - 52, FORGE.y + 26); g.stroke();
     px(g, '#1b1424', cx - 5, cy - 6, 10, 6); px(g, '#5b6470', cx - 4, cy - 5, 8, 4); px(g, '#e39a4d', cx - 3, cy - 7, 2, 2); px(g, '#ffd27a', cx, cy - 7, 2, 2); px(g, '#1b1424', cx - 4, cy, 2, 2); px(g, '#1b1424', cx + 2, cy, 2, 2); }
   // the dungeon: bats, a ghost among the graves, and treasure once it is cleared
-  for (let i = 0; i < 3; i++) { const a = clock * (0.9 + i * .2) + i * 2, bx = Math.round(SKULL.x + Math.sin(a) * 40 + i * 6), by = Math.round(372 + Math.sin(a * 2) * 12 + i * 5), up = Math.floor(clock * 9 + i) % 2;
+  for (let i = 0; i < 3; i++) { const a = clock * (0.9 + i * .2) + i * 2, bx = Math.round(SKULL.x + Math.sin(a) * 40 + i * 6), by = Math.round(PLACES.dungeon.at.y - 66 + Math.sin(a * 2) * 12 + i * 5), up = Math.floor(clock * 9 + i) % 2;
     px(g, '#2a1d3a', bx - 1, by, 3, 2); px(g, '#2a1d3a', bx - 4, by - up, 3, 1); px(g, '#2a1d3a', bx + 2, by - up, 3, 1); px(g, '#e8606f', bx, by, 1, 1); }
-  { const gx = Math.round(96 + Math.sin(clock * .3) * 26), gy = Math.round(452 + Math.sin(clock * .9) * 4); g.globalAlpha = .35 + Math.sin(clock * .7) * .2;
+  { const gx = Math.round(PLACES.dungeon.at.x - 44 + Math.sin(clock * .3) * 26), gy = Math.round(PLACES.dungeon.at.y + 22 + Math.sin(clock * .9) * 4); g.globalAlpha = .35 + Math.sin(clock * .7) * .2;
     px(g, '#e6f0ff', gx - 3, gy - 9, 7, 7); px(g, '#e6f0ff', gx - 4, gy - 4, 9, 3); px(g, '#e6f0ff', gx - 4, gy - 1, 2, 2); px(g, '#e6f0ff', gx, gy - 1, 2, 2); px(g, '#e6f0ff', gx + 3, gy - 1, 2, 2); px(g, '#1b1424', gx - 2, gy - 7, 1, 2); px(g, '#1b1424', gx + 1, gy - 7, 1, 2); g.globalAlpha = 1; }
   { const { x, y } = CHEST, open = anyChest();
     px(g, 'rgba(0,0,0,.35)', x - 6, y, 13, 2); px(g, '#1b1424', x - 6, y - 7, 13, 8); px(g, '#8a5a34', x - 5, y - 6, 11, 6); px(g, '#f2b84b', x - 5, y - 4, 11, 1);
@@ -4589,7 +4789,7 @@ function hitTest(wx, wy) {
 }
 
 // ───────────────────────── draw ─────────────────────────
-const cv = document.getElementById('map'); const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+const cv = document.getElementById('map'); cv.width = VW; cv.height = VH; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
 const FONT = '8px "Press Start 2P", ui-monospace, monospace';
 function text(s, x, y, color, align = 'left') { g.font = FONT; g.textAlign = align; g.textBaseline = 'top'; g.fillStyle = '#000'; g.fillText(s, x + 1, y + 1); g.fillStyle = color; g.fillText(s, x, y); }
 function glow(x, y, r, color, alpha) {
@@ -4956,7 +5156,7 @@ function drawMarkers() {
     px(g, '#1b1424', x - 3, y - 3, 7, 7); px(g, col, x - 2, y - 2, 5, 5); px(g, '#1b1424', x, y + 4, 1, 2);
   }
 }
-const MM = { x: VW - 126, y: VH - 81, w: 120, h: 75 };
+const MM = { x: VW - 126, y: VH - Math.round(120 * H / W) - 6, w: 120, h: Math.round(120 * H / W) };
 function drawMinimap() {
   if (camMode === 'world' && view.z < 1.4) return;
   const f = toScreen(focusActor().x, focusActor().y);
@@ -5738,7 +5938,7 @@ async function sendLive(r, d, mode) {
 function setViewHeight(vh) {
   if (vh === VH) return;
   VH = vh; cv.height = VH; g.imageSmoothingEnabled = false;
-  vignette = null; MM.y = VH - 81;
+  vignette = null; MM.y = VH - MM.h - 6;
 }
 const CHRONICLE = $('log').closest('.card'), CHRONICLE_HOME = document.createComment('chronicle');
 CHRONICLE.after(CHRONICLE_HOME);

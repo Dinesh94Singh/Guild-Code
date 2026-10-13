@@ -46,7 +46,7 @@ export const HALLOWEEN_ART = {
 
 export const HALLOWEEN_ESTATES = {
   pumpkinpatch: {
-    at: { x: 80, y: 170 }, clears: [{ x: 80, y: 172, r: 19 }],
+    at: { x: 476, y: 340 }, clears: [{ x: 476, y: 342, r: 19 }],
     paint(b) {
       const { x, y } = this.at, faces = []
       // a dark patch of tilled earth and creeping vines
@@ -61,7 +61,7 @@ export const HALLOWEEN_ESTATES = {
     },
   },
   scarecrow: {
-    at: { x: 258, y: 282 }, clears: [],
+    at: { x: 558, y: 318 }, clears: [],
     paint(b) {
       const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }
       shadow(b, x, y, 10)
@@ -71,7 +71,7 @@ export const HALLOWEEN_ESTATES = {
     },
   },
   manor: {
-    at: { x: 478, y: 232 }, clears: [{ x: 478, y: 222, r: 20 }],
+    at: { x: 178, y: 200 }, clears: [{ x: 178, y: 190, r: 20 }],
     paint(b) {
       const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }
       shadow(b, x + 2, y, 34)
@@ -91,7 +91,7 @@ export const HALLOWEEN_ESTATES = {
     },
   },
   coven: {
-    at: { x: 22, y: 272 }, clears: [{ x: 22, y: 268, r: 15 }],
+    at: { x: 72, y: 352 }, clears: [{ x: 72, y: 348, r: 15 }],
     paint(b) {
       const { x, y } = this.at, p = (c, a, d, w = 1, h = 1) => { b.fillStyle = c; b.fillRect(a, d, w, h) }
       p('rgba(0,0,0,.25)', x - 14, y - 6, 28, 9)
