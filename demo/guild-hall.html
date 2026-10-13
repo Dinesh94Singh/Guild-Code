@@ -327,6 +327,18 @@ body.painted .log .who { color: #6e5a3c; font-weight: 700; }
 body.painted .log .ok { color: var(--moss); } body.painted .log .running { color: var(--gold); }
 body.painted .caster { background: var(--panel-2); border: 1px dashed var(--rim); border-radius: 14px; }
 body.painted .caster input { color: var(--ink); background: #fffaf0; border: 1px solid var(--rim); border-radius: 10px; }
+/* the status bar under the painted map: the day, the purse, the party and the quest at hand */
+.hud { display: none; }
+body.painted .hud { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr); gap: 0; margin: 0 auto; width: 100%; background: #2f3b33; color: #f6ecd2;
+  border-radius: 12px; box-shadow: 0 0 0 1px #1f2822, 0 0 0 3px #c9a45c, 0 6px 14px -6px rgba(30, 30, 20, .5); overflow: hidden; }
+body.painted .hud .cell { display: flex; align-items: center; gap: 9px; padding: 7px 14px; min-width: 0; }
+body.painted .hud .cell + .cell { border-left: 1px solid rgba(201, 164, 92, .45); }
+body.painted .hud .cell > span:last-child { display: grid; min-width: 0; line-height: 1.15; }
+body.painted .hud b { font-family: var(--display); font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.painted .hud small { font-size: 11px; color: #cdbf9c; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.painted .hud .ico { flex: none; width: 22px; height: 22px; display: grid; place-items: center; font-size: 15px; color: #f0c25c; }
+body.painted .hud .coin { border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe7a0, #e0a73a 60%, #a8701e); box-shadow: 0 0 0 1px #7a5214; width: 18px; height: 18px; }
+@media (max-width: 640px) { body.painted .hud { grid-template-columns: 1fr 1fr; } body.painted .hud .cell:nth-child(3) { border-left: 0; } body.painted .hud .quest { grid-column: 1 / -1; border-left: 0; border-top: 1px solid rgba(201, 164, 92, .45); } }
 @media (min-width: 961px) {
   body.painted aside, body.painted.live .under { scrollbar-color: #cdbb95 transparent; }
   body.painted aside::-webkit-scrollbar-thumb { background: #cdbb95; border-radius: 8px; }
@@ -390,6 +402,12 @@ body.painted .caster input { color: var(--ink); background: #fffaf0; border: 1px
           </div>
           <p class="hint">Click a place or a hero to inspect it · drag to explore · M world map · N night</p>
         </div>
+      </div>
+      <div class="hud" id="hud" aria-live="off">
+        <div class="cell"><span class="ico" aria-hidden="true">☀</span><span><b id="hudDay">Day 1</b><small id="hudSky">Sunny</small></span></div>
+        <div class="cell"><span class="ico coin" aria-hidden="true"></span><span><b id="hudCrowns">0</b><small>crowns</small></span></div>
+        <div class="cell"><span class="ico" aria-hidden="true">⚑</span><span><b id="hudParty">0</b><small>at work</small></span></div>
+        <div class="cell quest"><span class="ico" aria-hidden="true">✦</span><span><small>Current quest</small><b id="hudQuest">The hall is quiet</b></span></div>
       </div>
       <div class="under" id="under"></div>
       <div class="caster">
@@ -837,6 +855,7 @@ var GuildWorld = (() => {
     SEASONS: () => SEASONS,
     SoftCanvas: () => SoftCanvas,
     TIERS: () => TIERS,
+    TRAILS: () => TRAILS,
     VOLCANO: () => VOLCANO,
     W: () => W,
     WALK: () => WALK,
@@ -845,6 +864,7 @@ var GuildWorld = (() => {
     fbm: () => fbm,
     hash: () => hash,
     isOpen: () => isOpen,
+    meander: () => meander,
     paintWorld: () => paintWorld,
     px: () => px,
     rankOf: () => rankOf,
@@ -2165,8 +2185,26 @@ var GuildWorld = (() => {
     out.push({ x: last[0], y: last[1] });
     return out;
   }
-  var ROADS = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, smooth(r, 2)]));
-  var WALK = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, smooth(r, 3)]));
+  function meander(raw, amp, phase = 0, calm = 16) {
+    const legs = raw.slice(1).map((b, i) => Math.hypot(b[0] - raw[i][0], b[1] - raw[i][1]));
+    const total = legs.reduce((a, b) => a + b, 0);
+    const sway = (s) => Math.sin(s / 23 + 1.3 + phase) * 0.55 + Math.sin(s / 11 + 4.1 + phase * 1.7) * 0.25 + Math.sin(s / 61 + phase * 0.6) * 0.45;
+    const out = [raw[0]];
+    let walked = 0;
+    raw.slice(1).forEach((b, i) => {
+      const a = raw[i], len = legs[i], n = Math.max(1, Math.round(len / 7)), nx = -(b[1] - a[1]) / len, ny = (b[0] - a[0]) / len;
+      for (let k = 1; k <= n; k++) {
+        const t = k / n, s = walked + len * t;
+        const off = k === n && i === raw.length - 2 ? 0 : sway(s) * amp * Math.min(1, s / calm, (total - s) / calm);
+        out.push([a[0] + (b[0] - a[0]) * t + nx * off, a[1] + (b[1] - a[1]) * t + ny * off]);
+      }
+      walked += len;
+    });
+    return out;
+  }
+  var WANDER = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, k === "tavern" ? r : meander(r, 6)]));
+  var ROADS = Object.fromEntries(Object.entries(WANDER).map(([k, r]) => [k, smooth(r, 2)]));
+  var WALK = Object.fromEntries(Object.entries(WANDER).map(([k, r]) => [k, smooth(r, 3)]));
   var RIVER = smooth(RIVER_RAW, 2);
   var FOLK = {
     mine: { x: 336, y: 66 },
@@ -2198,6 +2236,25 @@ var GuildWorld = (() => {
     gulls: [{ x: 60, y: 308, r: 16, v: 0.9 }, { x: 260, y: 310, r: 20, v: -0.7 }, { x: 440, y: 308, r: 18, v: 0.6 }],
     ship: { y: 314, from: 230, to: 490 }
   };
+  var nearestOnRoads = (x, y) => {
+    let best = [x, y], bd = Infinity;
+    for (const pts of Object.values(ROADS)) for (const p of pts) {
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d < bd) {
+        bd = d;
+        best = [p.x, p.y];
+      }
+    }
+    return best;
+  };
+  var TRAILS = [
+    [FOLK.mine],
+    [FOLK.glade],
+    [FOLK.fishing],
+    [FOLK.woodyard, FOLK.laundry],
+    [FOLK.cookfire],
+    [{ x: FOLK.field.x + FOLK.field.w / 2, y: FOLK.field.y - 3 }, FOLK.windmill, FOLK.dock]
+  ].map((stops, i) => smooth(meander([nearestOnRoads(stops[0].x, stops[0].y), ...stops.map((st) => [st.x, st.y])], 3.5, i * 2.3 + 1, 8), 2));
   var stone = (b, L, T, w, h, light, mid, dark) => {
     px(b, "#1b1424", L - 1, T - 1, w + 2, h + 1);
     for (let yy = T; yy < T + h; yy++) for (let xx = 0; xx < w; xx++) {
@@ -2603,7 +2660,9 @@ var GuildWorld = (() => {
       return m;
     };
     const roadPts = Object.values(ROADS).flat();
-    const ROAD = stamp(roadPts, 3.5), ROAD_EDGE = stamp(roadPts, 5.5), ROAD_NEAR = stamp(roadPts, 12);
+    const roadW = (p) => 3.1 + Math.sin(p.x / 13 + p.y / 17) * 0.45 + Math.sin(p.y / 7) * 0.25;
+    const ROAD = stamp(roadPts, roadW), ROAD_EDGE = stamp(roadPts, (p) => roadW(p) + 2), ROAD_NEAR = stamp(roadPts, 12);
+    const trailPts = TRAILS.flat(), TRAIL = stamp(trailPts, 2.1), TRAIL_NEAR = stamp(trailPts, 5);
     const riverW = (p) => 5 + p.y / H * 5;
     const RIV = stamp(RIVER, riverW), RIV_BANK = stamp(RIVER, (p) => riverW(p) + 3);
     const L = FOLK.lake, LAKE = oval(L.x, L.y, L.rx, L.ry), LAKE_BANK = oval(L.x, L.y, L.rx + 3, L.ry + 3);
@@ -2641,6 +2700,7 @@ var GuildWorld = (() => {
           c = y % 3 === 0 || (x + off) % 6 === 0 ? PAL.mortar : hash(Math.floor((x + off) / 6), Math.floor(y / 3)) > 0.5 ? PAL.cobA : PAL.cobB;
         } else if (ROAD[k]) c = h > 0.98 ? PAL.dirtHi : PAL.dirt;
         else if (ROAD_EDGE[k]) c = h > 0.5 ? PAL.dirtLo : PAL.dirtEdge;
+        else if (TRAIL[k] && hash(x * 3, y * 5) > 0.08) c = h > 0.6 ? PAL.dirtLo : PAL.dirtEdge;
         else if (PLAZA_EDGE[k]) c = PAL.plazaEdge;
         else if (RIV_BANK[k] || LAKE_BANK[k]) c = PAL.bank;
         else {
@@ -2704,7 +2764,7 @@ var GuildWorld = (() => {
     for (let y = -6; y < 120; y += 9) for (let x = 250; x < W + 20; x += 14) {
       const jx = x + Math.floor(hash(x, y + 99) * 10) - 5, jy = y + Math.floor(hash(y + 99, x) * 7);
       const k = cell(jx, jy);
-      if (BIOME[k] !== PEAKS || KIND[k] !== LAND || ROAD_NEAR[k] || cleared(jx, jy)) continue;
+      if (BIOME[k] !== PEAKS || KIND[k] !== LAND || ROAD_NEAR[k] || TRAIL_NEAR[k] || cleared(jx, jy)) continue;
       const w = 22 + Math.floor(hash(jx, jy * 3) * 22), h = Math.floor(w * (0.6 + hash(jy, jx) * 0.3));
       if (KIND[cell(jx - w / 2, jy)] !== LAND || KIND[cell(jx + w / 2, jy)] !== LAND) continue;
       add(jy, (b) => mountain(b, jx, jy, w, h));
@@ -2719,7 +2779,7 @@ var GuildWorld = (() => {
         });
         continue;
       }
-      if (KIND[k] !== LAND || DEPTH[k] < 0.1 || ROAD_NEAR[k] || cleared(jx, jy)) continue;
+      if (KIND[k] !== LAND || DEPTH[k] < 0.1 || ROAD_NEAR[k] || TRAIL_NEAR[k] || cleared(jx, jy)) continue;
       const nearSkull = Math.hypot(jx - P.dungeon.at.x, jy - P.dungeon.at.y) < 80;
       if (SNOWY[k] && biome !== PEAKS) {
         if (r < 0.32) add(jy, (b) => pine(b, jx, jy, 10 + Math.floor(hash(jy, jx) * 7), true));
@@ -5101,7 +5161,71 @@ function drawWeatherScreen() {
   }
 }
 const WEATHER_NAMES = { sun: 'SUNNY', cloud: 'CLOUDY', rain: 'RAIN', storm: 'STORM', snow: 'SNOW' };
+// ── the painted map's furniture ──
+// What the sky says, in words: the status bar and the PIXEL look's readout both use it.
+function skyWords() {
+  const hours = Math.floor(sky.tod * 24), mins = Math.floor((sky.tod * 24 % 1) * 60), night = darkness() > .5;
+  return { night, day: `${night ? 'Night' : 'Day'} ${sky.day} · ${String(hours).padStart(2, '0')}:${String(mins - mins % 10).padStart(2, '0')}`, weather: WEATHER_NAMES[sky.weather] };
+}
+function renderHud() {
+  if (!painted()) return;
+  const w = skyWords(), r = focusP ?? REALMS.find(p => p.self) ?? REALMS[0], people = everyone().filter(a => !a.fading && !(a.delay > 0));
+  const set = (id, v) => { const el = $(id); if (el.textContent !== v) el.textContent = v; };
+  set('hudDay', w.day); set('hudSky', w.weather.charAt(0) + w.weather.slice(1).toLowerCase());
+  set('hudCrowns', purse.crowns.toLocaleString('en-US'));
+  set('hudParty', `${people.filter(a => a.busy).length} / ${people.length}`);
+  set('hudQuest', (r?.questTitle || (r ? `${r.name} rests at the tavern` : 'The hall is quiet')));
+  document.querySelector('#hud .ico').textContent = w.night ? '☾' : sky.weather === 'sun' ? '☀' : sky.weather === 'snow' ? '❄' : sky.weather === 'cloud' ? '☁' : '☂';
+}
+// A small ink badge for each place's tag, as on an old map.
+const PLACE_ICON = {
+  tavern: (x, y) => { g.fillRect(x - 2, y - 2, 3.5, 4.5); g.strokeRect(x + 1.6, y - 1.2, 1.4, 2.4); }, // a mug
+  study: (x, y) => { g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 1.3 : 3; g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } g.fill(); }, // a star
+  dungeon: (x, y) => { g.beginPath(); g.arc(x, y - .5, 2.6, 0, Math.PI * 2); g.fill(); g.fillRect(x - 1.5, y + 1.5, 3, 1.6); g.fillStyle = '#2f3b33'; g.fillRect(x - 1.5, y - 1, 1.1, 1.1); g.fillRect(x + .5, y - 1, 1.1, 1.1); }, // a skull
+  armory: (x, y) => { g.fillRect(x - 3, y - 1.8, 6, 1.8); g.fillRect(x - 1, y, 2, 1.6); g.fillRect(x - 2.2, y + 1.6, 4.4, 1.2); }, // an anvil
+  cauldron: (x, y) => { g.beginPath(); g.moveTo(x - .9, y - 3); g.lineTo(x + .9, y - 3); g.lineTo(x + .9, y - 1); g.lineTo(x + 2.6, y + 2.6); g.lineTo(x - 2.6, y + 2.6); g.lineTo(x - .9, y - 1); g.fill(); }, // a flask
+};
+function placeBadge(key, x, y) {
+  g.fillStyle = '#2f3b33'; g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#c9a45c'; g.lineWidth = .8; g.stroke();
+  g.fillStyle = '#f0c25c'; g.strokeStyle = '#f0c25c'; g.lineWidth = .7; PLACE_ICON[key]?.(x, y);
+}
+function drawCompass() {
+  const world = camMode === 'world' && view.z < 1.4, r = world ? 13 : 10, cx = VW - r - 8, cy = r + 10;
+  g.save(); g.translate(cx, cy);
+  g.globalAlpha = .92;
+  g.fillStyle = 'rgba(251,244,226,.75)'; g.beginPath(); g.arc(0, 0, r * .55, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(80,60,30,.6)'; g.lineWidth = .6; g.beginPath(); g.arc(0, 0, r * .55, 0, Math.PI * 2); g.stroke();
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4 - Math.PI / 2, long = i % 2 === 0, len = long ? r : r * .55, wd = long ? r * .2 : r * .14;
+    for (const side of [-1, 1]) {
+      g.fillStyle = side < 0 ? (long ? '#c08a2e' : '#8a6a3a') : (long ? '#f0c25c' : '#c9a45c');
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * len, Math.sin(a) * len); g.lineTo(Math.cos(a + side * Math.PI / 2) * wd, Math.sin(a + side * Math.PI / 2) * wd); g.fill();
+    }
+  }
+  g.globalAlpha = 1;
+  g.font = `700 ${world ? 6 : 5}px "Fraunces", Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 1.6; g.strokeStyle = 'rgba(251,244,226,.9)';
+  for (const [l, dx, dy] of [['N', 0, -1], ['E', 1, 0], ['S', 0, 1], ['W', -1, 0]]) { g.strokeText(l, dx * (r + 4), dy * (r + 4)); g.fillStyle = '#3b3226'; g.fillText(l, dx * (r + 4), dy * (r + 4)); }
+  g.restore();
+}
+// The realm's name on a parchment cartouche, when the whole island is in view.
+function drawCartouche() {
+  if (!(camMode === 'world' && view.z < 1.4)) return;
+  const rank = rankOf(purse.earned), s = season(), sub = `A ${rank.name.toLowerCase()} of ${REALMS.length} project${REALMS.length === 1 ? '' : 's'}${s ? ` · ${SEASONS[s].name}` : ''}`;
+  g.font = '700 13px "Fraunces", Georgia, serif'; const tw = g.measureText('The Guild Isle').width;
+  g.font = '600 6.5px "Nunito", system-ui, sans-serif'; const sw = g.measureText(sub).width;
+  const w = Math.max(tw, sw) + 26, h = 31, x = 120, y = 6;
+  paperBox(x, y, w, h, '#b58a45', 3, '#f3e3bd');
+  g.strokeStyle = 'rgba(150,110,50,.5)'; g.lineWidth = .6; g.strokeRect(x + 2.5, y + 2.5, w - 5, h - 5);
+  g.fillStyle = '#c08a2e'; for (const [cx, cy] of [[x + 5, y + 5], [x + w - 5, y + 5], [x + 5, y + h - 5], [x + w - 5, y + h - 5]]) { g.beginPath(); g.arc(cx, cy, 1.1, 0, Math.PI * 2); g.fill(); }
+  g.textAlign = 'center'; g.textBaseline = 'top'; g.fillStyle = '#3b3226';
+  g.font = '700 13px "Fraunces", Georgia, serif'; g.fillText('The Guild Isle', x + w / 2, y + 4);
+  g.font = '600 6.5px "Nunito", system-ui, sans-serif'; g.fillStyle = '#6e5a3c'; g.fillText(sub, x + w / 2, y + 20);
+}
 function drawSkyHud() {
+  // Painted, the sky is told in the status bar under the map; the corner holds the compass.
+  if (painted()) { drawCompass(); drawCartouche(); return; }
   const hours = Math.floor(sky.tod * 24), mins = Math.floor((sky.tod * 24 % 1) * 60), night = darkness() > .5;
   const label = `${night ? 'NIGHT' : 'DAY'} ${sky.day} · ${String(hours).padStart(2, '0')}:${String(mins - mins % 10).padStart(2, '0')} · ${WEATHER_NAMES[sky.weather]}`;
   // Top-right while exploring; over the sea at the foot of the whole-island view, where it
@@ -5140,15 +5264,16 @@ function drawBirds() {
   g.globalAlpha = 1;
 }
 // ── screen-space overlays ──
-function plate(label, cx, cy, color, edge, strong) {
+function plate(label, cx, cy, color, edge, strong, key) {
   if (painted()) {
-    // a paper tag with the place's colour as a dot
-    g.font = FONT; const w = Math.ceil(g.measureText(label).width) + 18, h = 14;
+    // a paper tag with the place's ink badge, or its colour as a dot
+    g.font = FONT; const w = Math.ceil(g.measureText(label).width) + (key ? 22 : 18), h = 14;
     const x = Math.round(Math.max(2, Math.min(VW - w - 2, cx - w / 2))), y = Math.round(Math.max(2, Math.min(VH - h - 2, cy - h / 2)));
     if (strong) { g.globalAlpha = .35 + Math.sin(clock * 5) * .25; g.fillStyle = edge; g.beginPath(); g.roundRect(x - 2, y - 2, w + 4, h + 4, 9); g.fill(); g.globalAlpha = 1; }
     paperBox(x, y, w, h, edge === '#3d2f4c' ? RIM : edge, 7);
-    g.fillStyle = color; g.beginPath(); g.arc(x + 7, y + h / 2, 2.4, 0, Math.PI * 2); g.fill();
-    text(label, x + w / 2 + 3, y + 3.5, INK, 'center', true);
+    if (key) placeBadge(key, x + 7, y + h / 2);
+    else { g.fillStyle = color; g.beginPath(); g.arc(x + 7, y + h / 2, 2.4, 0, Math.PI * 2); g.fill(); }
+    text(label, x + w / 2 + (key ? 5 : 3), y + 3.5, INK, 'center', true);
     return { x, y, w, h };
   }
   g.font = FONT; const w = Math.ceil(g.measureText(label).width) + 10, h = 13;
@@ -5165,7 +5290,7 @@ function drawLabels() {
     const busy = busyAt(key), sel = selected?.kind === 'place' && selected.key === key, hov = hover?.kind === 'place' && hover.key === key;
     const waits = everyone().some(a => a.waiting && a.room === key && !a.path.length);
     const edge = waits ? '#e8606f' : sel ? '#f2b84b' : busy || hov ? r.color : '#3d2f4c';
-    const p = plate(r.label, s.x, s.y, r.color, edge, busy || sel || waits);
+    const p = plate(painted() ? r.label.charAt(0) + r.label.slice(1).toLowerCase().replace("'s s", "'s S") : r.label, s.x, s.y, r.color, edge, busy || sel || waits, key);
     if (waits && Math.floor(clock * 2) % 2 === 0) plate('AWAITS YOU', s.x, p.y + p.h + 9, '#fff3d0', '#e8606f', false);
     const tx = Math.round(Math.max(p.x + 3, Math.min(p.x + p.w - 5, s.x - 2)));
     px(g, edge, tx, p.y + p.h, 4, 2); px(g, edge, tx + 1, p.y + p.h + 2, 2, 1);
@@ -6102,7 +6227,7 @@ function frame(now) {
   updateCamera(dt);
   draw();
   panelAcc += dt;
-  if (panelAcc > 0.4) { panelAcc = 0; updateRealmCards(); renderQuota(); if (sideDirty) renderSide(); else if (selected) renderInspect(); }
+  if (panelAcc > 0.4) { panelAcc = 0; updateRealmCards(); renderQuota(); renderHud(); if (sideDirty) renderSide(); else if (selected) renderInspect(); }
   requestAnimationFrame(frame);
 }
 // The tab's icon: the Guildmaster, crown and cape, drawn from its own sprite.
