@@ -58,31 +58,8 @@ export function smooth(raw, step) {
   out.push({ x: last[0], y: last[1] })
   return out
 }
-/**
- * Roads wander as real ones do: each bends from side to side as it goes, by how far along it is,
- * not at all within `calm` of either end so it still meets its places. Two roads that share a
- * start (the eastern pair, over the bridge) bend alike until they part.
- */
-export function meander(raw, amp, phase = 0, calm = 16) {
-  const legs = raw.slice(1).map((b, i) => Math.hypot(b[0] - raw[i][0], b[1] - raw[i][1]))
-  const total = legs.reduce((a, b) => a + b, 0)
-  const sway = s => Math.sin(s / 23 + 1.3 + phase) * .55 + Math.sin(s / 11 + 4.1 + phase * 1.7) * .25 + Math.sin(s / 61 + phase * .6) * .45
-  const out = [raw[0]]
-  let walked = 0
-  raw.slice(1).forEach((b, i) => {
-    const a = raw[i], len = legs[i], n = Math.max(1, Math.round(len / 7)), nx = -(b[1] - a[1]) / len, ny = (b[0] - a[0]) / len
-    for (let k = 1; k <= n; k++) {
-      const t = k / n, s = walked + len * t
-      const off = k === n && i === raw.length - 2 ? 0 : sway(s) * amp * Math.min(1, s / calm, (total - s) / calm)
-      out.push([a[0] + (b[0] - a[0]) * t + nx * off, a[1] + (b[1] - a[1]) * t + ny * off])
-    }
-    walked += len
-  })
-  return out
-}
-const WANDER = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, k === 'tavern' ? r : meander(r, 6)]))
-export const ROADS = Object.fromEntries(Object.entries(WANDER).map(([k, r]) => [k, smooth(r, 2)]))
-export const WALK = Object.fromEntries(Object.entries(WANDER).map(([k, r]) => [k, smooth(r, 3)]))
+export const ROADS = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, smooth(r, 2)]))
+export const WALK = Object.fromEntries(Object.entries(ROADS_RAW).map(([k, r]) => [k, smooth(r, 3)]))
 export const RIVER = smooth(RIVER_RAW, 2)
 
 // ── the folk and their work: anchors the dry run animates and the mod's map dresses ──
@@ -116,17 +93,6 @@ export const FOLK = {
   gulls: [{ x: 60, y: 308, r: 16, v: 0.9 }, { x: 260, y: 310, r: 20, v: -0.7 }, { x: 440, y: 308, r: 18, v: 0.6 }],
   ship: { y: 314, from: 230, to: 490 },
 }
-
-// Footpaths: narrow trails off the roads to where the folk work. Scenery only: the party keeps to the roads.
-const nearestOnRoads = (x, y) => {
-  let best = [x, y], bd = Infinity
-  for (const pts of Object.values(ROADS)) for (const p of pts) { const d = Math.hypot(p.x - x, p.y - y); if (d < bd) { bd = d; best = [p.x, p.y] } }
-  return best
-}
-export const TRAILS = [
-  [FOLK.mine], [FOLK.glade], [FOLK.fishing], [FOLK.woodyard, FOLK.laundry], [FOLK.cookfire],
-  [{ x: FOLK.field.x + FOLK.field.w / 2, y: FOLK.field.y - 3 }, FOLK.windmill, FOLK.dock],
-].map((stops, i) => smooth(meander([nearestOnRoads(stops[0].x, stops[0].y), ...stops.map(st => [st.x, st.y])], 3.5, i * 2.3 + 1, 8), 2))
 
 // ── the estates: what the treasury buys (hooks/treasury.ts) and where each one stands ──
 // `clears` keeps the trees off its ground; `paint` draws its still part into the realm and returns
@@ -376,10 +342,7 @@ export function paintWorld(owned = [], season = null) {
   }
   const oval = (cx, cy, rx, ry) => { const m = new Uint8Array(GW * GH); for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) if (((i * CELL + 1 - cx) / rx) ** 2 + ((j * CELL + 1 - cy) / ry) ** 2 <= 1) m[j * GW + i] = 1; return m }
   const roadPts = Object.values(ROADS).flat()
-  // the roads' width wanders a little too, as worn ground does
-  const roadW = p => 3.1 + Math.sin(p.x / 13 + p.y / 17) * .45 + Math.sin(p.y / 7) * .25
-  const ROAD = stamp(roadPts, roadW), ROAD_EDGE = stamp(roadPts, p => roadW(p) + 2), ROAD_NEAR = stamp(roadPts, 12)
-  const trailPts = TRAILS.flat(), TRAIL = stamp(trailPts, 2.1), TRAIL_NEAR = stamp(trailPts, 5)
+  const ROAD = stamp(roadPts, 3.5), ROAD_EDGE = stamp(roadPts, 5.5), ROAD_NEAR = stamp(roadPts, 12)
   const riverW = p => 5 + p.y / H * 5
   const RIV = stamp(RIVER, riverW), RIV_BANK = stamp(RIVER, p => riverW(p) + 3)
   const L = FOLK.lake, LAKE = oval(L.x, L.y, L.rx, L.ry), LAKE_BANK = oval(L.x, L.y, L.rx + 3, L.ry + 3)
@@ -418,7 +381,6 @@ export function paintWorld(owned = [], season = null) {
         c = y % 3 === 0 || (x + off) % 6 === 0 ? PAL.mortar : hash(Math.floor((x + off) / 6), Math.floor(y / 3)) > 0.5 ? PAL.cobA : PAL.cobB
       } else if (ROAD[k]) c = h > 0.98 ? PAL.dirtHi : PAL.dirt
       else if (ROAD_EDGE[k]) c = h > 0.5 ? PAL.dirtLo : PAL.dirtEdge
-      else if (TRAIL[k] && hash(x * 3, y * 5) > 0.08) c = h > 0.6 ? PAL.dirtLo : PAL.dirtEdge // a footpath, grass breaking through
       else if (PLAZA_EDGE[k]) c = PAL.plazaEdge
       else if (RIV_BANK[k] || LAKE_BANK[k]) c = PAL.bank
       else {
@@ -456,7 +418,7 @@ export function paintWorld(owned = [], season = null) {
   for (let y = -6; y < 120; y += 9) for (let x = 250; x < W + 20; x += 14) {
     const jx = x + Math.floor(hash(x, y + 99) * 10) - 5, jy = y + Math.floor(hash(y + 99, x) * 7)
     const k = cell(jx, jy)
-    if (BIOME[k] !== PEAKS || KIND[k] !== LAND || ROAD_NEAR[k] || TRAIL_NEAR[k] || cleared(jx, jy)) continue
+    if (BIOME[k] !== PEAKS || KIND[k] !== LAND || ROAD_NEAR[k] || cleared(jx, jy)) continue
     const w = 22 + Math.floor(hash(jx, jy * 3) * 22), h = Math.floor(w * (0.6 + hash(jy, jx) * 0.3))
     if (KIND[cell(jx - w / 2, jy)] !== LAND || KIND[cell(jx + w / 2, jy)] !== LAND) continue
     add(jy, b => mountain(b, jx, jy, w, h))
@@ -465,7 +427,7 @@ export function paintWorld(owned = [], season = null) {
     const jx = x + Math.floor(hash(x, y * 3) * 5) - 2, jy = y + Math.floor(hash(x * 5, y) * 5) - 2
     const k = cell(jx, jy), r = hash(jx * 7, jy * 13), biome = BIOME[k]
     if (KIND[k] === FRESH && biome === SWAMP && r < 0.12) { add(jy, b => { px(b, '#4f8a3c', jx - 1, jy, 3, 2); if (r < 0.04) px(b, '#e88aa8', jx, jy, 1, 1) }); continue }
-    if (KIND[k] !== LAND || DEPTH[k] < 0.1 || ROAD_NEAR[k] || TRAIL_NEAR[k] || cleared(jx, jy)) continue
+    if (KIND[k] !== LAND || DEPTH[k] < 0.1 || ROAD_NEAR[k] || cleared(jx, jy)) continue
     const nearSkull = Math.hypot(jx - P.dungeon.at.x, jy - P.dungeon.at.y) < 80
     if (SNOWY[k] && biome !== PEAKS) {
       if (r < 0.32) add(jy, b => pine(b, jx, jy, 10 + Math.floor(hash(jy, jx) * 7), true))
