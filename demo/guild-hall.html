@@ -327,6 +327,12 @@ body.painted .log .who { color: #6e5a3c; font-weight: 700; }
 body.painted .log .ok { color: var(--moss); } body.painted .log .running { color: var(--gold); }
 body.painted .caster { background: var(--panel-2); border: 1px dashed var(--rim); border-radius: 14px; }
 body.painted .caster input { color: var(--ink); background: #fffaf0; border: 1px solid var(--rim); border-radius: 10px; }
+/* the seasons keep their colours, deepened to read on paper, and lose the arcade's hard shadow */
+body.painted[data-season] h1 { text-shadow: 0 2px 0 rgba(255, 255, 255, .7); }
+body.painted[data-season="thanksgiving"] .card h2 { color: #b0601c; }
+body.painted[data-season="halloween"] .card h2 { color: #b4541a; } body.painted[data-season="halloween"] h1 { color: #d9681c; }
+body.painted[data-season="christmas"] .card h2 { color: #b23a48; } body.painted[data-season="christmas"] h1 { color: #c4424f; }
+body.painted[data-season] .px { border-color: var(--rim); }
 /* the status bar under the painted map: the day, the purse, the party and the quest at hand */
 .hud { display: none; }
 body.painted .hud { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr); gap: 0; margin: 0 auto; width: 100%; background: #2f3b33; color: #f6ecd2;
