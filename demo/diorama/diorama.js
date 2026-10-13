@@ -341,6 +341,13 @@ export async function start(canvas, ui) {
     r.play(i % 2 ? 'Idle' : 'Skeletons_Awaken_Standing', 0); scene.add(r.o)
     return r
   })
+  // After dark the valley is lit by lamps: a warm glow at each place and about the town, and a
+  // lantern carried by each of the party. They fade in at dusk and out at dawn.
+  const lamps = [
+    ...Object.values(PLACES).map(p => [p.at.x, p.at.y + 6, 70]), [FOLK.keep.x, FOLK.keep.y, 80], [FOLK.hall.x, FOLK.hall.y, 60],
+    [FOLK.town.x, FOLK.town.y, 70], ...FOLK.lamps.map(l => [l.x, l.y, 45]),
+  ].map(([x, z, reach]) => { const l = new THREE.PointLight('#ff9f45', 0, reach, 1.6); l.position.set(x, height(x, z) + 10, z); scene.add(l); return l })
+  for (const w of walkers) { w.lantern = new THREE.PointLight('#ffd08a', 0, 34, 1.8); w.lantern.position.set(0, 2.2, .6); w.o.add(w.lantern) }
   const plan = w => {
     const next = stops[(stops.indexOf(w.at) + 1 + Math.floor(hash(w.phase, w.t | 0) * 4)) % stops.length], spot = PLACES[next].spots[w.phase % PLACES[next].spots.length]
     w.path = [...way(w.at, next, 1), { x: spot.x, y: spot.y }]; w.to = next; w.spot = spot; w.t = 0; w.play('Walking_A')
@@ -368,7 +375,7 @@ export async function start(canvas, ui) {
   canvas.addEventListener('wheel', e => { e.preventDefault(); view.dist = clamp(view.dist * Math.exp(e.deltaY * .0012), 70, 760); view.tilt = mix(.55, 1.02, (view.dist - 70) / 690) }, { passive: false })
 
   // the day: the sun rises in the east, crosses the south and sets in the west
-  const SKY = { day: C('#a9d3f0'), dusk: C('#f2b48a'), night: C('#0e1630') }
+  const SKY = { day: C('#a9d3f0'), dusk: C('#f2b48a'), night: C('#1d2c52') }
   const state = { tod: .38, speed: 1 / 90, follow: null }
   ui?.({ state, view })
   let last = performance.now()
@@ -379,12 +386,16 @@ export async function start(canvas, ui) {
     const dt = Math.min(.05, (now - last) / 1000); last = now
     state.tod = (state.tod + dt * state.speed) % 1
     const a = (state.tod - .25) * Math.PI * 2, elev = Math.sin(a), day = smooth(-.08, .2, elev)
-    sun.position.set(W / 2 - Math.cos(a) * 640, Math.max(30, elev * 420), H / 2 + 300)
-    sun.intensity = 3.4 * day; sun.color.copy(C('#ffd9a8').lerp(C('#fff4e0'), smooth(.05, .5, elev)))
-    sky.intensity = .2 + .7 * day; sky.color.copy(SKY.night).lerp(C('#cfe6ff'), day)
+    // by day the sun; by night the same light is the moon, cool and low, on the far side of the sky
+    const night = 1 - day, moon = a + Math.PI
+    if (elev > -.05) { sun.position.set(W / 2 - Math.cos(a) * 640, Math.max(30, elev * 420), H / 2 + 300); sun.intensity = 3.4 * day + .9 * night; sun.color.copy(C('#ffd9a8').lerp(C('#fff4e0'), smooth(.05, .5, elev))).lerp(C('#9fb4ff'), night) }
+    else { sun.position.set(W / 2 - Math.cos(moon) * 640, Math.max(160, Math.sin(moon) * 420), H / 2 + 300); sun.intensity = 1.05; sun.color.set('#9fb4ff') }
+    sky.intensity = .55 + .35 * day; sky.color.copy(C('#5d72b0')).lerp(C('#cfe6ff'), day); sky.groundColor.copy(C('#2a3452')).lerp(C('#5a6a4a'), day)
+    for (const l of lamps) l.intensity = 520 * night * (.9 + Math.sin(now / 160 + l.position.x) * .1)
+    for (const w of walkers) w.lantern.intensity = 260 * night
     const bg = SKY.night.clone().lerp(SKY.dusk, smooth(-.1, .1, elev)).lerp(SKY.day, smooth(.1, .35, elev))
     scene.background = bg; scene.fog.color.copy(bg)
-    water.sea.color.set('#3f8fc0').lerp(C('#14233e'), 1 - day)
+    water.sea.color.set('#3f8fc0').lerp(C('#2b4a7c'), 1 - day) // moonlit by night
 
     for (const c of clouds.children) { c.position.x += c.userData.v * dt * (c.userData.seen ? .3 : 1); if (c.position.x > W + MARGIN) c.position.x = -MARGIN }
     for (const w of walkers) {
