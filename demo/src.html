@@ -2,7 +2,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guild Hall Dry Run</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Nunito:wght@500;700;800&display=swap">
 <style>
 /* Layout: an arcade cabinet. The pixel world map is the screen; the sidebar is the party ledger. */
 :root {
@@ -238,6 +238,99 @@ dialog.shop { width: min(820px, calc(100vw - 32px)); }
 .deeds li { display: flex; justify-content: space-between; gap: 8px; font-size: 18px; }
 .deeds b { font-weight: normal; color: var(--gold); }
 @media (max-width: 560px) { .ware { grid-template-columns: minmax(0, 1fr); } .ware button { grid-row: auto; grid-column: 1; justify-self: start; } }
+
+/* ───── The painted look ─────
+   A storybook island: watercolour paper, a summer sky, soft light and hand-set type. The arcade
+   cabinet above stays as the PIXEL style; everything here only applies under body.painted. */
+body.painted {
+  --void: #f4ecda; --panel: #fbf6ea; --panel-2: #f2e9d6; --edge: #dccdae; --text: #3b3226; --muted: #8b7b63;
+  --parch: #6e5a3c; --gold: #c4832c; --blood: #c4524b; --moss: #4f8a4a; --arcane: #6a63b5; --steel: #5f7a90;
+  --ink: #3b3226; --paper: #fbf4e2; --leaf: #5c9a55; --sky: #8cc7e8; --rim: rgba(110, 85, 50, .28);
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+  font-size: 15px; line-height: 1.4;
+  background:
+    radial-gradient(60vw 22vh at 18% 6%, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(40vw 16vh at 78% 12%, rgba(255, 255, 255, .7), rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, #a9d6f0 0%, #d8ecf2 34%, #eef1df 62%, #e6edcf 100%) fixed;
+}
+html:has(body.painted) { background: #d8ecf2; }
+body.painted h1 { font-family: var(--display); font-weight: 700; font-size: clamp(24px, 3.6vw, 34px); letter-spacing: .02em; color: #2f5b3f; text-shadow: 0 2px 0 rgba(255, 255, 255, .7); }
+body.painted header p { color: #5b5140; }
+body.painted .badge { font-family: var(--body); font-weight: 800; font-size: 11px; letter-spacing: .08em; background: var(--leaf); color: #fff; border-radius: 999px; padding: 3px 10px; }
+body.painted .badge.off { background: var(--blood); }
+/* paper panels */
+body.painted .px { background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .36 0 0 0 0 .22 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  border: 1px solid var(--rim); border-radius: 18px; box-shadow: 0 1px 0 rgba(255, 255, 255, .8) inset, 0 10px 28px -12px rgba(70, 55, 30, .35), 0 2px 6px rgba(70, 55, 30, .08); }
+body.painted .crt { background: #cfe6ef; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px var(--rim), 0 6px 18px -8px rgba(40, 60, 70, .45); }
+body.painted .crt::after { background: radial-gradient(120% 90% at 50% 40%, rgba(0, 0, 0, 0) 70%, rgba(90, 70, 40, .12)); }
+body.painted canvas#map { image-rendering: auto; }
+body.painted .card h2, body.painted .legend-head h2 { font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: .01em; color: #2f5b3f; }
+body.painted .card { padding: 14px 16px 16px; gap: 10px; }
+/* buttons, chips and tags: soft pebbles */
+body.painted button, body.painted .chip { font-family: var(--body); font-weight: 800; font-size: 11px; letter-spacing: .06em; color: var(--ink); background: #fffaf0;
+  border: 1px solid var(--rim); border-radius: 999px; padding: 6px 12px; box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 2px 4px rgba(70, 55, 30, .12); transition: background .15s, box-shadow .15s, transform .1s; }
+body.painted button:hover { color: #2f5b3f; border-color: var(--leaf); background: #f3f8ea; }
+body.painted button:active { transform: translateY(1px); box-shadow: none; }
+body.painted button[aria-pressed="true"] { background: var(--leaf); color: #fff; border-color: #4a8544; }
+body.painted button:focus-visible, body.painted input:focus-visible, body.painted select:focus-visible, body.painted #scroll:focus-visible { outline: 2px solid #e0a23a; outline-offset: 2px; }
+body.painted .crest, body.painted .room-tag, body.painted .proj, body.painted .team, body.painted .ware .tier, body.painted .sample { font-family: var(--body); font-weight: 800; font-size: 10px; letter-spacing: .04em; border-radius: 999px; padding: 2px 7px; }
+body.painted .crest { background: #f1e2c2; color: #7a5520; }
+body.painted .proj, body.painted .ware .tier, body.painted .summon button[aria-pressed="true"], body.painted .scroll-form select { color: #2b2418; }
+body.painted .team { border-color: var(--gold); color: var(--parch); }
+body.painted .settings { background: rgba(251, 246, 234, .97); border: 1px solid var(--rim); border-radius: 16px; box-shadow: 0 12px 30px -10px rgba(50, 40, 20, .4); }
+/* type sizes for the storybook faces */
+body.painted .hint, body.painted .realm .rstat, body.painted .phead small, body.painted .party small, body.painted .quota small, body.painted .note,
+body.painted .desk .hint, body.painted .rank small, body.painted .legend .place small, body.painted .ware small, body.painted .inspect .tools, body.painted footer, body.painted .xp small { font-size: 13px; }
+body.painted .now, body.painted .qhead, body.painted .party .member, body.painted .realm, body.painted .here li, body.painted .deeds li,
+body.painted .legend .folk div, body.painted .legend .marks div, body.painted .pbox pre, body.painted #scroll, body.painted .caster input,
+body.painted .examples button, body.painted .ware .wname b { font-size: 15px; }
+body.painted .stat b { font-size: 22px; font-family: var(--display); }
+body.painted .stat span, body.painted .stat-row, body.painted .inspect h3, body.painted .desk h3, body.painted .scroll-form .to, body.painted .legend h3,
+body.painted .rank span, body.painted .ptitle, body.painted .caster label, body.painted #mode, body.painted .summon button, body.painted .act, body.painted .realm .rname,
+body.painted .legend .place b { font-family: var(--body); font-weight: 800; font-size: 11px; letter-spacing: .05em; }
+body.painted .stat-row b { font-size: 16px; font-weight: 700; }
+body.painted .purse-row b { font-family: var(--display); font-size: 24px; }
+/* bars, swatches and wells */
+body.painted .stat { background: var(--panel-2); border-radius: 10px; }
+body.painted .hp, body.painted .xp .meter, body.painted .qbar { background: #ebe1cb; border: 0; border-radius: 999px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(70, 55, 30, .2); }
+body.painted .hp i, body.painted .qbar i, body.painted .xp .meter i { border-radius: 999px; transition-timing-function: ease; }
+body.painted .realm .swatch, body.painted .dot, body.painted .legend .place i, body.painted .legend .sw, body.painted .shop h3 i { border: 1px solid rgba(60, 45, 30, .35); border-radius: 50%; }
+body.painted .legend .place i { border-radius: 8px; }
+body.painted .realm { border-radius: 14px; border: 1px solid var(--rim); border-left: 5px solid var(--c, var(--gold)); background: #fffaf0; }
+body.painted .realm[aria-pressed="true"] { background: #f3f8ea; color: var(--ink); border-color: var(--c, var(--leaf)); box-shadow: 0 0 0 2px var(--c, var(--leaf)); }
+body.painted .ware { background: #fffaf0; border: 1px solid var(--rim); border-radius: 12px; }
+body.painted .ware.owned { border-color: var(--c); box-shadow: 0 0 0 1px var(--c); }
+body.painted .ware button.buy { background: var(--gold); color: #fff; border-color: #a86c1e; }
+/* the Guildmaster's desk: a writing desk by a window */
+body.painted .desk { background: linear-gradient(180deg, #f7ecd4, var(--panel)); border-color: var(--rim); }
+body.painted #scroll { color: #3b2a18; background: #fffaf0; border: 1px solid #d4bf95; border-radius: 12px; box-shadow: inset 0 1px 3px rgba(80, 60, 30, .15); }
+body.painted #scroll::placeholder { color: #a8916a; }
+body.painted .scroll-form select { border: 1px solid rgba(60, 45, 30, .3); border-radius: 999px; padding: 4px 10px; }
+body.painted #sealBtn { background: #c4524b; color: #fff; border-color: #9d3c36; }
+body.painted #mode[aria-pressed="true"] { background: #f1e2c2; color: #7a5520; border-color: var(--gold); }
+body.painted .act { color: #6e4c22; background: #f6ead0; border-color: #e0c99a; box-shadow: none; }
+body.painted .act:hover { color: #2f5b3f; border-color: var(--leaf); }
+body.painted .petition { background: #fffaf0; border: 1px solid var(--gold); border-radius: 12px; }
+body.painted .pbox { background: #f6eedc; border: 1px solid var(--rim); border-radius: 8px; }
+body.painted .awaits { background: #fbe9e4; border-color: var(--blood); animation-timing-function: ease-in-out; }
+body.painted .awaits h2 { color: #a03c35; }
+body.painted .awaits li { border-top-color: #efc9c2; }
+body.painted .awaits .what { color: #8e3a33; }
+body.painted .awaits .allow { background: var(--leaf); border-color: #4a8544; color: #fff; }
+body.painted .awaits .deny { background: #fff; border-color: var(--blood); color: #a03c35; }
+@keyframes awaitPulse { 50% { border-color: #e0a23a; } }
+body.painted dialog.legend { background: var(--panel); border-radius: 20px; }
+body.painted dialog.legend::backdrop { background: rgba(60, 80, 70, .35); backdrop-filter: blur(3px); }
+body.painted .log .who { color: #6e5a3c; font-weight: 700; }
+body.painted .log .ok { color: var(--moss); } body.painted .log .running { color: var(--gold); }
+body.painted .caster { background: var(--panel-2); border: 1px dashed var(--rim); border-radius: 14px; }
+body.painted .caster input { color: var(--ink); background: #fffaf0; border: 1px solid var(--rim); border-radius: 10px; }
+@media (min-width: 961px) {
+  body.painted aside, body.painted.live .under { scrollbar-color: #cdbb95 transparent; }
+  body.painted aside::-webkit-scrollbar-thumb { background: #cdbb95; border-radius: 8px; }
+}
 </style>
 
 <div class="wrap">
@@ -262,6 +355,10 @@ dialog.shop { width: min(820px, calc(100vw - 32px)); }
             <button id="legendBtn" type="button">LEGEND</button>
             <button class="cam" data-cam="follow" type="button" aria-pressed="true">FOLLOW</button>
             <button class="cam" data-cam="world" type="button" aria-pressed="false">WORLD MAP</button>
+          </div>
+          <div class="srow"><span class="hint">STYLE</span>
+            <button type="button" data-style="painted" aria-pressed="true">PAINTED</button>
+            <button type="button" data-style="pixel" aria-pressed="false">PIXEL</button>
           </div>
           <div class="srow"><span class="hint">WEATHER</span>
             <button type="button" data-weather="auto" aria-pressed="true">AUTO</button>
@@ -410,6 +507,12 @@ const VW = W;
 const ZOOMS = [1.5, 2, 3, 4];
 let zoom = 2;
 let VH = H;
+// The look: PAINTED, a hand-painted storybook island (the default), or PIXEL, the arcade original.
+// The painted map draws three canvas pixels to a world pixel, so its brush strokes, clouds and
+// type are finer than the world's own pixels. Kept per viewer.
+let STYLE = (() => { try { return localStorage.getItem('guild-style') === 'pixel' ? 'pixel' : 'painted'; } catch { return 'painted'; } })();
+const painted = () => STYLE === 'painted';
+let RES = painted() ? 3 : 1;
 const PLACE_STYLE = {
   study: { label: "WIZARD'S STUDY", color: '#a593ff', resident: 'wizard' },
   armory: { label: 'ARMORY', color: '#a9b6c6', resident: 'dwarf' },
@@ -499,7 +602,75 @@ function paintBackground(owned = [], season = null) {
     ship: FOLK.ship,
     estates: w.estates,
     seasonal: w.seasonal,
+    painted: null, // the painted island, made the first time the painted look draws it
   };
+}
+
+// ── the painted island ──
+// The same pixel world, painted over: graded toward lush greens, deep shade and warm light,
+// drawn up at three times the size and softened into brush strokes (a Kuwahara filter, which
+// keeps edges where a blur would smear them), then laid on watercolour paper.
+function grade(d) {
+  for (let i = 0; i < d.length; i += 4) {
+    let r = d[i] / 255, gr = d[i + 1] / 255, b = d[i + 2] / 255;
+    const l = .299 * r + .587 * gr + .114 * b;
+    // richer colour, pushed away from grey
+    r = l + (r - l) * 1.18; gr = l + (gr - l) * 1.18; b = l + (b - l) * 1.18;
+    // shade leans to a deep blue-green and lifts out of black; light warms toward sunlit cream
+    const sh = Math.max(0, (.34 - l) / .34) * .5, hi = Math.max(0, (l - .6) / .4) * .2;
+    r += (.14 - r) * sh + (1 - r) * hi; gr += (.25 - gr) * sh + (.95 - gr) * hi; b += (.3 - b) * sh + (.8 - b) * hi;
+    d[i] = (r * .93 + .06) * 255; d[i + 1] = (gr * .93 + .06) * 255; d[i + 2] = (b * .93 + .05) * 255;
+  }
+}
+function kuwahara(src, w, h, rad) {
+  // Summed tables of each channel, the light, and its square: every quadrant's mean and variance in O(1).
+  const w1 = w + 1, n = w1 * (h + 1);
+  const sr = new Uint32Array(n), sg = new Uint32Array(n), sb = new Uint32Array(n), sl = new Float64Array(n), sq = new Float64Array(n);
+  for (let y = 0; y < h; y++) {
+    let ar = 0, ag = 0, ab = 0, al = 0, aq = 0;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, l = src[i] * .299 + src[i + 1] * .587 + src[i + 2] * .114, k = (y + 1) * w1 + x + 1, u = y * w1 + x + 1;
+      ar += src[i]; ag += src[i + 1]; ab += src[i + 2]; al += l; aq += l * l;
+      sr[k] = sr[u] + ar; sg[k] = sg[u] + ag; sb[k] = sb[u] + ab; sl[k] = sl[u] + al; sq[k] = sq[u] + aq;
+    }
+  }
+  const out = new Uint8ClampedArray(src.length);
+  const box = (t, x0, y0, x1, y1) => t[y1 * w1 + x1] - t[y0 * w1 + x1] - t[y1 * w1 + x0] + t[y0 * w1 + x0];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let best = Infinity, bi = 0, bx0 = 0, by0 = 0, bx1 = 0, by1 = 0;
+    for (let q = 0; q < 4; q++) {
+      const x0 = q & 1 ? x : Math.max(0, x - rad), x1 = q & 1 ? Math.min(w, x + rad + 1) : x + 1;
+      const y0 = q & 2 ? y : Math.max(0, y - rad), y1 = q & 2 ? Math.min(h, y + rad + 1) : y + 1;
+      const c = (x1 - x0) * (y1 - y0), m = box(sl, x0, y0, x1, y1) / c, v = box(sq, x0, y0, x1, y1) / c - m * m;
+      if (v < best) { best = v; bi = c; bx0 = x0; by0 = y0; bx1 = x1; by1 = y1; }
+    }
+    const o = (y * w + x) * 4;
+    out[o] = box(sr, bx0, by0, bx1, by1) / bi; out[o + 1] = box(sg, bx0, by0, bx1, by1) / bi; out[o + 2] = box(sb, bx0, by0, bx1, by1) / bi; out[o + 3] = 255;
+  }
+  return out;
+}
+function paintIsland(bg) {
+  const S = 3, small = document.createElement('canvas'); small.width = W; small.height = H;
+  const sx = small.getContext('2d'); sx.drawImage(bg, 0, 0);
+  const sd = sx.getImageData(0, 0, W, H); grade(sd.data); sx.putImageData(sd, 0, 0);
+  const big = document.createElement('canvas'); big.width = W * S; big.height = H * S;
+  const bx = big.getContext('2d'); bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = 'high'; bx.drawImage(small, 0, 0, big.width, big.height);
+  const img = bx.getImageData(0, 0, big.width, big.height), bw = big.width, bh = big.height;
+  const out = kuwahara(img.data, bw, bh, 6);
+  // Watercolour paper: a fine grain, and slow blooms where the wash pooled thicker or thinner.
+  const cell = 70, gw = Math.ceil(bw / cell) + 2, bloom = Array.from({ length: gw * (Math.ceil(bh / cell) + 2) }, (_, i) => hash(i % gw, Math.floor(i / gw) + 911) - .5);
+  const ease = t => t * t * (3 - 2 * t);
+  for (let y = 0; y < bh; y++) {
+    const gy = y / cell, iy = Math.floor(gy), fy = ease(gy - iy);
+    for (let x = 0; x < bw; x++) {
+      const gx = x / cell, ix = Math.floor(gx), fx = ease(gx - ix), k = iy * gw + ix;
+      const top = bloom[k] + (bloom[k + 1] - bloom[k]) * fx, bot = bloom[k + gw] + (bloom[k + gw + 1] - bloom[k + gw]) * fx;
+      const f = 1 + (top + (bot - top) * fy) * .09 + (hash(x, y) - .5) * .05, o = (y * bw + x) * 4;
+      out[o] *= f; out[o + 1] *= f; out[o + 2] *= f * .995;
+    }
+  }
+  img.data.set(out); bx.putImageData(img, 0, 0);
+  return big;
 }
 
 // Clouds drift over the realm; each has a matching shadow on the ground.
@@ -518,6 +689,44 @@ const CLOUDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(seed => {
   }
   return { c, s, dark, x: hash(seed, 7) * W, y: 6 + (seed % 5) * 58 + hash(seed, 8) * 24, v: 3 + hash(seed, 9) * 3 };
 });
+// The painted look's clouds: towering summer cumulus, sunlit crowns over soft, shaded bellies.
+function paintCloud(seed) {
+  const S = 3, w = Math.round(84 + hash(seed, 31) * 70), h = Math.round(50 + hash(seed, 32) * 34);
+  const puffs = [], base = 5 + Math.floor(hash(seed, 33) * 3), tops = 2 + Math.floor(hash(seed, 34) * 3);
+  for (let i = 0; i < base; i++) { const t = (i + .5) / base, r = 8 + hash(seed, 40 + i) * 5; puffs.push({ x: 8 + t * (w - 16), y: h - r * .7 - Math.sin(t * Math.PI) * 4, r }); }
+  for (let i = 0; i < tops; i++) {
+    const t = (i + .5) / tops, r = 11 + hash(seed, 70 + i) * 7;
+    puffs.push({ x: w * (.28 + t * .44) + (hash(seed, 50 + i) - .5) * 10, y: Math.max(r + 1, h - 20 - Math.sin(t * Math.PI) * (h - 40) - hash(seed, 60 + i) * 6), r });
+  }
+  // The crowns sit behind, the base puffs in front: each puff is painted whole over the ones
+  // behind it, sunlit from the upper left and shaded only on its lower rim, so the cloud reads
+  // as one body rather than a heap of bubbles.
+  const order = [...puffs.slice(base), ...puffs.slice(0, base)];
+  const make = (light, rim, shade) => {
+    const c = document.createElement('canvas'); c.width = w * S; c.height = h * S;
+    const x = c.getContext('2d'); x.scale(S, S);
+    for (const p of order) {
+      x.fillStyle = light; x.beginPath(); x.arc(p.x, p.y, p.r, 0, Math.PI * 2); x.fill();
+      if (!rim) continue;
+      const gr = x.createRadialGradient(p.x - p.r * .3, p.y - p.r * .4, p.r * .55, p.x - p.r * .1, p.y - p.r * .15, p.r * 1.05);
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, rim);
+      x.fillStyle = gr; x.beginPath(); x.arc(p.x, p.y, p.r, 0, Math.PI * 2); x.fill();
+    }
+    if (shade) {
+      x.globalCompositeOperation = 'source-atop';
+      const bel = x.createLinearGradient(0, h * .45, 0, h); bel.addColorStop(0, 'rgba(0,0,0,0)'); bel.addColorStop(1, shade);
+      x.fillStyle = bel; x.fillRect(0, 0, w, h);
+    }
+    x.globalCompositeOperation = 'destination-out'; x.fillRect(0, h - 2, w, 2); // a flat underside
+    return c;
+  };
+  return {
+    w, h,
+    c: make('#fdfcf8', 'rgba(150,166,196,.42)', 'rgba(140,156,190,.5)'),
+    dark: make('#aab1bf', 'rgba(60,66,82,.45)', 'rgba(52,58,74,.55)'),
+    s: make('#000', null, null),
+  };
+}
 const FIREFLIES = Array.from({ length: 14 }, (_, i) => ({ x: FOLK.fireflies.x + hash(i, 51) * FOLK.fireflies.w, y: FOLK.fireflies.y + hash(i, 52) * FOLK.fireflies.h, ph: hash(i, 53) * 6.28 }));
 
 const WALK_SPEED = 64;
@@ -1398,7 +1607,7 @@ function update(dt) {
   updateRavens(dt);
   updateEstates(dt);
   fx.update?.(dt);
-  for (const c of CLOUDS) { c.x += c.v * dt * (1 + sky.storm * 1.5); if (c.x > W + 60) c.x = -c.c.width - 60; }
+  for (const c of CLOUDS) { c.x += c.v * dt * (1 + sky.storm * 1.5); if (c.x > W + 60) c.x = -(c.p?.w ?? c.c.width) - 60; }
   updateSky(dt);
   // The fire mountain smokes always, and every so often it erupts.
   if (VOLC) {
@@ -1520,8 +1729,36 @@ function hitTest(wx, wy) {
 
 // ───────────────────────── draw ─────────────────────────
 const cv = document.getElementById('map'); const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
-const FONT = '8px "Press Start 2P", ui-monospace, monospace';
-function text(s, x, y, color, align = 'left') { g.font = FONT; g.textAlign = align; g.textBaseline = 'top'; g.fillStyle = '#000'; g.fillText(s, x + 1, y + 1); g.fillStyle = color; g.fillText(s, x, y); }
+let FONT = '8px "Press Start 2P", ui-monospace, monospace', FONT_SMALL = '6px "Press Start 2P", monospace';
+// Ink and paper for the painted look's plates, cards and bubbles.
+const INK = '#3b3226', PAPER = '#fbf4e2', RIM = 'rgba(120,92,52,.45)';
+// Text over the map. Painted, it is outlined softly to read over the land; `ink` sets it on paper instead.
+function text(s, x, y, color, align = 'left', ink = false) {
+  g.font = FONT; g.textAlign = align; g.textBaseline = 'top';
+  if (painted()) {
+    if (!ink) { g.lineJoin = 'round'; g.lineWidth = 2; g.strokeStyle = 'rgba(40,30,20,.7)'; g.strokeText(s, x, y); }
+    g.fillStyle = color; g.fillText(s, x, y); return;
+  }
+  g.fillStyle = '#000'; g.fillText(s, x + 1, y + 1); g.fillStyle = color; g.fillText(s, x, y);
+}
+// A painted panel: paper with a soft shadow and, given one, a coloured rim.
+function paperBox(x, y, w, h, rim, r = 5, fill = PAPER) {
+  g.save(); g.shadowColor = 'rgba(50,35,20,.35)'; g.shadowBlur = 3 * RES; g.shadowOffsetY = RES;
+  g.fillStyle = fill; g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); g.restore();
+  if (rim) { g.strokeStyle = rim; g.lineWidth = 1; g.beginPath(); g.roundRect(x + .5, y + .5, w - 1, h - 1, r); g.stroke(); }
+}
+function sizeCanvas() { cv.width = VW * RES; cv.height = VH * RES; g.imageSmoothingEnabled = false; }
+function applyStyle(next) {
+  if (next) { STYLE = next; try { localStorage.setItem('guild-style', STYLE); } catch {} }
+  document.body.classList.toggle('painted', painted());
+  RES = painted() ? 3 : 1;
+  FONT = painted() ? '800 8.5px "Nunito", system-ui, sans-serif' : '8px "Press Start 2P", ui-monospace, monospace';
+  FONT_SMALL = painted() ? '700 7px "Nunito", system-ui, sans-serif' : '6px "Press Start 2P", monospace';
+  sizeCanvas();
+  document.querySelectorAll('[data-style]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.style === STYLE)));
+}
+applyStyle();
+document.querySelectorAll('[data-style]').forEach(b => b.addEventListener('click', () => applyStyle(b.dataset.style)));
 function glow(x, y, r, color, alpha) {
   const grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, color); grd.addColorStop(1, 'rgba(0,0,0,0)');
   g.globalAlpha = alpha; g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2); g.globalAlpha = 1;
@@ -1647,7 +1884,7 @@ function drawActor(a) {
     px(g, '#1b1424', x - 4, ty - 1, 9, 11); px(g, '#e8606f', x - 3, ty, 7, 9); px(g, '#e8606f', x - 1, ty + 9, 3, 2); px(g, '#fff3d0', x, ty + 1, 1, 5); px(g, '#fff3d0', x, ty + 7, 1, 1);
   }
   if (a.id === 'main' && !spriteOf(a).startsWith('gm:')) { const cx = x - 3, cy = y - 20 - bob; g.fillStyle = '#1b1424'; g.fillRect(cx - 1, cy - 1, 8, 4); g.fillStyle = a.proj.color; g.fillRect(cx, cy + 1, 6, 1); g.fillRect(cx, cy, 1, 1); g.fillRect(cx + 2, cy, 2, 1); g.fillRect(cx + 5, cy, 1, 1); }
-  if (false) { const crest = a.proj.lang; g.font = '6px "Press Start 2P", monospace'; const w = Math.ceil(g.measureText(crest).width) + 3; const lx = x + 4, ly = y - 22 - bob; g.fillStyle = '#1b1424'; g.fillRect(lx - 1, ly - 1, w + 2, 9); g.fillStyle = a.proj.color; g.fillRect(lx, ly, w, 7); g.fillStyle = '#1b1424'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(crest, lx + 2, ly + 1); }
+  if (false) { const crest = a.proj.lang; g.font = FONT_SMALL; const w = Math.ceil(g.measureText(crest).width) + 3; const lx = x + 4, ly = y - 22 - bob; g.fillStyle = '#1b1424'; g.fillRect(lx - 1, ly - 1, w + 2, 9); g.fillStyle = a.proj.color; g.fillRect(lx, ly, w, 7); g.fillStyle = '#1b1424'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(crest, lx + 2, ly + 1); }
   const foes = allMonsters();
   if (working && a.room === 'dungeon' && foes.length && Math.floor(clock * 3 + a.x) % 2 === 0) {
     const tgt = foes.find(m => m.proj === a.proj) ?? foes[0]; g.strokeStyle = '#fff3c0'; g.lineWidth = 1; g.beginPath(); g.arc(tgt.x, tgt.y - 4, 7, -2.4 + (clock * 6) % 1, -0.6 + (clock * 6) % 1); g.stroke();
@@ -1668,6 +1905,18 @@ function drawClouds(shadows) {
   const shown = 2 + Math.round(sky.cloud * 8), base = camMode === 'world' ? .9 : camMode === 'inspect' ? .35 : .7, grey = Math.min(1, sky.rain + sky.storm);
   CLOUDS.slice(0, shown).forEach((c, i) => {
     const fade = Math.min(1, 2 + sky.cloud * 8 - i);
+    if (painted()) {
+      // anchored by the underside, where the little cloud sat, so they drift the same skies
+      const p = c.p ??= paintCloud(i), x = c.x, y = c.y + 20 - p.h;
+      g.imageSmoothingEnabled = true;
+      if (shadows) { g.globalAlpha = (.08 + sky.cloud * .08) * fade; g.drawImage(p.s, x + 26, y + 70, p.w, p.h); }
+      else {
+        g.globalAlpha = Math.min(1, base + .12) * fade * (1 - grey); g.drawImage(p.c, x, y, p.w, p.h);
+        if (grey > 0) { g.globalAlpha = Math.min(1, base + .2) * fade * grey; g.drawImage(p.dark, x, y, p.w, p.h); }
+      }
+      g.imageSmoothingEnabled = false;
+      return;
+    }
     if (shadows) { g.globalAlpha = (.1 + sky.cloud * .1) * fade; g.drawImage(c.s, Math.round(c.x + 26), Math.round(c.y + 70)); }
     else {
       g.globalAlpha = base * fade * (1 - grey); g.drawImage(c.c, Math.round(c.x), Math.round(c.y));
@@ -1789,6 +2038,13 @@ function drawSkyHud() {
   // covers no place's name.
   const world = camMode === 'world' && view.z < 1.4;
   g.font = FONT; const w = Math.ceil(g.measureText(label).width) + 22, x = world ? Math.round((VW - w) / 2) : VW - w - 6, y = world ? VH - 25 : 5;
+  if (painted()) {
+    paperBox(x, y, w, 15, RIM, 7.5);
+    g.fillStyle = night ? '#7d86c4' : '#eaa93a'; g.beginPath(); g.arc(x + 9, y + 7.5, 3.3, 0, Math.PI * 2); g.fill();
+    if (night) { g.fillStyle = PAPER; g.beginPath(); g.arc(x + 10.5, y + 6.5, 2.6, 0, Math.PI * 2); g.fill(); }
+    text(label, x + 15, y + 4, INK, 'left', true);
+    return;
+  }
   px(g, '#000', x - 1, y, w + 2, 15); px(g, '#3d2f4c', x, y + 1, w, 13); px(g, '#1b1424', x + 1, y + 2, w - 2, 11);
   // a little sun or moon
   if (night) { px(g, '#e6ecff', x + 5, y + 4, 6, 7); px(g, '#1b1424', x + 8, y + 4, 4, 5); } else { px(g, '#f7dd5b', x + 5, y + 5, 6, 5); px(g, '#f7dd5b', x + 6, y + 4, 4, 7); }
@@ -1815,6 +2071,16 @@ function drawBirds() {
 }
 // ── screen-space overlays ──
 function plate(label, cx, cy, color, edge, strong) {
+  if (painted()) {
+    // a paper tag with the place's colour as a dot
+    g.font = FONT; const w = Math.ceil(g.measureText(label).width) + 18, h = 14;
+    const x = Math.round(Math.max(2, Math.min(VW - w - 2, cx - w / 2))), y = Math.round(Math.max(2, Math.min(VH - h - 2, cy - h / 2)));
+    if (strong) { g.globalAlpha = .35 + Math.sin(clock * 5) * .25; g.fillStyle = edge; g.beginPath(); g.roundRect(x - 2, y - 2, w + 4, h + 4, 9); g.fill(); g.globalAlpha = 1; }
+    paperBox(x, y, w, h, edge === '#3d2f4c' ? RIM : edge, 7);
+    g.fillStyle = color; g.beginPath(); g.arc(x + 7, y + h / 2, 2.4, 0, Math.PI * 2); g.fill();
+    text(label, x + w / 2 + 3, y + 3.5, INK, 'center', true);
+    return { x, y, w, h };
+  }
   g.font = FONT; const w = Math.ceil(g.measureText(label).width) + 10, h = 13;
   const x = Math.round(Math.max(2, Math.min(VW - w - 2, cx - w / 2))), y = Math.round(Math.max(2, Math.min(VH - h - 2, cy - h / 2)));
   if (strong) { g.globalAlpha = .45 + Math.sin(clock * 5) * .3; px(g, edge, x - 2, y - 2, w + 4, h + 4); g.globalAlpha = 1; }
@@ -1845,7 +2111,7 @@ function drawTeamBanners() {
     const s = toScreen(lead.x, lead.y), color = lead.team.color, wave = Math.round(Math.sin(clock * 6));
     const top = Math.round(s.y - 22 * view.z - 30);
     px(g, '#3a2414', Math.round(s.x), top, 1, 18);
-    g.font = '6px "Press Start 2P", monospace'; const w = Math.ceil(g.measureText(name.toUpperCase()).width) + 8;
+    g.font = FONT_SMALL; const w = Math.ceil(g.measureText(name.toUpperCase()).width) + 8;
     px(g, '#1b1424', Math.round(s.x) + 1, top - 1 + wave, w + 2, 10); px(g, color, Math.round(s.x) + 1, top + wave, w, 8);
     g.fillStyle = '#1b1424'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(name.toUpperCase(), Math.round(s.x) + 5, top + 1 + wave);
   }
@@ -1854,8 +2120,17 @@ function drawCard(a) {
   const s = toScreen(a.x, a.y), cls = CLASSES[a.fixed ?? classOf(a)];
   const title = `${a.proj.name.toUpperCase()} · ${(a.fixed ? a.label : cls.name).toUpperCase()}`, line = a.waiting ? `WAITS ON YOU: ${a.waiting}` : a.activity;
   g.font = FONT; const t1 = Math.ceil(g.measureText(title).width);
-  g.font = '6px "Press Start 2P", monospace'; const shown = line.length > 44 ? line.slice(0, 43) + '…' : line, t2 = Math.ceil(g.measureText(shown).width);
+  g.font = FONT_SMALL; const shown = line.length > 44 ? line.slice(0, 43) + '…' : line, t2 = Math.ceil(g.measureText(shown).width);
   const w = Math.max(t1, t2) + 12, h = 26, x = Math.round(Math.max(2, Math.min(VW - w - 2, s.x - w / 2))), y = Math.round(Math.max(2, s.y - 22 * view.z - h - 8));
+  if (painted()) {
+    const rim = a.waiting ? '#c4524b' : a.proj.color;
+    paperBox(x, y, w + 4, h, rim, 6);
+    g.fillStyle = PAPER; g.beginPath(); g.moveTo(Math.round(s.x) - 4, y + h - .5); g.lineTo(Math.round(s.x) + 4, y + h - .5); g.lineTo(Math.round(s.x), y + h + 4); g.fill();
+    g.fillStyle = cls.color; g.beginPath(); g.roundRect(x + 3, y + 4, 2.5, h - 8, 1.25); g.fill();
+    text(title, x + 9, y + 4, INK, 'left', true);
+    g.font = FONT_SMALL; g.fillStyle = a.waiting ? '#a03c35' : '#6a5a44'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(shown, x + 9, y + 15);
+    return;
+  }
   px(g, '#000', x - 1, y - 1, w + 2, h + 2); px(g, a.waiting ? '#e8606f' : a.proj.color, x, y, w, h); px(g, '#1b1424', x + 1, y + 1, w - 2, h - 2);
   px(g, a.waiting ? '#e8606f' : a.proj.color, Math.round(s.x) - 2, y + h + 1, 4, 3);
   text(title, x + 6, y + 4, cls.color);
@@ -1873,6 +2148,14 @@ function drawBubble(a, faint) {
   if (bubbleBoxes.some(b => x < b.x + b.w + 3 && b.x < x + w + 3 && y < b.y + b.h + 3 && b.y < y + h + 3)) return;
   bubbleBoxes.push({ x, y, w, h });
   g.globalAlpha = faint ? .8 : 1;
+  if (painted()) {
+    paperBox(x - 1, y, w + 2, h, null, 6.5, faint ? '#efe6d0' : '#fffaf0');
+    const tx = Math.max(x + 4, Math.min(x + w - 4, Math.round(s.x)));
+    g.fillStyle = faint ? '#efe6d0' : '#fffaf0'; g.beginPath(); g.moveTo(tx - 3, y + h - .5); g.lineTo(tx + 3, y + h - .5); g.lineTo(tx - 1, y + h + 4); g.fill();
+    text(a.bubble, x + w / 2, y + 3.5, INK, 'center', true);
+    g.globalAlpha = 1;
+    return;
+  }
   g.fillStyle = '#1b1424'; g.fillRect(x - 1, y - 1, w + 2, h + 2); g.fillStyle = faint ? '#d9cca6' : '#f3e6c0'; g.fillRect(x, y, w, h);
   const tx = Math.max(x + 3, Math.min(x + w - 5, Math.round(s.x) - 2)); g.fillStyle = '#1b1424'; g.fillRect(tx, y + h + 1, 4, 2); g.fillStyle = faint ? '#d9cca6' : '#f3e6c0'; g.fillRect(tx + 1, y + h, 2, 2);
   g.textAlign = 'left'; g.textBaseline = 'top'; g.fillStyle = '#2b1b14'; g.fillText(a.bubble, x + 4, y + 3);
@@ -1883,6 +2166,7 @@ function drawMarkers() {
   for (const a of everyone()) {
     if (a.alpha < .3 || a.delay > 0 || (focusP && a.proj !== focusP)) continue;
     const s = toScreen(a.x, a.y), col = a.proj.color, y = Math.round(s.y - 14 - (Math.sin(clock * 5 + a.x) > 0 ? 1 : 0)), x = Math.round(s.x);
+    if (painted()) { g.fillStyle = col; g.strokeStyle = 'rgba(40,30,20,.75)'; g.lineWidth = 1; g.beginPath(); g.arc(x + .5, y + .5, 3, 0, Math.PI * 2); g.fill(); g.stroke(); continue; }
     px(g, '#1b1424', x - 3, y - 3, 7, 7); px(g, col, x - 2, y - 2, 5, 5); px(g, '#1b1424', x, y + 4, 1, 2);
   }
 }
@@ -1892,18 +2176,41 @@ function drawMinimap() {
   const f = toScreen(focusActor().x, focusActor().y);
   MM.x = f.x > VW - 150 && f.x < VW && f.y > VH - 100 && f.y < VH + 16 ? 6 : VW - 126;
   const { x, y, w, h } = MM, sx = w / W, sy = h / H;
-  px(g, '#000', x - 3, y - 3, w + 6, h + 6); px(g, '#3d2f4c', x - 2, y - 2, w + 4, h + 4); px(g, '#1b1424', x - 1, y - 1, w + 2, h + 2);
-  g.drawImage(WORLD.mini, x, y);
+  if (painted()) { paperBox(x - 3, y - 3, w + 6, h + 6, RIM, 5); g.save(); g.beginPath(); g.roundRect(x, y, w, h, 3); g.clip(); g.imageSmoothingEnabled = true; g.drawImage(WORLD.painted ?? WORLD.mini, x, y, w, h); g.restore(); g.imageSmoothingEnabled = false; }
+  else { px(g, '#000', x - 3, y - 3, w + 6, h + 6); px(g, '#3d2f4c', x - 2, y - 2, w + 4, h + 4); px(g, '#1b1424', x - 1, y - 1, w + 2, h + 2); g.drawImage(WORLD.mini, x, y); }
   for (const [key, r] of Object.entries(ROOMS)) if (busyAt(key)) { g.globalAlpha = .5 + Math.sin(clock * 6) * .4; px(g, r.color, Math.round(x + r.at.x * sx) - 3, Math.round(y + r.at.y * sy) - 3, 6, 6); g.globalAlpha = 1; }
   for (const m of allMonsters()) px(g, '#e8606f', Math.round(x + m.x * sx), Math.round(y + m.y * sy), 1, 1);
   for (const a of everyone()) { if (a.delay > 0) continue; const dim = focusP && a.proj !== focusP; g.globalAlpha = dim ? .4 : 1; px(g, '#000', Math.round(x + a.x * sx) - 2, Math.round(y + a.y * sy) - 2, 4, 4); px(g, a.proj.color, Math.round(x + a.x * sx) - 1, Math.round(y + a.y * sy) - 1, 2, 2); g.globalAlpha = 1; }
   const tl = toWorld(0, 0), br = toWorld(VW, VH);
   g.strokeStyle = '#f3e6c0'; g.lineWidth = 1; g.strokeRect(Math.round(x + tl.x * sx) + .5, Math.round(y + tl.y * sy) + .5, Math.round((br.x - tl.x) * sx) - 1, Math.round((br.y - tl.y) * sy) - 1);
 }
-let vignette = null;
+let vignette = null, vignetteFor = '';
 function drawVignette() {
-  if (!vignette) { vignette = g.createRadialGradient(VW / 2, VH / 2, VH * .45, VW / 2, VH / 2, VW * .62); vignette.addColorStop(0, 'rgba(0,0,0,0)'); vignette.addColorStop(1, 'rgba(10,6,16,.45)'); }
+  if (!vignette || vignetteFor !== STYLE) {
+    vignetteFor = STYLE;
+    vignette = g.createRadialGradient(VW / 2, VH / 2, VH * (painted() ? .55 : .45), VW / 2, VH / 2, VW * .62);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)'); vignette.addColorStop(1, painted() ? 'rgba(84,58,28,.26)' : 'rgba(10,6,16,.45)');
+  }
   g.fillStyle = vignette; g.fillRect(0, 0, VW, VH);
+}
+// The painted look's afternoon light: a warm glow from the sun's corner and a few soft shafts,
+// fading with the clouds, the rain and the night.
+function drawLight() {
+  if (!painted()) return;
+  const k = (1 - darkness()) * (1 - Math.min(1, sky.rain + sky.storm) * .7) * (1 - sky.cloud * .3);
+  if (k <= .02) return;
+  g.save();
+  g.globalCompositeOperation = 'soft-light';
+  const sun = g.createRadialGradient(VW * .12, -VH * .15, 8, VW * .12, -VH * .15, VW);
+  sun.addColorStop(0, `rgba(255,232,170,${.8 * k})`); sun.addColorStop(.45, `rgba(255,210,150,${.35 * k})`); sun.addColorStop(1, 'rgba(255,200,140,0)');
+  g.fillStyle = sun; g.fillRect(0, 0, VW, VH);
+  g.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 4; i++) {
+    const x0 = VW * (.02 + i * .13) + Math.sin(clock * .05 + i) * 6, wd = 18 + i * 7, a = (.045 - i * .006) * k;
+    const shaft = g.createLinearGradient(x0, 0, x0 + VH * .7, VH); shaft.addColorStop(0, `rgba(255,240,200,${a})`); shaft.addColorStop(1, 'rgba(255,240,200,0)');
+    g.fillStyle = shaft; g.beginPath(); g.moveTo(x0, 0); g.lineTo(x0 + wd, 0); g.lineTo(x0 + wd + VH * .8, VH); g.lineTo(x0 + VH * .8, VH); g.fill();
+  }
+  g.restore();
 }
 // ───────────────────────── what the treasury built ─────────────────────────
 // The still parts are painted into the realm (hooks/world.js); these are the parts that move.
@@ -2016,10 +2323,11 @@ function estateLights(dark) {
 }
 
 function draw() {
-  g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#22558a'; g.fillRect(0, 0, VW, VH);
+  g.setTransform(RES, 0, 0, RES, 0, 0); g.fillStyle = painted() ? '#3f7fae' : '#22558a'; g.fillRect(0, 0, VW, VH);
   if (!WORLD) { text('CHARTING THE REALM…', VW / 2, VH / 2 - 4, '#f3e6c0', 'center'); return; }
-  g.setTransform(view.z, 0, 0, view.z, view.ox, view.oy);
-  g.drawImage(WORLD.bg, 0, 0);
+  g.setTransform(view.z * RES, 0, 0, view.z * RES, view.ox * RES, view.oy * RES);
+  if (painted()) { WORLD.painted ??= paintIsland(WORLD.bg); g.imageSmoothingEnabled = true; g.drawImage(WORLD.painted, 0, 0, W, H); g.imageSmoothingEnabled = false; }
+  else g.drawImage(WORLD.bg, 0, 0);
   drawWater(WORLD);
   drawClouds(true);
   drawPlaceGlow();
@@ -2045,7 +2353,8 @@ function draw() {
   drawClouds(false);
   drawNight();
   fx.drawSky?.();
-  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.setTransform(RES, 0, 0, RES, 0, 0);
+  drawLight();
   drawWeatherScreen();
   drawVignette();
   drawLabels();
@@ -2071,6 +2380,12 @@ function draw() {
     const alpha = Math.min(1, b.life * 2, (2.6 - b.life) * 4 + .2), sub = b.who ? b.who.name.toUpperCase() : '';
     g.globalAlpha = Math.max(0, alpha); g.font = FONT; const w = Math.max(g.measureText(b.text).width, g.measureText(sub).width) + 24;
     const top = 40, hgt = sub ? 30 : 22;
+    if (painted()) {
+      paperBox(VW / 2 - w / 2, top, w, hgt, b.gold ? '#d39a3a' : b.who?.color ?? RIM, 8, b.gold ? '#fff1cf' : PAPER);
+      if (b.who) text(sub, VW / 2, top + 5, b.who.color, 'center');
+      text(b.text, VW / 2, top + (sub ? 16 : 7), INK, 'center', true); g.globalAlpha = 1;
+      return;
+    }
     g.fillStyle = '#1b1424'; g.fillRect(VW / 2 - w / 2 - 2, top, w + 4, hgt); g.fillStyle = b.gold ? '#f2b84b' : '#3d2f4c'; g.fillRect(VW / 2 - w / 2, top + 2, w, hgt - 4);
     if (b.who) { px(g, b.who.color, VW / 2 - w / 2, top + 2, 4, hgt - 4); text(sub, VW / 2, top + 5, b.gold ? '#3d2f4c' : b.who.color, 'center'); }
     text(b.text, VW / 2, top + (sub ? 15 : 7), b.gold ? '#1b1424' : '#f3e6c0', 'center'); g.globalAlpha = 1;
@@ -2667,7 +2982,7 @@ async function sendLive(r, d, mode) {
 // the rest; where the window is too narrow for that, the chronicle fills the room under the map.
 function setViewHeight(vh) {
   if (vh === VH) return;
-  VH = vh; cv.height = VH; g.imageSmoothingEnabled = false;
+  VH = vh; sizeCanvas();
   vignette = null; MM.y = VH - 81;
 }
 const CHRONICLE = $('log').closest('.card'), CHRONICLE_HOME = document.createComment('chronicle');
