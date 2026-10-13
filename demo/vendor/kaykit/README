@@ -1,0 +1,9 @@
+KayKit assets by Kay Lousberg (www.kaylousberg.com), CC0 1.0 (public domain): see the LICENSE-*.txt files.
+From github.com/KayKit-Game-Assets: Medieval Hexagon Pack 1.0, Character Pack Adventurers 1.0, Character Pack Skeletons 1.0.
+
+Slimmed for the Guild Hall's 3D valley by slim.mjs (glTF-Transform 3.10.1, meshoptimizer 0.20.0):
+  Knight, Barbarian, Mage, Rogue, Rogue_Hooded, Skeleton_Minion, Skeleton_Warrior  each character's mesh alone
+  animations.glb             the clips the valley plays, shared by every character (one rig)
+  animations-skeletons.glb   the skeletons' rising from the ground
+  valley-kit.glb             the buildings and nature used, one scene per model, one shared texture
+Files are meshopt-compressed (EXT_meshopt_compression); three.js reads them with MeshoptDecoder.

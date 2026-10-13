@@ -3,7 +3,10 @@
 // diorama with three.js. One world pixel is one unit: world x runs along X, world y along Z,
 // and height is Y. One sun lights the land, the buildings and the party alike.
 import * as THREE from 'three'
-import { BIOMES, FOLK, H, PLACES, RIVER, ROADS, W, biomeAt, coastY, fbm, way } from '../../hooks/world.js'
+import { GLTFLoader } from '../vendor/three/addons/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from '../vendor/three/addons/libs/meshopt_decoder.module.js'
+import { clone as cloneRigged } from '../vendor/three/addons/utils/SkeletonUtils.js'
+import { BIOMES, CHEST, FOLK, H, MONSTER_SLOTS, PLACES, RIVER, ROADS, W, biomeAt, coastY, fbm, way } from '../../hooks/world.js'
 import { hash } from '../../hooks/pixelart.js'
 
 const { PLAINS, FOREST, PEAKS, BADLANDS, SWAMP, BEACH } = BIOMES
@@ -114,7 +117,7 @@ function buildTerrain() {
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colours, 3))
   geo.computeVertexNormals()
-  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95, metalness: 0 }))
+  const mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: TONES }))
   mesh.receiveShadow = true; mesh.castShadow = true
   return mesh
 }
@@ -144,172 +147,211 @@ function buildWater() {
   return { group: g, sea: seaMat }
 }
 
-// ───────────── trees ─────────────
-function buildTrees(clearings) {
-  const pines = [], oaks = []
-  for (let z = 2 - MARGIN; z < H + MARGIN; z += 5) for (let x = 2 - MARGIN; x < W + MARGIN; x += 5) {
-    const jx = x + (hash(x, z) - .5) * 5, jz = z + (hash(z + 7, x) - .5) * 5, r = hash(jx * 7 | 0, jz * 13 | 0)
-    if (coastY(jx) - jz < 8 || roadDist(jx, jz) < 7 || riverDist(jx, jz) < riverW(jz) + 4 || lakeIn(jx, jz) < 1.5) continue
-    if (clearings.some(c => Math.hypot(jx - c.x, jz - c.y) < c.r)) continue
-    const b = biomeAt(jx, jz), h = height(jx, jz), grove = b === PLAINS && fbm(jx / 28, jz / 28 + 11) > .6
-    if (h > 44) continue
-    if (b === FOREST && r < .62) (r < .48 ? pines : oaks).push({ x: jx, z: jz, h, s: .8 + hash(jx | 0, 3) * .5 })
-    else if (b === PEAKS && r < .22 && h < 34) pines.push({ x: jx, z: jz, h, s: .7 + hash(jx | 0, 5) * .4, snow: h > 20 })
-    else if (grove && r < .5) (r < .3 ? oaks : pines).push({ x: jx, z: jz, h, s: .8 + hash(jx | 0, 9) * .4 })
-    else if ((b === PLAINS || b === SWAMP) && r < .045) oaks.push({ x: jx, z: jz, h, s: .7 + hash(jx | 0, 1) * .5 })
+// ───────────── the models ─────────────
+// KayKit's CC0 town, nature and characters (demo/vendor/kaykit), slimmed: one kit of buildings
+// and nature, each character's mesh, and the clips every character shares.
+const ASSETS = 'vendor/kaykit/'
+const CHARACTERS = ['Knight', 'Barbarian', 'Mage', 'Rogue', 'Rogue_Hooded', 'Skeleton_Minion', 'Skeleton_Warrior']
+async function loadModels() {
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
+  const [kit, clips, risen, ...chars] = await Promise.all(['valley-kit.glb', 'animations.glb', 'animations-skeletons.glb', ...CHARACTERS.map(c => `${c}.glb`)].map(f => loader.loadAsync(ASSETS + f)))
+  return {
+    kit: Object.fromEntries(kit.scenes.map(sc => [sc.name, sc])),
+    clips: [...clips.animations, ...risen.animations],
+    chars: Object.fromEntries(CHARACTERS.map((c, i) => [c, chars[i].scene])),
   }
+}
+
+// Soft cel shading: three tones of light, so the models read as painted shapes, not plastic.
+const TONES = (() => { const t = new THREE.DataTexture(new Uint8Array([90, 90, 90, 255, 170, 170, 170, 255, 235, 235, 235, 255]), 3, 1); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t })()
+const toon = new Map()
+function toonify(root, tint) {
+  root.traverse(o => {
+    if (!o.isMesh) return
+    const m = o.material, key = `${m.uuid}${tint ?? ''}`
+    if (!toon.has(key)) { const t = new THREE.MeshToonMaterial({ map: m.map, color: m.color.clone(), gradientMap: TONES, transparent: m.transparent, opacity: m.opacity }); if (tint) t.color.multiply(C(tint)); toon.set(key, t) }
+    o.material = toon.get(key); o.castShadow = true; o.receiveShadow = true
+  })
+  return root
+}
+
+// Many copies of one model drawn at once: an instanced mesh for each of its parts.
+function instanced(model, spots) {
   const g = new THREE.Group(), m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0)
-  const inst = (geo, mat, list, place, colour) => {
-    const im = new THREE.InstancedMesh(geo, mat, list.length)
-    list.forEach((t, i) => { const [y, s] = place(t); m.compose(new THREE.Vector3(t.x, t.h + y * t.s, t.z), q.setFromAxisAngle(up, hash(i, 2) * 6.28), new THREE.Vector3(s * t.s, s * t.s, s * t.s)); im.setMatrixAt(i, m); if (colour) im.setColorAt(i, colour(t, i)) })
-    im.castShadow = true; im.receiveShadow = true
-    return im
+  if (!spots.length) return g
+  model.updateMatrixWorld(true)
+  model.traverse(o => {
+    if (!o.isMesh) return
+    const im = new THREE.InstancedMesh(o.geometry, o.material, spots.length)
+    spots.forEach((p, i) => { m.compose(new THREE.Vector3(p.x, p.y, p.z), q.setFromAxisAngle(up, p.r ?? 0), new THREE.Vector3(p.s, p.s, p.s)).multiply(o.matrixWorld); im.setMatrixAt(i, m) })
+    im.castShadow = true; im.receiveShadow = true; g.add(im)
+  })
+  return g
+}
+// One copy of a model, standing on the land.
+function place(model, x, z, s, ry = 0, lift = 0) {
+  if (!model) throw new Error('place: that model is not in the kit')
+  const o = model.clone(true); o.position.set(x, height(x, z) + lift, z); o.scale.setScalar(s); o.rotation.y = ry
+  o.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true } })
+  return o
+}
+
+// ───────────── the woods, the hills and the mountains ─────────────
+function buildNature(kit, clearings) {
+  const g = new THREE.Group(), pick = (list, k) => list[Math.floor(hash(k, 77) * list.length) % list.length]
+  const free = (x, z, pad = 0) => coastY(x) - z > 8 + pad && roadDist(x, z) > 8 + pad && riverDist(x, z) > riverW(z) + 5 + pad && lakeIn(x, z) > 1.5 && !clearings.some(c => Math.hypot(x - c.x, z - c.y) < c.r + pad)
+  const spots = {}
+  const add = (name, x, z, s, r, sink = .3) => (spots[name] ??= []).push({ x, y: height(x, z) - sink, z, s, r })
+  // The mountains are the land's own (the kit's are hexagonal board tiles): pines climb their lower slopes.
+  // the woods: clusters in the forests, groves on the plains, the odd lone tree
+  for (let z = -MARGIN; z < H + MARGIN; z += 13) for (let x = -MARGIN; x < W + MARGIN; x += 13) {
+    const jx = x + (hash(x, z + 1) - .5) * 9, jz = z + (hash(z + 1, x) - .5) * 9, k = (jx | 0) * 7 + (jz | 0), r = hash(k, 3)
+    if (!free(jx, jz) || height(jx, jz) > 34) continue
+    const b = biomeAt(jx, jz), grove = b === PLAINS && fbm(jx / 28, jz / 28 + 11) > .58
+    if (b === FOREST || b === SWAMP) { if (r < .85) add(pick(['trees_A_large', 'trees_A_medium', 'trees_B_large', 'trees_B_medium'], k), jx, jz, 9 + hash(k, 4) * 3, hash(k, 5) * 6.28) }
+    else if (b === PEAKS) { if (r < .3) add(pick(['trees_B_small', 'trees_A_small'], k), jx, jz, 8, hash(k, 5) * 6.28) }
+    else if (grove) { if (r < .7) add(pick(['trees_A_medium', 'trees_B_small', 'tree_single_A', 'tree_single_B'], k), jx, jz, 9 + hash(k, 4) * 2, hash(k, 5) * 6.28) }
+    else if (r < .06) add(pick(['tree_single_A', 'tree_single_B'], k), jx, jz, 10, hash(k, 5) * 6.28)
+    else if (r < .085 && b !== BEACH) add(pick(['rock_single_A', 'rock_single_B', 'rock_single_C', 'rock_single_D'], k), jx, jz, 18, hash(k, 6) * 6.28)
   }
-  const trunk = new THREE.MeshStandardMaterial({ color: '#6b4a2e', roughness: 1 }), leaf = new THREE.MeshStandardMaterial({ roughness: .9, flatShading: true })
-  g.add(inst(new THREE.CylinderGeometry(.5, .7, 3, 5), trunk, [...pines, ...oaks], () => [1.5, 1]))
-  g.add(inst(new THREE.ConeGeometry(3.4, 9, 7), leaf, pines, () => [7, 1], (t, i) => (t.snow ? C('#cfe0d8') : C('#2f6b3a')).offsetHSL(0, 0, (hash(i, 4) - .5) * .08)))
-  g.add(inst(new THREE.ConeGeometry(2.5, 6, 7), leaf, pines, () => [10.5, 1], (t, i) => (t.snow ? C('#f2f6f8') : C('#3a7d44')).offsetHSL(0, 0, (hash(i, 6) - .5) * .08)))
-  g.add(inst(new THREE.IcosahedronGeometry(3.6, 1), leaf, oaks, () => [5.5, 1], (t, i) => C(hash(i, 8) > .5 ? '#5a9a44' : '#4a8a3c').offsetHSL((hash(i, 9) - .5) * .04, 0, (hash(i, 7) - .5) * .1)))
+  // lilies on the lake
+  for (let i = 0; i < 10; i++) { const a = hash(i, 8) * 6.28, d = .3 + hash(i, 9) * .5; (spots.waterlily_A ??= []).push({ x: L.x + Math.cos(a) * L.rx * d, y: LAKE_LEVEL + .1, z: L.y + Math.sin(a) * L.ry * d, s: 26, r: a }) }
+  for (const [name, list] of Object.entries(spots)) g.add(instanced(kit[name], list))
   return g
 }
 
-// ───────────── buildings ─────────────
-const MAT = {}
-const mat = (hex, rough = .85) => (MAT[hex + rough] ??= new THREE.MeshStandardMaterial({ color: hex, roughness: rough }))
-function mesh(geo, hex, x, y, z, ry = 0) { const o = new THREE.Mesh(geo, mat(hex)); o.position.set(x, y, z); o.rotation.y = ry; o.castShadow = true; o.receiveShadow = true; return o }
-// A gabled roof: a triangular prism along X, its ridge up and its base `h / 3` below the middle.
-function gable(w, d, h, hex) { const geo = new THREE.CylinderGeometry(1, 1, w, 3); geo.rotateZ(Math.PI / 2); geo.rotateX(-Math.PI / 2); geo.scale(1, h / 1.5, d / 1.732); return new THREE.Mesh(geo, mat(hex)) }
-function house(x, z, w, roof, wallH = 7, depth = w * .7) {
-  const g = new THREE.Group(), y = height(x, z)
-  g.add(mesh(new THREE.BoxGeometry(w, wallH, depth), '#efe2c4', 0, wallH / 2, 0))
-  const rh = depth * .6, r = gable(w + 1.5, depth + 2.4, rh, roof); r.position.y = wallH + rh / 3; r.castShadow = r.receiveShadow = true; g.add(r)
-  g.add(mesh(new THREE.BoxGeometry(2.4, 3.6, .4), '#5a3720', 0, 1.8, depth / 2 + .1))
-  for (const wx of [-w / 3, w / 3]) g.add(mesh(new THREE.BoxGeometry(1.8, 1.8, .3), '#ffd27a', wx, wallH * .6, depth / 2 + .1))
-  g.position.set(x, y, z)
-  return g
-}
-function tower(x, z, r, h, roof, cap = 1.4) {
-  const g = new THREE.Group()
-  g.add(mesh(new THREE.CylinderGeometry(r, r * 1.05, h, 14), '#a8a196', 0, h / 2, 0))
-  g.add(mesh(new THREE.ConeGeometry(r * cap, r * 2.6, 14), roof, 0, h + r * 1.3, 0))
-  g.position.set(x, height(x, z), z)
-  return g
-}
-function buildBuildings() {
-  const g = new THREE.Group(), P = PLACES
-  // the Wizard's tower on its crag, with its library
-  { const t = tower(P.study.at.x, P.study.at.y, 5, 34, '#5b4bb5', 1.5); g.add(t); g.add(house(P.study.at.x + 12, P.study.at.y + 4, 12, '#3b5fa8', 6)) }
-  // the Riverside Tavern
-  { const t = P.tavern.at, b = house(t.x, t.y - 8, 40, '#b8503a', 14, 22); g.add(b); g.add(mesh(new THREE.BoxGeometry(3, 8, 3), '#8a4a3a', t.x - 12, height(t.x, t.y) + 22, t.y - 10)) }
-  // the town
-  for (const h of FOLK.houses) g.add(house(h.x, h.y - 6, h.w * .8, h.roof[0]))
-  // the castle keep: a curtain wall, corner towers, the halls and the great tower
-  { const k = FOLK.keep, y = height(k.x, k.y), wall = '#b3aa9b'
-    for (const [dx, dz, w, d] of [[0, 0, 110, 4], [0, -46, 110, 4], [-55, -23, 4, 46], [55, -23, 4, 46]]) g.add(mesh(new THREE.BoxGeometry(w, 12, d), wall, k.x + dx, y + 6, k.y + dz - 2))
-    for (const [dx, dz] of [[-55, 0], [55, 0], [-55, -46], [55, -46]]) g.add(tower(k.x + dx, k.y + dz - 2, 5, 20, '#b8503a'))
-    g.add(house(k.x - 26, k.y - 26, 26, '#b8503a', 12)); g.add(house(k.x + 24, k.y - 22, 30, '#b8503a', 14))
-    g.add(tower(k.x - 2, k.y - 30, 7, 44, '#b8503a')) }
-  // the guild hall, long under blue roofs, with its tower
-  { const h = FOLK.hall; g.add(house(h.x, h.y - 8, 44, '#3b5fa8', 12, 18)); g.add(tower(h.x - 24, h.y - 8, 4, 20, '#3b5fa8')) }
-  // the Blacksmith's armory: a stone forge hall with a great chimney
-  { const a = P.armory.at, y = height(a.x, a.y)
-    g.add(mesh(new THREE.BoxGeometry(34, 16, 24), '#9a9184', a.x, y + 8, a.y - 12)); g.add(mesh(new THREE.BoxGeometry(12, 10, .6), '#2a1d18', a.x, y + 5, a.y))
-    g.add(mesh(new THREE.BoxGeometry(5, 14, 5), '#7d766a', a.x + 10, y + 22, a.y - 16)) }
-  // the Alchemist's hut on stilts under a mushroom roof
-  { const c = P.cauldron.at, y = height(c.x, c.y)
-    for (const [dx, dz] of [[-6, -4], [6, -4], [-6, 4], [6, 4]]) g.add(mesh(new THREE.CylinderGeometry(.6, .6, 8, 5), '#5a3720', c.x + dx, y + 4, c.y + dz))
-    g.add(mesh(new THREE.BoxGeometry(14, 7, 10), '#7a5a3a', c.x, y + 11, c.y))
-    g.add(mesh(new THREE.SphereGeometry(11, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), '#c0392b', c.x, y + 14, c.y)) }
-  // the Dungeon's cavern: a dark mouth in a rock face, a pale skull over it
-  { const d = P.dungeon.at, y = height(d.x, d.y)
-    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(24, 1), mat('#5f5850')); rock.scale.set(1.3, .8, .9); rock.position.set(d.x + 6, y + 6, d.y - 16); rock.castShadow = rock.receiveShadow = true; g.add(rock)
-    g.add(mesh(new THREE.SphereGeometry(8, 16, 10, 0, Math.PI), '#140d10', d.x, y, d.y + 2, Math.PI))
-    g.add(mesh(new THREE.SphereGeometry(5, 14, 10), '#ece6d8', d.x, y + 16, d.y + 1)) }
-  // the ruins by the falls
-  { const r = FOLK.ruins
-    for (let i = 0; i < 6; i++) { const hgt = 4 + hash(i, 5) * 12; g.add(mesh(new THREE.CylinderGeometry(1.6, 1.8, hgt, 8), '#a7a196', r.x - 24 + i * 9, height(r.x - 24 + i * 9, r.y) + hgt / 2, r.y + (i % 2) * 6)) } }
-  // the harbour's piers and boats
-  for (const [x, len] of [[120, 44], [164, 52], [208, 40]]) { const z0 = coastY(x) - 6; g.add(mesh(new THREE.BoxGeometry(8, 1, len), '#a3723f', x, .8, z0 + len / 2)) }
-  for (const b of FOLK.boats) { g.add(mesh(new THREE.BoxGeometry(14, 3, 6), '#7a4a2a', b.x, .8, b.y)); g.add(mesh(new THREE.ConeGeometry(4, 14, 3), '#efe6d2', b.x + 1, 9, b.y)) }
+// ───────────── the buildings ─────────────
+const S = 28 // the kit's buildings, scaled to the valley
+function buildTown(kit) {
+  const g = new THREE.Group(), P = PLACES, at = (name, x, z, s = S, ry = 0, lift = 0) => g.add(place(kit[name], x, z, s, ry, lift))
+  at('building_tower_A_blue', P.study.at.x, P.study.at.y + 6, 22)                      // the Wizard's tower, on its crag
+  at('building_tavern_red', P.tavern.at.x, P.tavern.at.y - 10, 36)                     // the Riverside Tavern
+  at('building_blacksmith_red', P.armory.at.x, P.armory.at.y - 12, 34)                 // the Blacksmith & Armory
+  at('building_home_A_blue', P.cauldron.at.x, P.cauldron.at.y - 8, 28)                 // the Alchemist's cottage in the woods
+  at('building_mine_red', P.dungeon.at.x + 8, P.dungeon.at.y - 16, 30, -.4)            // the cavern: a mouth in the cliff
+  at('building_castle_red', FOLK.keep.x, FOLK.keep.y - 28, 26)                         // the keep
+  at('building_barracks_blue', FOLK.hall.x, FOLK.hall.y - 10, 30)                      // the guild hall
+  at('building_church_blue', FOLK.hall.x - 30, FOLK.hall.y - 4, 22)
+  at('building_destroyed', FOLK.ruins.x, FOLK.ruins.y, 30)                             // the ruins by the falls
+  at('building_market_red', FOLK.town.x - 6, FOLK.town.y - 14, 24)                    // the square's market
+  at('building_well_red', FOLK.well.x + 10, FOLK.well.y, 16)
+  at('building_windmill_red', FOLK.windmill.x, FOLK.windmill.y, 28)
+  at('building_watermill_red', FOLK.fishing.x - 6, FOLK.fishing.y, 24, Math.PI / 2)
+  at('building_lumbermill_red', FOLK.woodyard.x + 14, FOLK.woodyard.y, 24)
+  at('building_mine_red', FOLK.mine.x, FOLK.mine.y, 26)
+  FOLK.houses.forEach((h, i) => at(i % 3 === 2 ? 'building_home_A_blue' : i % 2 ? 'building_home_B_red' : 'building_home_A_red', h.x, h.y - 6, 26, (hash(i, 4) - .5) * .5))
+  // the keep's curtain wall, a gate to the south
+  { const k = FOLK.keep, cx = k.x, cz = k.y - 28, hw = 58, hd = 30
+    for (let x = cx - hw + 12; x <= cx + hw - 12; x += 24) at(Math.abs(x - cx) < 10 ? 'wall_straight_gate' : 'wall_straight', x, cz + hd, 12)
+    for (let x = cx - hw + 12; x <= cx + hw - 12; x += 24) at('wall_straight', x, cz - hd, 12)
+    for (let z = cz - hd + 12; z <= cz + hd - 12; z += 24) { at('wall_straight', cx - hw, z, 12, Math.PI / 2); at('wall_straight', cx + hw, z, 12, Math.PI / 2) } }
+  // bridges wherever a road meets the river
+  for (const pts of Object.values(ROADS)) {
+    const i = pts.findIndex(p => riverDist(p.x, p.y) < riverW(p.y) * .6)
+    if (i < 0) continue
+    const a = pts[Math.max(0, i - 3)], b = pts[Math.min(pts.length - 1, i + 3)], p = pts[i]
+    g.add(place(kit.building_bridge_A, p.x, p.y, 13, Math.atan2(b.x - a.x, b.y - a.y), 1.6))
+  }
+  // the harbour's piers and boats (the kit has none: plain timber)
+  const wood = new THREE.MeshToonMaterial({ color: '#a3723f', gradientMap: TONES }), sail = new THREE.MeshToonMaterial({ color: '#efe6d2', gradientMap: TONES }), hull = new THREE.MeshToonMaterial({ color: '#7a4a2a', gradientMap: TONES })
+  for (const [x, len] of [[120, 44], [164, 52], [208, 40]]) { const z0 = coastY(x) - 6, pier = new THREE.Mesh(new THREE.BoxGeometry(8, 1, len), wood); pier.position.set(x, .8, z0 + len / 2); pier.castShadow = pier.receiveShadow = true; g.add(pier) }
+  for (const b of FOLK.boats) { const boat = new THREE.Group(), h = new THREE.Mesh(new THREE.BoxGeometry(14, 3, 6), hull), s = new THREE.Mesh(new THREE.ConeGeometry(4, 14, 3), sail); s.position.set(1, 8, 0); boat.add(h, s); boat.position.set(b.x, .8, b.y); boat.traverse(o => { o.castShadow = true }); g.add(boat) }
   return g
 }
 
 // ───────────── clouds ─────────────
-// Summer cumulus drifting over the valley. Over the map only their shadows show, sliding across
-// the land, so they never hide the party; around the edges they are seen, framing the view.
-function buildClouds() {
-  const g = new THREE.Group(), white = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, transparent: true, opacity: .95 })
-  const unseen = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })
+// Summer cumulus: over the map only their shadows show, sliding across the land; around the
+// edges the kit's clouds are seen, framing the view.
+function buildClouds(kit) {
+  const g = new THREE.Group(), unseen = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })
   for (let i = 0; i < 16; i++) {
-    const c = new THREE.Group(), n = 6 + Math.floor(hash(i, 1) * 5)
-    for (let k = 0; k < n; k++) {
-      const r = 10 + hash(i, k + 10) * 12, puff = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), i < 9 ? unseen : white)
-      puff.position.set((k - n / 2) * 11 + (hash(k, i) - .5) * 8, Math.max(0, r * .5 - Math.abs(k - n / 2) * 2) + hash(i, k) * 6, (hash(k + 3, i) - .5) * 18)
-      puff.scale.y = .7; puff.castShadow = true; c.add(puff)
-    }
-    if (i < 9) c.position.set(-MARGIN + hash(i, 5) * (W + MARGIN * 2), 150 + hash(i, 6) * 40, -40 + hash(i, 7) * (H + 80))
+    const c = kit[i % 2 ? 'cloud_big' : 'cloud_small'].clone(true), shadowOnly = i < 9
+    c.traverse(o => { if (o.isMesh) { if (shadowOnly) o.material = unseen; o.castShadow = true } })
+    c.scale.setScalar(26 + hash(i, 3) * 14)
+    if (shadowOnly) c.position.set(-MARGIN + hash(i, 5) * (W + MARGIN * 2), 150 + hash(i, 6) * 40, -40 + hash(i, 7) * (H + 80))
     else { const side = i % 3; c.position.set(side === 0 ? -120 - hash(i, 5) * 120 : side === 1 ? W + 120 + hash(i, 5) * 120 : hash(i, 5) * W, 90 + hash(i, 6) * 40, side === 2 ? -150 - hash(i, 7) * 80 : hash(i, 7) * H) }
-    c.userData.seen = i >= 9
-    c.userData.v = 4 + hash(i, 8) * 4
+    c.userData = { v: 4 + hash(i, 8) * 4, seen: !shadowOnly }
     g.add(c)
   }
   return g
 }
 
 // ───────────── the party ─────────────
-const CLASS_LOOK = {
-  guildmaster: { body: '#c0392b', hat: '#f2b84b', cape: '#8e2a20' }, wizard: { body: '#5b4bb5', hat: '#3b2f8a', cape: '#3b2f8a' },
-  rogue: { body: '#3a3a44', hat: '#2a2a30', cape: '#6a1a22' }, dwarf: { body: '#7a5a3a', hat: '#8a8f99', cape: '#5a3a24' }, alchemist: { body: '#3f8f4f', hat: '#2c6b3a', cape: '#2c6b3a' },
+// Each class wears a KayKit adventurer, and carries only its own gear.
+const HERO = {
+  guildmaster: { model: 'Knight', gear: ['Knight_Helmet', 'Knight_Cape', '1H_Sword', 'Badge_Shield'] },
+  wizard: { model: 'Mage', gear: ['Mage_Hat', 'Mage_Cape', '2H_Staff'] },
+  rogue: { model: 'Rogue', gear: ['Rogue_Cape', 'Knife', 'Knife_Offhand'] },
+  dwarf: { model: 'Barbarian', gear: ['Barbarian_Hat', 'Barbarian_Cape', '2H_Axe'] },
+  alchemist: { model: 'Rogue_Hooded', gear: ['Rogue_Cape', 'Throwable'], tint: '#8fd48a' },
 }
-function hero(cls) {
-  const look = CLASS_LOOK[cls], g = new THREE.Group(), body = new THREE.Group()
-  body.add(mesh(new THREE.CapsuleGeometry(1.3, 2.2, 4, 10), look.body, 0, 2.6, 0))
-  body.add(mesh(new THREE.SphereGeometry(1.15, 14, 10), '#f1c49b', 0, 5.3, 0))
-  body.add(mesh(cls === 'wizard' ? new THREE.ConeGeometry(1.3, 3.2, 12) : cls === 'dwarf' ? new THREE.SphereGeometry(1.25, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2) : new THREE.CylinderGeometry(.9, 1.2, .9, 12), look.hat, 0, cls === 'wizard' ? 7.3 : 6.1, 0))
-  const cape = mesh(new THREE.BoxGeometry(2.4, 3.2, .3), look.cape, 0, 3.2, -1.2); body.add(cape)
-  g.add(body); g.userData = { body }
-  g.scale.setScalar(1.7) // a touch larger than life, to be seen from above
-  return g
+const BODY = /_(ArmLeft|ArmRight|Body|Head|Head_Hooded|LegLeft|LegRight|Cloak|Eyes|Jaw|Helmet)$/
+// What each does on arriving at a place.
+const AT_PLACE = { tavern: 'Sit_Floor_Idle', study: 'Interact', armory: '2H_Melee_Attack_Chop', dungeon: '1H_Melee_Attack_Chop', cauldron: 'Use_Item' }
+function rig(models, name, gear, tint, scale) {
+  const o = cloneRigged(models.chars[name])
+  o.traverse(c => { if (c.isMesh) c.visible = BODY.test(c.name) || gear.includes(c.name) })
+  toonify(o, tint)
+  o.scale.setScalar(scale)
+  const mixer = new THREE.AnimationMixer(o), acts = Object.fromEntries(models.clips.map(c => [c.name, mixer.clipAction(c)]))
+  let now = null
+  const play = (clip, fade = .25) => { const a = acts[clip] ?? acts.Idle; if (a === now) return; a.reset().fadeIn(fade).play(); now?.fadeOut(fade); now = a }
+  return { o, mixer, play }
 }
 
 // ───────────── the scene ─────────────
-export function start(canvas, ui) {
+export async function start(canvas, ui) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
   renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05; renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1; renderer.outputColorSpace = THREE.SRGBColorSpace
   const scene = new THREE.Scene()
   scene.fog = new THREE.Fog('#bcd8ea', 420, 1100)
-  const sun = new THREE.DirectionalLight('#fff1d6', 3.4)
+  const sun = new THREE.DirectionalLight('#fff1d6', 3.2)
   sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -.0004; sun.shadow.normalBias = .6
   Object.assign(sun.shadow.camera, { left: -520, right: 520, top: 360, bottom: -360, near: 10, far: 1600 })
   sun.target.position.set(W / 2, 0, H / 2); scene.add(sun, sun.target)
-  const sky = new THREE.HemisphereLight('#cfe6ff', '#4a5a3a', 1.1); scene.add(sky)
+  const sky = new THREE.HemisphereLight('#cfe6ff', '#5a6a4a', .9); scene.add(sky)
 
+  const models = await loadModels()
+  for (const m of Object.values(models.kit)) toonify(m)
   const clearings = [
-    ...Object.values(PLACES).map(p => ({ ...p.at, r: 26 })), { x: FOLK.keep.x, y: FOLK.keep.y - 24, r: 72 }, { x: FOLK.hall.x, y: FOLK.hall.y - 10, r: 34 },
-    { ...FOLK.ruins, r: 40 }, ...FOLK.houses.map(h => ({ x: h.x, y: h.y - 6, r: h.w * .7 })), { x: PLACES.study.at.x, y: PLACES.study.at.y + 10, r: 34 },
+    ...Object.values(PLACES).map(p => ({ ...p.at, r: 28 })), { x: FOLK.keep.x, y: FOLK.keep.y - 28, r: 70 }, { x: FOLK.hall.x - 12, y: FOLK.hall.y - 8, r: 42 },
+    { ...FOLK.ruins, r: 34 }, ...FOLK.houses.map(h => ({ x: h.x, y: h.y - 6, r: 16 })), { x: PLACES.study.at.x, y: PLACES.study.at.y + 10, r: 30 },
+    { x: FOLK.town.x, y: FOLK.town.y, r: 44 }, { ...FOLK.windmill, r: 20 }, { ...FOLK.woodyard, r: 24 }, { ...FOLK.mine, r: 26 }, { x: FOLK.field.x + 26, y: FOLK.field.y + 10, r: 30 },
+    ...MONSTER_SLOTS.map(m => ({ ...m, r: 8 })),
   ]
   scene.add(buildTerrain())
   const water = buildWater(); scene.add(water.group)
-  scene.add(buildTrees(clearings))
-  scene.add(buildBuildings())
-  const clouds = buildClouds(); scene.add(clouds)
+  scene.add(buildNature(models.kit, clearings))
+  scene.add(buildTown(models.kit))
+  const clouds = buildClouds(models.kit); scene.add(clouds)
 
-  // five of the party walk the valley's roads, place to place, and rest a moment at each
+  // five of the party walk the valley's roads, place to place, and set to work at each
   const stops = ['tavern', 'study', 'armory', 'cauldron', 'dungeon']
-  const walkers = ['guildmaster', 'wizard', 'rogue', 'dwarf', 'alchemist'].map((cls, i) => {
-    const h = hero(cls); scene.add(h)
-    h.traverse(o => { o.castShadow = true })
-    return { h, at: stops[i], path: [], t: 0, rest: 1 + i, phase: i }
+  const walkers = Object.entries(HERO).map(([cls, h], i) => {
+    const r = rig(models, h.model, h.gear, h.tint, 5); scene.add(r.o)
+    const spot = PLACES[stops[i]].spots[i % PLACES[stops[i]].spots.length]
+    r.o.position.set(spot.x, height(spot.x, spot.y), spot.y)
+    return { ...r, cls, at: stops[i], path: [], t: 0, rest: 1 + i * 1.5, phase: i, spot }
   })
-  const plan = w => { const next = stops[(stops.indexOf(w.at) + 1 + Math.floor(hash(w.phase, w.t | 0) * 4)) % stops.length]; w.path = way(w.at, next, 1); w.to = next; w.t = 0 }
-  const SPEED = 16
+  // skeletons guard the cavern, rising now and then
+  const monsters = MONSTER_SLOTS.slice(0, 5).map((m, i) => {
+    const r = rig(models, i % 2 ? 'Skeleton_Warrior' : 'Skeleton_Minion', [], undefined, 5)
+    r.o.position.set(m.x, height(m.x, m.y), m.y); r.o.rotation.y = -Math.PI / 2 - .3 + hash(i, 1) * .6
+    r.play(i % 2 ? 'Idle' : 'Skeletons_Awaken_Standing', 0); scene.add(r.o)
+    return r
+  })
+  const plan = w => {
+    const next = stops[(stops.indexOf(w.at) + 1 + Math.floor(hash(w.phase, w.t | 0) * 4)) % stops.length], spot = PLACES[next].spots[w.phase % PLACES[next].spots.length]
+    w.path = [...way(w.at, next, 1), { x: spot.x, y: spot.y }]; w.to = next; w.spot = spot; w.t = 0; w.play('Walking_A')
+  }
+  const SPEED = 15
 
-  // the camera: a three-quarter view over the valley; drag to pan, wheel to zoom
+  // the camera: a three-quarter view over the valley; drag to pan, shift-drag to turn, wheel to zoom
   const camera = new THREE.PerspectiveCamera(32, 1, 1, 3000)
   window.__valleyCamera = camera; window.__valleyHeight = height // for the page's tags
   const view = { x: W / 2, z: H / 2 + 10, dist: 640, tilt: .95, yaw: 0 }
-  const place = () => {
+  const aim = () => {
     const d = view.dist, y = Math.sin(view.tilt) * d, back = Math.cos(view.tilt) * d
     camera.position.set(view.x + Math.sin(view.yaw) * back, y, view.z + Math.cos(view.yaw) * back); camera.lookAt(view.x, 0, view.z)
   }
@@ -323,7 +365,7 @@ export function start(canvas, ui) {
   })
   canvas.addEventListener('pointerup', () => { drag = null })
   canvas.addEventListener('contextmenu', e => e.preventDefault())
-  canvas.addEventListener('wheel', e => { e.preventDefault(); view.dist = clamp(view.dist * Math.exp(e.deltaY * .0012), 90, 760); view.tilt = mix(.62, 1.02, (view.dist - 90) / 670) }, { passive: false })
+  canvas.addEventListener('wheel', e => { e.preventDefault(); view.dist = clamp(view.dist * Math.exp(e.deltaY * .0012), 70, 760); view.tilt = mix(.55, 1.02, (view.dist - 70) / 690) }, { passive: false })
 
   // the day: the sun rises in the east, crosses the south and sets in the west
   const SKY = { day: C('#a9d3f0'), dusk: C('#f2b48a'), night: C('#0e1630') }
@@ -338,27 +380,37 @@ export function start(canvas, ui) {
     state.tod = (state.tod + dt * state.speed) % 1
     const a = (state.tod - .25) * Math.PI * 2, elev = Math.sin(a), day = smooth(-.08, .2, elev)
     sun.position.set(W / 2 - Math.cos(a) * 640, Math.max(30, elev * 420), H / 2 + 300)
-    sun.intensity = 3.6 * day; sun.color.copy(C('#ffd9a8').lerp(C('#fff4e0'), smooth(.05, .5, elev)))
-    sky.intensity = .18 + .55 * day; sky.color.copy(SKY.night).lerp(C('#cfe6ff'), day)
+    sun.intensity = 3.4 * day; sun.color.copy(C('#ffd9a8').lerp(C('#fff4e0'), smooth(.05, .5, elev)))
+    sky.intensity = .2 + .7 * day; sky.color.copy(SKY.night).lerp(C('#cfe6ff'), day)
     const bg = SKY.night.clone().lerp(SKY.dusk, smooth(-.1, .1, elev)).lerp(SKY.day, smooth(.1, .35, elev))
     scene.background = bg; scene.fog.color.copy(bg)
     water.sea.color.set('#3f8fc0').lerp(C('#14233e'), 1 - day)
 
     for (const c of clouds.children) { c.position.x += c.userData.v * dt * (c.userData.seen ? .3 : 1); if (c.position.x > W + MARGIN) c.position.x = -MARGIN }
     for (const w of walkers) {
-      if (w.rest > 0) { w.rest -= dt; if (w.rest <= 0) plan(w); continue }
+      w.mixer.update(dt)
+      if (w.rest > 0) {
+        w.rest -= dt
+        if (w.rest <= 0) plan(w)
+        continue
+      }
       w.t += dt * SPEED
       const i = Math.min(w.path.length - 1, Math.floor(w.t)), p = w.path[i], q = w.path[Math.min(w.path.length - 1, i + 1)], f = w.t - Math.floor(w.t)
       const x = mix(p.x, q.x, f), z = mix(p.y, q.y, f)
-      w.h.position.set(x, height(x, z), z)
-      if (q !== p) w.h.rotation.y = Math.atan2(q.x - p.x, q.y - p.y)
-      w.h.userData.body.position.y = Math.abs(Math.sin(now / 110 + w.phase)) * .6
-      if (i >= w.path.length - 1) { w.at = w.to; w.rest = 2 + hash(w.phase, now | 0) * 3 }
+      w.o.position.set(x, height(x, z), z)
+      if (q !== p) w.o.rotation.y = Math.atan2(q.x - p.x, q.y - p.y)
+      if (i >= w.path.length - 1) {
+        // arrived: face the place and set to work, or sit at the tavern
+        w.at = w.to; w.rest = 5 + hash(w.phase, now | 0) * 5
+        const at = PLACES[w.at].at; w.o.rotation.y = Math.atan2(at.x - x, at.y - z)
+        w.play(w.at === 'study' && w.cls === 'wizard' ? 'Spellcasting' : AT_PLACE[w.at])
+      }
     }
-    if (state.follow != null) { const h = walkers[state.follow].h.position; view.x = mix(view.x, h.x, .06); view.z = mix(view.z, h.z, .06) }
+    for (const m of monsters) m.mixer.update(dt)
+    if (state.follow != null) { const h = walkers[state.follow].o.position; view.x = mix(view.x, h.x, .06); view.z = mix(view.z, h.z, .06) }
     // haze deepens with distance from the camera, not from the valley, so close views stay clear
     scene.fog.near = view.dist * .95; scene.fog.far = view.dist * 3.2
-    place()
+    aim()
     renderer.render(scene, camera)
   })
   return { walkers }
