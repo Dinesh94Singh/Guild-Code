@@ -1,0 +1,35 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guild Valley in 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Cormorant+Garamond:wght@600;700&display=swap">
+<style>
+/* The 3D prototype of the GHIBLI style: the valley, lit, with the party walking its roads. */
+:root { --ink: #2e2216; --gold: #c9a45c; }
+html, body { margin: 0; height: 100%; background: #0f0b14; color: #f1e4c4; font-family: "Cormorant Garamond", Georgia, serif; }
+#stage { position: fixed; inset: 0; }
+canvas { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+.cartouche { position: fixed; top: 14px; left: 14px; padding: 10px 16px 12px; color: var(--ink); background: linear-gradient(#f7ead0, #e3cc9a); border: 1px solid #4e351a; box-shadow: inset 0 0 0 3px #f7ead0, inset 0 0 0 4px rgba(120,84,40,.5), 0 4px 10px rgba(0,0,0,.4); border-radius: 4px; }
+.cartouche h1 { margin: 0; font-family: Cinzel, Georgia, serif; font-size: 22px; letter-spacing: .06em; }
+.cartouche p { margin: 2px 0 0; font-size: 15px; color: #4e3a22; }
+.bar { position: fixed; left: 14px; right: 14px; bottom: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; background: linear-gradient(#2a2420, #1c1714); border: 2px solid #b08a48; box-shadow: inset 0 0 0 1px #4a3a22; font-size: 17px; }
+.bar button { font: 700 15px "Cormorant Garamond", Georgia, serif; color: #f1e4c4; background: #3a2f26; border: 1px solid #b08a48; padding: 4px 10px; cursor: pointer; }
+.bar button[aria-pressed="true"] { background: #b08a48; color: #1c1714; }
+.bar .grow { flex: 1; }
+.bar input { accent-color: #c9a45c; }
+.tag { position: fixed; transform: translate(-50%, -100%); pointer-events: none; display: flex; align-items: center; gap: 6px; padding: 2px 9px 2px 3px; color: var(--ink); font-weight: 700; font-size: 15px; white-space: nowrap;
+  background: linear-gradient(#f7ead0, #e3cc9a); border: 1px solid #4e351a; border-radius: 3px; box-shadow: 0 2px 5px rgba(0,0,0,.45); }
+.tag i { width: 20px; height: 20px; border-radius: 50%; background: #2b2622; border: 1px solid var(--gold); color: #e8c46a; display: grid; place-items: center; font-style: normal; font-size: 12px; }
+</style>
+<div id="stage"><canvas id="valley" aria-label="The guild valley in 3D: drag to pan, shift-drag to turn, scroll to zoom"></canvas></div>
+<div class="cartouche"><h1>GUILD VALLEY</h1><p>A prototype of the painted style: the valley, lit and alive.</p></div>
+<div id="tags"></div>
+<div class="bar">
+  <span>Time</span><input id="tod" type="range" min="0" max="1" step="0.001" aria-label="Time of day">
+  <button id="pause" type="button" aria-pressed="false">Pause the sun</button>
+  <span class="grow"></span>
+  <span>Follow</span>
+  <button type="button" data-follow="-1" aria-pressed="true">Nobody</button>
+  <button type="button" data-follow="0">Guildmaster</button><button type="button" data-follow="1">Wizard</button><button type="button" data-follow="2">Rogue</button><button type="button" data-follow="3">Dwarf</button><button type="button" data-follow="4">Alchemist</button>
+</div>
+<script>/*__DIORAMA__*/</script>

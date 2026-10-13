@@ -321,6 +321,7 @@ export const ESTATES = {
 const CELL = 2, GW = W / CELL, GH = H / CELL
 const SEA = 0, LAND = 1, FRESH = 2
 const PLAINS = 0, FOREST = 1, PEAKS = 2, BADLANDS = 3, SWAMP = 4, BEACH = 5
+export const BIOMES = { PLAINS, FOREST, PEAKS, BADLANDS, SWAMP, BEACH }
 const PAL_HEX = {
   grassA: '#5c9e3e', grassB: '#529338', grassHi: '#74b54e', grassLo: '#447f30',
   forestA: '#3f7431', forestB: '#376a2c', forestHi: '#4f8a3c', forestLo: '#2c5824',
@@ -376,8 +377,8 @@ export class SoftCanvas {
 
 // The south coast, drawn in where the harbour's inlet and the river's bay bite into it.
 const bump = (x, c, w) => Math.exp(-(((x - c) / w) ** 2))
-function coastY(x) { return 398 + (fbm(x / 40 + 3, 7) - 0.5) * 22 - 40 * bump(x, 150, 62) - 50 * bump(x, 606, 52) }
-function biomeAt(x, y) {
+export function coastY(x) { return 398 + (fbm(x / 40 + 3, 7) - 0.5) * 22 - 40 * bump(x, 150, 62) - 50 * bump(x, 606, 52) }
+export function biomeAt(x, y) {
   const n = fbm(x / 34 + 50, y / 34 + 50) - 0.5
   const ell = (cx, cy, rx, ry) => 1 - Math.hypot((x - cx) / rx, (y - cy) / ry) + n * 0.6
   const w = [
