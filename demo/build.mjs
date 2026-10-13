@@ -1,5 +1,5 @@
 // Builds demo/guild-hall.html: the dry-run page with the mod's real classifier and world inlined.
-//   node demo/build.mjs [--stand-in]
+//   node demo/build.mjs [--stand-in]   (--stand-in: with local stand-in art, to demo/guild-hall.stand-in.html)
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -33,5 +33,7 @@ for (const f of readdirSync(join(root, 'demo/skins')).filter(f => f.endsWith('.j
   console.log(`skin ${f}: ${art.file} (${Math.round(data.length / 1024)} KB)`)
 }
 const page = readFileSync(join(root, 'demo/src.html'), 'utf8').replace('/*__CLASSIFY__*/', () => `${bundle}\n${world}\nwindow.GuildPacks = window.GuildPacks || {};\n${packs}\nwindow.GuildSkins = ${JSON.stringify(skins)};`)
-writeFileSync(join(root, 'demo/guild-hall.html'), page)
-console.log(`demo/guild-hall.html (${Math.round(page.length / 1024)} KB)`)
+// A stand-in build is for trying it here: it goes to its own file, which git ignores.
+const out = process.argv.includes('--stand-in') ? 'demo/guild-hall.stand-in.html' : 'demo/guild-hall.html'
+writeFileSync(join(root, out), page)
+console.log(`${out} (${Math.round(page.length / 1024)} KB)`)

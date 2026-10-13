@@ -6,3 +6,4 @@ node_modules/
 
 # A local stand-in for the painted valley: never published
 demo/skins/*.placeholder.*
+demo/guild-hall.stand-in.html
