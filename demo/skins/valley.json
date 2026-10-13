@@ -1,0 +1,17 @@
+{
+  "name": "GHIBLI",
+  "about": "The valley hand-painted: the same world, places and roads as hooks/world.js, drawn as a painting. build.mjs bundles the first art file here that exists.",
+  "art": [
+    {
+      "file": "valley.webp",
+      "about": "The painted valley: the whole 768×432 world (any size in that shape), no text, labels or interface painted in."
+    },
+    {
+      "file": "valley.placeholder.webp",
+      "about": "A local stand-in (git-ignored): the design mockup, whose map fills its top 660 rows; its painted-in labels and title show through.",
+      "crop": [0, 0, 1290, 660],
+      "dest": [0, 0, 768, 401],
+      "sea": "#2d6c9e"
+    }
+  ]
+}

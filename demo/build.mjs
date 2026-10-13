@@ -1,7 +1,7 @@
 // Builds demo/guild-hall.html: the dry-run page with the mod's real classifier and world inlined.
-//   node demo/build.mjs
+//   node demo/build.mjs [--stand-in]
 import { execFileSync } from 'node:child_process'
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -18,6 +18,20 @@ const world = execFileSync(
 ).toString()
 // Each theme pack's page side (demo/packs/*.js) registers itself in window.GuildPacks.
 const packs = readdirSync(join(root, 'demo/packs')).filter(f => f.endsWith('.js')).sort().map(f => readFileSync(join(root, 'demo/packs', f), 'utf8')).join('\n')
-const page = readFileSync(join(root, 'demo/src.html'), 'utf8').replace('/*__CLASSIFY__*/', () => `${bundle}\n${world}\nwindow.GuildPacks = window.GuildPacks || {};\n${packs}`)
+// Each skin (demo/skins/*.json) brings its painted map, the first of its art files that exists,
+// inlined as a data URI so the page needs nothing but itself. A skin with no art is left out.
+const MIME = { webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' }
+const skins = {}
+for (const f of readdirSync(join(root, 'demo/skins')).filter(f => f.endsWith('.json'))) {
+  const skin = JSON.parse(readFileSync(join(root, 'demo/skins', f), 'utf8'))
+  // Stand-in art is for trying a skin locally (node demo/build.mjs --stand-in); the page that is
+  // committed and served never carries it.
+  const art = skin.art.find(a => existsSync(join(root, 'demo/skins', a.file)) && (!a.file.includes('.placeholder.') || process.argv.includes('--stand-in')))
+  if (!art) continue
+  const data = readFileSync(join(root, 'demo/skins', art.file)).toString('base64'), ext = art.file.split('.').pop()
+  skins[f.replace(/\.json$/, '')] = { name: skin.name, image: `data:${MIME[ext]};base64,${data}`, crop: art.crop ?? null, dest: art.dest ?? null, sea: art.sea ?? null, stand: art.file.includes('.placeholder.') }
+  console.log(`skin ${f}: ${art.file} (${Math.round(data.length / 1024)} KB)`)
+}
+const page = readFileSync(join(root, 'demo/src.html'), 'utf8').replace('/*__CLASSIFY__*/', () => `${bundle}\n${world}\nwindow.GuildPacks = window.GuildPacks || {};\n${packs}\nwindow.GuildSkins = ${JSON.stringify(skins)};`)
 writeFileSync(join(root, 'demo/guild-hall.html'), page)
 console.log(`demo/guild-hall.html (${Math.round(page.length / 1024)} KB)`)

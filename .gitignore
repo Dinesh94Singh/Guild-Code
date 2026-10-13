@@ -3,3 +3,6 @@
 node_modules/
 .DS_Store
 *.log
+
+# A local stand-in for the painted valley: never published
+demo/skins/*.placeholder.*
